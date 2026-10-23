@@ -6,6 +6,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PimentelTransportationLLC</title>
 <style>
+body{margin:0;background:#111;color:white;font-family:Arial,sans-serif;text-align:center;line-height:1.5}
+header,footer{padding:25px;background:#080808;border-bottom:2px solid #d4af37}
+h1,h2{color:#d4af37}
+section{padding:30px 16px}
+.boton{display:inline-block;background:#d4af37;color:#111;padding:14px 18px;margin:7px;text-decoration:none;border:0;border-radius:6px;font-weight:bold;cursor:pointer;font-size:16px}
+.servicios{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.servicio{background:#222;padding:18px;margin:5px;max-width:300px;border-radius:8px;flex:1 1 220px}
+form{max-width:550px;margin:auto;text-align:left;background:#222;padding:20px;border-radius:10px}
+label{display:block;margin-top:13px}
+input,select,textarea{width:100%;padding:11px;margin-top:5px;box-sizing:border-box;border-radius:5px;font-size:16px}
+form button{width:100%;margin-top:20px}
+#envios{display:none;max-width:550px;margin:20px auto;padding:20px;background:#222;border-radius:10px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>PIMENTEL TRANSPORTATION LLC</h1>
+<p>Luxury Chauffeur Service | Boston, Massachusetts</p>
+<a class="boton" href="#reserva">BOOK NOW / RESERVAR AHORA</a>
+</header>
+
+<section>
+<h2>Your Journey, Our Priority</h2>
+<p>Professional private transportation with comfort, reliability and class.</p>
+<a class="boton" href="tel:+16177855657">CALL NOW / LLAMAR</a>
+</section>
+
+<section>
+<h2>OUR SERVICES / NUESTROS SERVICIOS</h2>
+<div class="servicios">
+<div class="servicio"><h3>Airport Transfers</h3><p>Boston Logan Airport pickups and drop-offs.</p></div>
+<div class="servicio"><h3>Executive Transportation</h3><p>Professional business travel.</p></div>
+<div class="servicio"><h3>Private Chauffeur</h3><p>Comfortable private rides.</p></div>
+<div class="servicio"><h3>Hospital Transfers</h3><p>Transportation to medical appointments.</p></div>
+</div>
+</section>
+
+<section id="reserva">
+<h2>BOOK A RIDE / SOLICITAR UN VIAJE</h2>
+<p>Complete the form to request your reservation.</p>
+
+<form id="bookingForm">
+<label>Full name / Nombre completo *</label>
+<input id="nombre" required>
+
+<label>Phone / Teléfono *</label>
+<input id="telefono" type="tel" required>
+
+<label>Pickup date / Fecha *</label>
+<input id="fecha" type="date" required>
+
+<label>Pickup time / Hora *</label>
+<input id="hora" type="time" required>
+
+<label>Pickup address / Dirección de recogida *</label>
+<input id="origen" required>
+
+<label>Destination / Destino *</label>
+<input id="destino" required>
+
+<label>Passengers / Pasajeros</label>
+<select id="pasajeros">
+<option>1</option><option>2</option><option>3</option>
+<option>4</option><option>5</option><option>6 or more</option>
+</select>
+
+<label>Flight number or details / Vuelo u otros detalles</label>
+<textarea id="detalles" rows="3"></textarea>
+
+<button class="boton" type="submit">CONTINUE / CONTINUAR</button>
+</form>
+
+<div id="envios">
+<h3>Your request is ready / Tu solicitud está lista</h3>
+<p>Press both buttons to send your request by WhatsApp and email. / Pulsa ambos botones para enviar tu solicitud por WhatsApp y correo.</p>
+<a class="boton" id="whatsapp" target="_blank" rel="noopener">SEND BY WHATSAPP</a>
+<a class="boton" id="correo">SEND BY EMAIL</a>
+<p>La reserva no queda confirmada hasta que te respondamos.</p>
+</div>
+</section>
+
+<section>
+<h2>SERVICIO EN ESPAÑOL</h2>
+<p>Transporte privado y ejecutivo en Boston y Massachusetts. Traslados al aeropuerto Logan, hospitales y viajes privados.</p>
+<a class="boton" href="#reserva">RESERVAR AHORA</a>
+</section>
+
+<section>
+<h2>CONTACT / CONTÁCTENOS</h2>
+<p>CEO: Cesar Pimentel</p>
+<p>Phone: <a href="tel:+16177855657" style="color:white">617-785-5657</a></p>
+<p>Email: <a href="mailto:Cesarloeski17@gmail.com" style="color:white">Cesarloeski17@gmail.com</a></p>
+<p>Boston, Massachusetts</p>
+</section>
+
+<footer>© PimentelTransportationLLC</footer>
+
+<script>
+document.getElementById("bookingForm").addEventListener("submit",function(e){
+e.preventDefault();
+const v=id=>document.getElementById(id).value.trim();
+const mensaje=
+"RESERVATION REQUEST - PimentelTransportationLLC\n"+
+"Name: "+v("nombre")+"\n"+
+"Phone: "+v("telefono")+"\n"+
+"Pickup date: "+v("fecha")+"\n"+
+"Pickup time: "+v("hora")+"\n"+
+"Pickup: "+v("origen")+"\n"+
+"Destination: "+v("destino")+"\n"+
+"Passengers: "+v("pasajeros")+"\n"+
+"Details: "+(v("detalles")||"None");
+document.getElementById("whatsapp").href=
+"https://wa.me/16177855657?text="+encodeURIComponent(mensaje);
+document.getElementById("correo").href=
+"mailto:Cesarloeski17@gmail.com?subject="+
+encodeURIComponent("New Ride Reservation")+
+"&body="+encodeURIComponent(mensaje);
+document.getElementById("envios").style.display="block";
+document.getElementById("envios").scrollIntoView({behavior:"smooth"});
+});
+</script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PimentelTransportationLLC</title>
+<style>
 body{margin:0;background:#111;color:white;font-family:Arial,sans-serif;text-align:center}
 header{padding:25px;background:#080808;border-bottom:2px solid #d4af37}
 h1,h2{color:#d4af37}
