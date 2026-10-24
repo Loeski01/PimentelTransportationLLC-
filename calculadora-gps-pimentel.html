@@ -1,0 +1,223 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pimentel Transportation | GPS</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0b0d;color:#fff;font-family:Arial,sans-serif;padding:18px}
+main{max-width:650px;margin:auto}
+header{text-align:center;border:1px solid #cba35c;border-radius:18px;padding:25px 15px;margin:15px 0 25px}
+h1{color:#dfb86e;font-size:25px;margin:0 0 12px}
+h2{font-size:19px}
+p{color:#bcbcbc;line-height:1.5}
+section{background:#1b1b1f;border:1px solid #373737;border-radius:15px;padding:20px;margin:18px 0}
+label{display:block;margin:14px 0 7px;font-weight:bold}
+input,select{width:100%;padding:15px;background:#29292e;color:white;border:1px solid #777;border-radius:9px;font-size:16px}
+button{width:100%;background:#cda65e;color:#111;padding:16px;border:0;border-radius:10px;font-size:16px;font-weight:bold;margin-top:13px;cursor:pointer}
+button:disabled{opacity:.5}
+.secondary{background:#383838;color:white}
+#map{height:260px;border-radius:12px;margin-top:15px;display:none}
+#result{display:none}
+.price{font-size:38px;color:#dfb86e;font-weight:bold}
+small{color:#aaa}
+a{color:#dfb86e}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>PIMENTEL TRANSPORTATION LLC</h1>
+<h2>Luxury SUV · Calculadora GPS</h2>
+<p>Boston y Massachusetts</p>
+</header>
+
+<section>
+<h2>Activar Google Maps</h2>
+<label>Clave de Google Maps</label>
+<input id="key" type="password" placeholder="Pega tu clave aquí">
+<button onclick="loadMaps()">Activar GPS y mapas</button>
+<p id="status">Esperando activación.</p>
+<small>No compartas tu clave. Utiliza una clave restringida a tu dominio de GitHub Pages.</small>
+</section>
+
+<section>
+<h2>Calcula tu viaje</h2>
+<label>Dirección de recogida</label>
+<input id="origin" placeholder="Ej. Logan Airport, Boston, MA">
+<button class="secondary" onclick="useGPS()">Usar mi ubicación actual</button>
+
+<label>Dirección de destino</label>
+<input id="destination" placeholder="Ej. Woburn, MA">
+
+<label>Tipo de viaje</label>
+<select id="trip">
+<option value="1">Solo ida</option>
+<option value="2">Ida y vuelta</option>
+</select>
+
+<h2>Tarifas</h2>
+<label>Tarifa base ($)</label>
+<input id="base" type="number" value="35" min="0" step=".5">
+
+<label>Precio por milla ($)</label>
+<input id="mileRate" type="number" value="3.50" min="0" step=".25">
+
+<label>Tarifa mínima ($)</label>
+<input id="minimum" type="number" value="65" min="0">
+
+<label>Cargos adicionales ($)</label>
+<input id="extra" type="number" value="0" min="0">
+
+<button onclick="calculate()">Calcular precio del viaje</button>
+<div id="map"></div>
+</section>
+
+<section id="result">
+<h2>Tu cotización</h2>
+<p id="distance"></p>
+<p id="duration"></p>
+<div class="price" id="price"></div>
+<p>Precio estimado sujeto a confirmación. Peajes, estacionamiento y espera pueden generar cargos adicionales.</p>
+<button onclick="sendWhatsApp()">Solicitar reserva por WhatsApp</button>
+</section>
+
+<p style="text-align:center">Pimentel Transportation LLC · Boston, MA</p>
+</main>
+
+<script>
+let map, directionsService, directionsRenderer;
+let googleReady=false;
+let gpsPoint=null;
+let quoteText="";
+
+function statusMessage(message){
+ document.getElementById("status").textContent=message;
+}
+
+function loadMaps(){
+ const key=document.getElementById("key").value.trim();
+ if(!key){statusMessage("Primero introduce tu clave.");return;}
+ if(googleReady){statusMessage("Google Maps ya está activado.");return;}
+ if(document.getElementById("googleScript")){
+  statusMessage("Google Maps está cargando.");return;
+ }
+ statusMessage("Conectando con Google Maps...");
+ const script=document.createElement("script");
+ script.id="googleScript";
+ script.src="https://maps.googleapis.com/maps/api/js?key="+encodeURIComponent(key)+"&callback=mapsReady";
+ script.async=true;
+ script.onerror=()=>{
+  script.remove();
+  statusMessage("No se pudo cargar Google Maps. Revisa la conexión.");
+ };
+ document.head.appendChild(script);
+}
+
+window.mapsReady=function(){
+ try{
+  directionsService=new google.maps.DirectionsService();
+  directionsRenderer=new google.maps.DirectionsRenderer();
+  map=new google.maps.Map(document.getElementById("map"),{
+   center:{lat:42.3601,lng:-71.0589},
+   zoom:10
+  });
+  directionsRenderer.setMap(map);
+  googleReady=true;
+  statusMessage("Google Maps activado. Introduce las direcciones.");
+ }catch(e){
+  statusMessage("Error al iniciar el mapa: "+e.message);
+ }
+};
+
+window.gm_authFailure=function(){
+ statusMessage("Clave rechazada. Comprueba las restricciones y facturación de Google Cloud.");
+ const s=document.getElementById("googleScript");
+ if(s)s.remove();
+};
+
+function useGPS(){
+ if(!navigator.geolocation){
+  alert("GPS no disponible.");return;
+ }
+ navigator.geolocation.getCurrentPosition(
+  pos=>{
+   gpsPoint={
+    lat:pos.coords.latitude,
+    lng:pos.coords.longitude
+   };
+   document.getElementById("origin").value="Mi ubicación actual";
+  },
+  err=>alert("No se pudo obtener tu ubicación. Revisa el permiso de ubicación."),
+  {enableHighAccuracy:true,timeout:15000}
+ );
+}
+
+function calculate(){
+ if(!googleReady){
+  alert("Primero activa Google Maps.");return;
+ }
+ const from=document.getElementById("origin").value.trim();
+ const to=document.getElementById("destination").value.trim();
+ if(!from||!to){
+  alert("Introduce ambas direcciones.");return;
+ }
+ const origin=from==="Mi ubicación actual"&&gpsPoint?gpsPoint:from;
+ const button=document.querySelector('button[onclick="calculate()"]');
+ button.disabled=true;
+ button.textContent="Calculando ruta...";
+ directionsService.route({
+  origin:origin,
+  destination:to,
+  travelMode:google.maps.TravelMode.DRIVING
+ },(response,status)=>{
+  button.disabled=false;
+  button.textContent="Calcular precio del viaje";
+  if(status!=="OK"){
+   alert("No se pudo calcular la ruta: "+status+". Revisa las direcciones y la configuración de Google Maps.");
+   return;
+  }
+  directionsRenderer.setDirections(response);
+  document.getElementById("map").style.display="block";
+  const leg=response.routes[0].legs[0];
+  const miles=leg.distance.value/1609.344;
+  const multiplier=Number(document.getElementById("trip").value);
+  const base=Number(document.getElementById("base").value);
+  const rate=Number(document.getElementById("mileRate").value);
+  const minimum=Number(document.getElementById("minimum").value);
+  const extra=Number(document.getElementById("extra").value);
+  if([base,rate,minimum,extra].some(x=>!Number.isFinite(x)||x<0)){
+   alert("Revisa las tarifas.");return;
+  }
+  const total=Math.max(minimum,base+miles*rate)*multiplier+extra;
+  const usd=new Intl.NumberFormat("en-US",{
+   style:"currency",currency:"USD"
+  }).format(total);
+  document.getElementById("distance").textContent=
+   "Distancia de ida: "+miles.toFixed(1)+" millas";
+  document.getElementById("duration").textContent=
+   "Tiempo estimado de ida: "+leg.duration.text;
+  document.getElementById("price").textContent=usd;
+  document.getElementById("result").style.display="block";
+  quoteText="Pimentel Transportation LLC\n"+
+   "Recogida: "+from+"\n"+
+   "Destino: "+to+"\n"+
+   "Viaje: "+(multiplier===2?"Ida y vuelta":"Solo ida")+"\n"+
+   "Distancia de ida: "+miles.toFixed(1)+" millas\n"+
+   "Cotización estimada: "+usd;
+ });
+}
+
+function sendWhatsApp(){
+ if(!quoteText){alert("Primero calcula tu viaje.");return;}
+ window.open(
+  "https://wa.me/16177855657?text="+
+  encodeURIComponent("Hola, deseo reservar:\n"+quoteText),
+  "_blank"
+ );
+}
+</script>
+</body>
+</html>
