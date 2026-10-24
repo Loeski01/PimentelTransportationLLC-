@@ -45,7 +45,8 @@ a{color:var(--gold)}
 <input id="from" placeholder="Ej.: Boston Logan Airport, MA" autocomplete="street-address">
 <label for="to">Dirección de destino / Drop-off</label>
 <input id="to" placeholder="Ej.: Woburn, MA" autocomplete="off">
-<p class="hint">Escribe una dirección completa, ciudad y estado. La búsqueda utiliza servicios públicos de mapas y puede tardar unos segundos.</p>
+<p class="hint">Escribe una dirección completa, ciudad y estado. La búsqueda utiliza servicios públicos de mapas y puede tardar unos segundos.</p><label for="customerName">Nombre completo del pasajero / Full Name</label>
+<input id="customerName" type="text" placeholder="Nombre y apellido" autocomplete="name" maxlength="100">
 <button id="calculate" type="button">Calcular tarifa GPS</button>
 <div id="status" class="status" role="status" aria-live="polite"></div>
 <section id="result" class="result" aria-live="polite">
