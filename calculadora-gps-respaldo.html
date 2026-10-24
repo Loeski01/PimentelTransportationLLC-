@@ -1,1 +1,172 @@
 
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora GPS | Pimentel Transportation LLC</title>
+<style>
+:root{color-scheme:dark;--gold:#d6b36b;--bg:#090909;--panel:#191919;--muted:#c3c3c3}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(145deg,#191510,#080808 45%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;min-height:100vh}
+.wrap{max-width:660px;margin:auto;padding:24px 16px 50px}
+.top{text-align:center;padding:18px 0 24px}
+.eyebrow{font-size:12px;letter-spacing:3px;color:var(--gold);font-weight:700}
+.top h1{font-size:clamp(26px,6vw,38px);line-height:1.12;margin:12px 0;color:var(--gold)}
+.top p{color:var(--muted);margin:0}
+.panel{background:var(--panel);border:1px solid #66522e;border-radius:18px;padding:22px;box-shadow:0 15px 35px #0008}
+label{display:block;color:#e8d1a3;font-size:14px;font-weight:700;margin:16px 0 7px}
+input{display:block;width:100%;border:1px solid #555;background:#0b0b0b;color:white;border-radius:10px;padding:15px 13px;font-size:16px;outline:none}
+input:focus{border-color:var(--gold)}
+button{cursor:pointer;width:100%;margin-top:22px;padding:17px;border:0;border-radius:12px;background:linear-gradient(135deg,#f0d491,#b99142);color:#14100a;font-weight:800;font-size:17px}
+button:disabled{opacity:.65;cursor:wait}
+.hint{font-size:12px;color:#bfbfbf;margin:10px 0 0;line-height:1.5}
+.status{margin-top:18px;font-size:14px;color:#e8d1a3;min-height:20px;line-height:1.5}
+.error{color:#ff9d9d}
+.result{display:none;margin-top:20px;padding:22px;border-radius:16px;border:1px solid var(--gold);background:#0c0c0c}
+.result h2{margin:0 0 12px;font-size:17px;color:var(--gold)}
+.total{font-size:clamp(45px,11vw,66px);font-weight:900;color:var(--gold);line-height:1.2;text-align:center;margin:10px 0 18px}
+.detail{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #39332a;padding:12px 0;font-size:14px}
+.detail span:last-child{font-weight:700;text-align:right}
+.note{color:#aaa;font-size:12px;line-height:1.55;margin-top:14px}
+footer{text-align:center;color:#9c9c9c;font-size:12px;margin-top:24px}
+a{color:var(--gold)}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header class="top">
+<div class="eyebrow">LUXURY PRIVATE TRANSPORTATION</div>
+<h1>Pimentel Transportation LLC</h1>
+<p>Calculadora GPS de tarifas · Massachusetts</p>
+</header>
+<section class="panel">
+<label for="from">Dirección de recogida / Pickup</label>
+<input id="from" placeholder="Ej.: Boston Logan Airport, MA" autocomplete="street-address">
+<label for="to">Dirección de destino / Drop-off</label>
+<input id="to" placeholder="Ej.: Woburn, MA" autocomplete="off">
+<p class="hint">Escribe una dirección completa, ciudad y estado. La búsqueda utiliza servicios públicos de mapas y puede tardar unos segundos.</p>
+<button id="calculate" type="button">Calcular tarifa GPS</button>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+<section id="result" class="result" aria-live="polite">
+<h2>Tarifa estimada / Estimated fare</h2>
+<div id="total" class="total"></div>
+<div class="detail"><span>Distancia</span><span id="distance"></span></div>
+<div class="detail"><span>Tiempo estimado</span><span id="duration"></span></div>
+<div class="detail"><span>Tarifa base</span><span id="base"></span></div>
+<div class="detail"><span>Millas ($3.50/milla)</span><span id="milesCost"></span></div>
+<div class="detail"><span>Tiempo ($0.50/min)</span><span id="timeCost"></span></div>
+<div class="detail"><span>Recogida en aeropuerto</span><span id="airportCost"></span></div>
+<p class="note">Estimado sujeto a confirmación. El tiempo es una estimación de ruta, no tráfico en vivo. Peajes, espera, estacionamiento y otros cargos no están incluidos.</p>
+</section>
+</section>
+<footer>© Pimentel Transportation LLC · Servicio ejecutivo privado</footer>
+</main>
+<script>
+'use strict';
+const BASE=35,PER_MILE=3.50,PER_MINUTE=0.50,MINIMUM=65,AIRPORT_PICKUP=10;
+const $=id=>document.getElementById(id);
+const usd=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+const fmt=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(n);
+
+function showStatus(message,error=false){
+  $('status').textContent=message;
+  $('status').className=error?'status error':'status';
+}
+
+async function fetchJSON(url,ms=12000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ms);
+  try{
+    const res=await fetch(url,{
+      signal:controller.signal,
+      headers:{Accept:'application/json'}
+    });
+    if(!res.ok)throw new Error('Servicio de mapas no disponible (HTTP '+res.status+')');
+    return await res.json();
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+function airportPickup(text,place){
+  const s=(text+' '+(place.display_name||'')).toLowerCase();
+  return /\b(logan|airport|aeropuerto|bos international|boston logan|tf green|t\. ?f\. ?green|bradley international|manchester.boston regional|pvd airport|boston airport)\b/i.test(s);
+}
+
+async function geocode(q){
+  const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q='+encodeURIComponent(q);
+  const data=await fetchJSON(url,14000);
+  if(!Array.isArray(data)||!data.length){
+    throw new Error('No se encontró esta dirección: '+q+'. Incluye ciudad y estado.');
+  }
+  return data[0];
+}
+
+async function route(a,b){
+  const coords=[a,b].map(p=>`${Number(p.lon)},${Number(p.lat)}`).join(';');
+  const url='https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=false&steps=false';
+  const data=await fetchJSON(url,16000);
+  if(data.code!=='Ok'||!data.routes?.length){
+    throw new Error('No se encontró una ruta en automóvil entre esas direcciones.');
+  }
+  return data.routes[0];
+}
+
+$('calculate').addEventListener('click',async()=>{
+  const from=$('from').value.trim();
+  const to=$('to').value.trim();
+  $('result').style.display='none';
+
+  if(!from||!to){
+    showStatus('Escribe las dos direcciones antes de calcular.',true);
+    return;
+  }
+
+  const btn=$('calculate');
+  btn.disabled=true;
+  btn.textContent='Calculando ruta…';
+
+  try{
+    showStatus('Buscando dirección de recogida…');
+    const a=await geocode(from);
+
+    showStatus('Buscando dirección de destino…');
+    const b=await geocode(to);
+
+    showStatus('Calculando distancia y tiempo de conducción…');
+    const r=await route(a,b);
+
+    const miles=r.distance/1609.344;
+    const minutes=r.duration/60;
+    const airport=airportPickup(from,a)?AIRPORT_PICKUP:0;
+    const mileage=miles*PER_MILE;
+    const time=minutes*PER_MINUTE;
+    const total=Math.max(MINIMUM,BASE+mileage+time+airport);
+
+    $('distance').textContent=fmt(miles)+' millas';
+    $('duration').textContent=Math.round(minutes)+' minutos';
+    $('base').textContent=usd(BASE);
+    $('milesCost').textContent=usd(mileage);
+    $('timeCost').textContent=usd(time);
+    $('airportCost').textContent=usd(airport);
+    $('total').textContent=usd(total);
+    $('result').style.display='block';
+    showStatus('Cálculo completado.');
+  }catch(e){
+    const timeout=e.name==='AbortError';
+    showStatus(
+      timeout
+        ?'El servicio de mapas tardó demasiado. Inténtalo nuevamente en unos segundos.'
+        :'No se pudo calcular: '+(e.message||'error de conexión')+'. Prueba direcciones más completas.',
+      true
+    );
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Calcular tarifa GPS';
+  }
+});
+</script>
+</body>
+</html>
+
