@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>Confirmar reserva | Pimentel Transportation</title>
+<style>body{margin:0;background:#101010;color:#fff;font:16px Arial;line-height:1.6}main{max-width:620px;margin:auto;padding:24px}h1{color:#d4af37}label{display:block;margin-top:14px}input,textarea,button{box-sizing:border-box;width:100%;padding:13px;font:inherit;border-radius:8px}input,textarea{background:#222;color:#fff;border:1px solid #777}button,a{color:#d4af37}button{background:#d4af37;color:#111;font-weight:bold;margin-top:20px;border:0}#send{display:inline-block;padding:14px}p{color:#ddd}</style></head>
+<body><main><h1>Confirmar reserva</h1><p>Para uso de César: revisa disponibilidad, datos y precio antes de preparar el mensaje. La reserva se confirma al enviar tu mensaje al cliente. Esta página no guarda reservas ni verifica pagos.</p>
+<form id="form">
+<label>Nombre del cliente<input id="name" required maxlength="100"></label>
+<label>Teléfono con código de país<input id="phone" type="tel" required maxlength="40" placeholder="+1 617 555 1234"></label>
+<label>Fecha<input id="date" type="date" required></label>
+<label>Hora local de Massachusetts<input id="time" type="time" required></label>
+<label>Recogida<input id="from" required maxlength="200"></label>
+<label>Destino<input id="to" required maxlength="200"></label>
+<label>Pasajeros<input id="passengers" maxlength="30"></label>
+<label>Precio acordado USD (opcional)<input id="price" type="number" min="0.01" max="100000" step="0.01"></label>
+<label>Notas y condiciones de pago acordadas<textarea id="notes" rows="3" maxlength="1000"></textarea></label>
+<button>Preparar confirmación / Prepare confirmation</button></form>
+<section id="result" hidden><h2>Revisa antes de enviar</h2><textarea id="preview" rows="16" readonly></textarea><a id="send" target="_blank" rel="noopener noreferrer">Abrir WhatsApp para enviar al cliente</a><p>Abrir WhatsApp no envía el mensaje. Pulsa Enviar dentro de WhatsApp. No se registra aquí si fue entregado.</p></section>
+</main><script>
+'use strict';
+const ids=['name','phone','date','time','from','to','passengers'];
+const $=id=>document.getElementById(id);
+const data=new URLSearchParams(location.hash.slice(1));
+for(const id of ids)if(data.has(id))$(id).value=data.get(id).slice(0,200);
+history.replaceState(null,'',location.pathname);
+$('form').addEventListener('input',()=>{$('result').hidden=true;$('phone').setCustomValidity('');});
+$('form').addEventListener('submit',e=>{
+e.preventDefault();
+let phone=$('phone').value.replace(/[^0-9]/g,'');
+if(phone.length===10)phone='1'+phone;
+if(!/^[1-9][0-9]{7,14}$/.test(phone)){$('phone').setCustomValidity('Escribe el teléfono completo con código de país.');$('phone').reportValidity();return;}
+const v=id=>$(id).value.trim();
+const text='RESERVA CONFIRMADA / BOOKING CONFIRMED\nPimentelTransportationLLC\n\nHola / Hello '+v('name')+',\nTu viaje está confirmado / Your ride is confirmed.\nFecha / Date: '+v('date')+'\nHora / Time: '+v('time')+' (Massachusetts)\nRecogida / Pickup: '+v('from')+'\nDestino / Destination: '+v('to')+(v('passengers')?'\nPasajeros / Passengers: '+v('passengers'):'')+(v('price')?'\nPrecio acordado / Agreed fare: $'+Number(v('price')).toFixed(2)+' USD':'\nPrecio y condiciones de pago: según lo acordado con la compañía / Fare and payment terms: as agreed with the company.')+(v('notes')?'\nNotas / Notes: '+v('notes'):'')+'\n\nEsta confirmación no es un recibo de pago. / This confirmation is not a payment receipt.\nCésar · 617-785-5657\nGracias por elegirnos / Thank you for choosing us.';
+$('preview').value=text;$('send').href='https://wa.me/'+phone+'?text='+encodeURIComponent(text);$('result').hidden=false;
+});
+</script></body></html>
