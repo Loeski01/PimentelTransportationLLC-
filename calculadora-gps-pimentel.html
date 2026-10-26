@@ -16,7 +16,7 @@ body{margin:0;background:linear-gradient(145deg,#191510,#080808 45%);color:#fff;
 .top p{color:var(--muted);margin:0}
 .panel{background:var(--panel);border:1px solid #66522e;border-radius:18px;padding:22px;box-shadow:0 15px 35px #0008}
 label{display:block;color:#e8d1a3;font-size:14px;font-weight:700;margin:16px 0 7px}
-input{display:block;width:100%;border:1px solid #555;background:#0b0b0b;color:white;border-radius:10px;padding:15px 13px;font-size:16px;outline:none}
+input,select{display:block;width:100%;border:1px solid #555;background:#0b0b0b;color:white;border-radius:10px;padding:15px 13px;font-size:16px;outline:none}
 input:focus{border-color:var(--gold)}
 button{cursor:pointer;width:100%;margin-top:22px;padding:17px;border:0;border-radius:12px;background:linear-gradient(135deg,#f0d491,#b99142);color:#14100a;font-weight:800;font-size:17px}
 button:disabled{opacity:.65;cursor:wait}
@@ -60,6 +60,20 @@ a{color:var(--gold)}
 <div class="detail"><span>Millas ($3.50/milla)</span><span id="milesCost"></span></div>
 <div class="detail"><span>Tiempo ($0.50/min)</span><span id="timeCost"></span></div>
 <div class="detail"><span>Recogida en aeropuerto</span><span id="airportCost"></span></div>
+<label for="tipChoice">Propina opcional para el conductor / Optional driver tip</label>
+<select id="tipChoice"><option value="0">Sin propina / No tip</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option><option value="custom">Otro monto / Custom amount</option></select>
+<div id="customTipWrap" hidden><label for="customTip">Propina en dólares / Tip in USD</label><input id="customTip" type="number" min="0" max="1000" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+<p class="note">La propina es voluntaria. Los porcentajes se calculan sobre la tarifa GPS. Al reservar solo registras tu preferencia. Al pagar se cobra la propina que elijas en ese momento. Si ya dejaste propina, selecciona «Sin propina».</p>
+<div class="detail"><span>Propina / Tip</span><span id="tipTotal">$0.00</span></div>
+<label for="paymentKind">¿Qué vas a pagar? / What are you paying?</label>
+<select id="paymentKind"><option value="ride">Viaje + propina elegida / Ride + selected tip</option><option value="tip_only">Solo propina: el viaje ya está pagado / Tip only: ride already paid</option></select>
+<div class="detail"><span>Total para pagar / Payment total</span><span id="paymentTotal"></span></div>
+<p class="note">Si ya pagaste el viaje, selecciona «Solo propina». Revisa lo ya pagado antes de continuar. Este pago usa la tarifa GPS mostrada; coordina con la compañía cualquier peaje, espera u otro ajuste.</p>
+<button id="checkout" type="button">Continuar al pago seguro / Continue to secure payment</button>
+<p id="checkoutStatus" class="status" role="status" aria-live="polite"></p>
+<label for="afterTripLink">Enlace para pagar al finalizar / Link to pay after your trip</label>
+<input id="afterTripLink" readonly aria-describedby="saveLinkNote">
+<p class="note" id="saveLinkNote">Copia y guarda este enlace para volver después del viaje. No genera un cobro automático ni envía recordatorios. Por seguridad no incluye tu nombre ni teléfono.</p>
 <a id="payLater" style="display:block;text-align:center;margin-top:20px;padding:16px;border:1px solid #d6b36b;border-radius:12px" href="#">Reservar y pagar al finalizar el viaje</a>
 <p class="note">Completa la fecha y hora en el formulario de reserva. No se cobra ahora. La reserva está sujeta a confirmación.</p>
 <p class="note">Estimado sujeto a confirmación. El tiempo es una estimación de ruta, no tráfico en vivo. Peajes, espera, estacionamiento y otros cargos no están incluidos.</p>
@@ -74,11 +88,40 @@ const $=id=>document.getElementById(id);
 const usd=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
 const fmt=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(n);
 
+const tripParams=new URLSearchParams(window.location.search);
+for(const id of ['from','to'])if(tripParams.get(id))$(id).value=tripParams.get(id).slice(0,200);
+if(['0','10','15','20','custom'].includes(tripParams.get('tip'))) $('tipChoice').value=tripParams.get('tip');
+if(tripParams.get('tip')==='custom')$('customTip').value=tripParams.get('tipAmount')||'';
+if(tripParams.get('mode')==='after_trip')showStatus('Pago al finalizar: calcula la ruta y elige viaje + propina o solo propina si el viaje ya está pagado.');
 let currentQuote=null;
+function readTip(){
+  if($('tipChoice').value!=='custom')return {tipPercent:Number($('tipChoice').value)||0,tipCents:0};
+  const raw=$('customTip').value.trim();
+  if(!/^\d{1,4}(\.\d{1,2})?$/.test(raw)||Number(raw)>1000)throw new Error('Escribe una propina entre $0 y $1,000, con un máximo de dos decimales.');
+  return {tipPercent:0,tipCents:Math.round(Number(raw)*100)};
+}
+function updateTip(){
+  $('customTipWrap').hidden=$('tipChoice').value!=='custom';
+  if(!currentQuote)return;
+  try{
+    const tip=readTip();
+    const cents=tip.tipPercent?Math.round(currentQuote.amount*tip.tipPercent/100):tip.tipCents;
+    $('tipTotal').textContent=usd(cents/100);
+    $('paymentTotal').textContent=usd((($('paymentKind').value==='tip_only'?0:currentQuote.amount)+cents)/100);
+    $('checkout').disabled=false;
+    $('checkoutStatus').textContent='';
+    updateBookingLink();
+  }catch(e){$('checkout').disabled=true;$('tipTotal').textContent='—';$('paymentTotal').textContent='—';$('checkoutStatus').textContent=e.message;}
+}
+for(const id of ['tipChoice','paymentKind'])$(id).addEventListener('change',updateTip);
+$('customTip').addEventListener('input',updateTip);
+$('customTipWrap').hidden=$('tipChoice').value!=='custom';
 function updateBookingLink(){
   if(!currentQuote)return;
   const params=new URLSearchParams({from:currentQuote.from,to:currentQuote.to,
-    customerName:$('customerName').value.trim(),phone:$('phone').value.trim(),payment:'after_trip'});
+    customerName:$('customerName').value.trim(),phone:$('phone').value.trim(),payment:'after_trip',tip:$('tipChoice').value,tipAmount:$('customTip').value});
+  const afterTrip=new URLSearchParams({from:currentQuote.from,to:currentQuote.to,mode:'after_trip',tip:$('tipChoice').value,tipAmount:$('customTip').value});
+  $('afterTripLink').value='https://loeski01.github.io/PimentelTransportationLLC-/calculadora-gps-pimentel.html?'+afterTrip.toString();
   $('payLater').href='https://loeski01.github.io/PimentelTransportationLLC-/?'+params.toString()+'#reserva';
 }
 for(const id of ['customerName','phone'])$(id).addEventListener('input',updateBookingLink);
@@ -91,7 +134,31 @@ function showStatus(message,error=false){
   $('status').className=error?'status error':'status';
 }
 
-$('calculate').addEventListener('click',async()=>{
+$('checkout').addEventListener('click',async()=>{
+  if(!currentQuote)return;
+  const customerName=$('customerName').value.trim(),phone=$('phone').value.trim();
+  if(!customerName||!phone){$('checkoutStatus').textContent='Escribe el nombre y teléfono del pasajero antes de continuar.';return;}
+  const btn=$('checkout');
+  const fields=['from','to','customerName','phone','tipChoice','customTip','paymentKind','calculate'];
+  let timer;
+  try{
+    const tip=readTip();
+    if($('paymentKind').value==='tip_only'&&Number($('paymentTotal').textContent.replace(/[^0-9.]/g,''))<0.5)throw new Error('Elige al menos $0.50 para pagar solo la propina.');
+    btn.disabled=true;fields.forEach(id=>$(id).disabled=true);
+    $('checkoutStatus').textContent='Abriendo el pago seguro…';
+    const controller=new AbortController();timer=setTimeout(()=>controller.abort(),25000);
+    const res=await fetch(API+'/api/create-checkout-session',{method:'POST',signal:controller.signal,
+      headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({from:currentQuote.from,to:currentQuote.to,customerName,phone,...tip,expectedFareCents:currentQuote.amount,paymentKind:$('paymentKind').value})});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'No se pudo abrir el pago.');
+    const checkoutURL=new URL(data.url);
+    if(checkoutURL.protocol!=='https:'||checkoutURL.hostname!=='checkout.stripe.com')throw new Error('Enlace de pago inválido.');
+    window.location.assign(checkoutURL.href);
+  }catch(e){$('checkoutStatus').textContent=e.name==='AbortError'?'El pago tardó demasiado en abrir. Si ya pagaste, confirma tu recibo antes de volver a intentarlo.':e.message||'No se pudo conectar con el servicio de pagos.';}
+  finally{clearTimeout(timer);fields.forEach(id=>$(id).disabled=false);btn.disabled=false;}
+});
+$('calculate').addEventListener('click' ,async()=>{
   const from=$('from').value.trim();
   const to=$('to').value.trim();
   $('result').style.display='none';
@@ -136,8 +203,8 @@ $('calculate').addEventListener('click',async()=>{
       showStatus('Las direcciones cambiaron. Vuelve a calcular la tarifa.',true);
       return;
     }
-    currentQuote={from,to};
-    updateBookingLink();
+    currentQuote={from,to,amount};
+    updateTip();
     $('result').style.display='block';
     showStatus('Cálculo completado.');
   }catch(e){

@@ -32,6 +32,7 @@ a.contacto{color:#d4af37}
 <h1>PIMENTEL TRANSPORTATION LLC</h1>
 <p>Luxury Chauffeur & Executive Transportation</p>
 <p>Boston, Massachusetts</p>
+<a class="boton" href="calculadora-gps-pimentel.html">CALCULATE FARE / CALCULAR TARIFA</a>
 <a class="boton" href="#reserva">BOOK NOW / RESERVAR</a>
 <a class="boton" href="tel:+16177855657">CALL NOW</a>
 </header>
@@ -119,6 +120,10 @@ a.contacto{color:#d4af37}
 </select>
 <p>No payment is collected with this request. Payment arrangements are confirmed with your booking.<br>No se cobra al enviar esta solicitud. La forma de pago se confirma con tu reserva.</p>
 
+<label for="bookingTip">Optional driver tip / Propina opcional para el conductor</label>
+<select id="bookingTip"><option value="0">Sin propina / No tip</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option><option value="custom">Otro monto / Custom amount</option></select>
+<div id="bookingTipWrap" hidden><label for="bookingTipAmount">Tip in USD / Propina en dólares</label><input id="bookingTipAmount" type="number" min="0" max="1000" step="0.01" inputmode="decimal"></div>
+<p>Your tip is optional and is not charged with this request. You can choose it now or when paying after your trip.<br>La propina es voluntaria y no se cobra con esta solicitud. Puedes elegirla ahora o al pagar después del viaje.</p>
 <label for="detalles">Flight number or details / Vuelo u otros detalles</label>
 <textarea id="detalles" rows="3"></textarea>
 
@@ -130,6 +135,9 @@ a.contacto{color:#d4af37}
 <p>Send your request using WhatsApp or email.</p>
 <a class="boton" id="whatsapp" target="_blank" rel="noopener">SEND BY WHATSAPP</a>
 <a class="boton" id="correo">SEND BY EMAIL</a>
+<p>Save this link to pay after your ride / Guarda este enlace para pagar después del viaje:</p>
+<a class="boton" id="afterTripPayment">PAY AFTER THE TRIP / PAGAR AL FINALIZAR</a>
+<p>If you already paid the ride, choose Tip only / Si ya pagaste el viaje, elige Solo propina.</p>
 <p>Your reservation is not confirmed until we respond.</p>
 <p>Tu reserva no queda confirmada hasta recibir nuestra respuesta.</p>
 </div>
@@ -155,12 +163,34 @@ for(const [param,id,max] of [['from','origen',200],['to','destino',200],['custom
   if(value)document.getElementById(id).value=value.slice(0,max);
 }
 if(bookingParams.get('payment')==='after_trip')document.getElementById('pago').value='after_trip';
+if(['0','10','15','20','custom'].includes(bookingParams.get('tip')))document.getElementById('bookingTip').value=bookingParams.get('tip');
+if(bookingParams.get('tip')==='custom')document.getElementById('bookingTipAmount').value=bookingParams.get('tipAmount')||'';
+function toggleBookingTip(){
+  const custom=document.getElementById('bookingTip').value==='custom';
+  document.getElementById('bookingTipWrap').hidden=!custom;
+  document.getElementById('bookingTipAmount').disabled=!custom;
+  document.getElementById('bookingTipAmount').required=custom;
+  document.getElementById('bookingTipAmount').setCustomValidity('');
+}
+document.getElementById('bookingTip').addEventListener('change',toggleBookingTip);
+toggleBookingTip();
 document.getElementById("bookingForm").addEventListener("input",()=>{
   document.getElementById("envios").style.display="none";
+document.getElementById("bookingTipAmount").setCustomValidity('');
 });
 document.getElementById("bookingForm").addEventListener("submit",function(e){
 e.preventDefault();
 const v=id=>document.getElementById(id).value.trim();
+const tipChoice=v('bookingTip')||'0';
+const customTip=v('bookingTipAmount');
+if(tipChoice==='custom'&&(!/^\d{1,4}(\.\d{1,2})?$/.test(customTip)||Number(customTip)>1000)){
+  document.getElementById('bookingTipAmount').setCustomValidity('Enter $0–$1,000 with up to two decimals / Escribe $0–$1,000 con hasta dos decimales.');
+  document.getElementById('bookingTipAmount').reportValidity();return;
+}
+const tipText=tipChoice==='custom'?'$'+Number(customTip).toFixed(2):tipChoice==='0'?'No tip / Sin propina':tipChoice+'% of GPS fare / de tarifa GPS';
+const afterTripParams=new URLSearchParams({from:v('origen'),to:v('destino'),mode:'after_trip',tip:tipChoice,tipAmount:tipChoice==='custom'?customTip:''});
+const afterTripURL='https://loeski01.github.io/PimentelTransportationLLC-/calculadora-gps-pimentel.html?'+afterTripParams.toString();
+document.getElementById('afterTripPayment').href=afterTripURL;
 const mensaje=
 "RESERVATION REQUEST - PimentelTransportationLLC\n"+
 "Name: "+v("nombre")+"\n"+
@@ -172,6 +202,8 @@ const mensaje=
 "Passengers: "+v("pasajeros")+"\n"+
 "Payment preference: "+(v("pago")==="after_trip"?"Pay at the end of the trip / Pagar al finalizar el viaje":"Coordinate with the company")+"\n"+
 "Payment status: Not collected / No cobrado\n"+
+"Optional tip preference (not charged): "+tipText+"\n"+
+"After-trip payment link: "+afterTripURL+"\n"+
 "Details: "+(v("detalles")||"None");
 
 document.getElementById("whatsapp").href=

@@ -16,7 +16,7 @@ app.use(express.json({ limit: "10kb" }));app.use((req, res, next) => {
 });
 
 const stripeKey = process.env.STRIPE_SECRET_KEY;
-const stripe = stripeKey ? new Stripe(stripeKey) : null;
+const stripe = stripeKey ? new Stripe(stripeKey, { timeout: 12000, maxNetworkRetries: 0 }) : null;
 
 const SITE = "https://loeski01.github.io";
 const BASE_PATH = "/PimentelTransportationLLC-";
@@ -103,7 +103,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
     return res.status(503).json({ error: "Stripe is not configured" });
   }
 
-  const { from, to, customerName, phone } = req.body || {};
+  const { from, to, customerName, phone, tipPercent = 0, tipCents = 0, expectedFareCents, paymentKind = "ride" } = req.body || {};
 
   if (
     typeof from !== "string" ||
@@ -118,8 +118,19 @@ app.post("/api/create-checkout-session", async (req, res) => {
     return res.status(400).json({ error: "Invalid booking details" });
   }
 
+  if (![0, 10, 15, 20].includes(tipPercent) || !Number.isSafeInteger(tipCents) || tipCents < 0 || tipCents > 100000 ||
+      (tipPercent !== 0 && tipCents !== 0) || !["ride", "tip_only"].includes(paymentKind) ||
+      !Number.isSafeInteger(expectedFareCents) || expectedFareCents < 0) {
+    return res.status(400).json({ error: "Propina o datos de pago inválidos." });
+  }
   try {
     const { amount } = await calculateFare(from.trim(), to.trim());
+    if (amount !== expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Vuelve a calcular y revisa el total antes de pagar." });
+    const gratuity = tipPercent ? Math.round(amount * tipPercent / 100) : tipCents;
+    if (paymentKind === "tip_only" && gratuity < 50) return res.status(400).json({ error: "Para pagar solo la propina, elige al menos $0.50." });
+    const lineItems = [];
+    if (paymentKind === "ride") lineItems.push({price_data:{currency:"usd",unit_amount:amount,product_data:{name:"Pimentel Transportation - Private Transfer"}},quantity:1});
+    if (gratuity > 0) lineItems.push({price_data:{currency:"usd",unit_amount:gratuity,product_data:{name:"Optional driver gratuity / Propina voluntaria"}},quantity:1});
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: "hosted",
@@ -130,21 +141,14 @@ app.post("/api/create-checkout-session", async (req, res) => {
       allow_promotion_codes: false,
       submit_type: "auto",
       customer_creation: "always",
-      line_items: [{
-        price_data: {
-          currency: "usd",
-          unit_amount: amount,
-          product_data: {
-            name: "Pimentel Transportation - Private Transfer"
-          }
-        },
-        quantity: 1
-      }],
+      line_items: lineItems,
       metadata: {
         from: from.trim(),
         to: to.trim(),
         customerName: customerName.trim(),
-        phone: phone.trim()
+        phone: phone.trim(),
+        paymentKind,
+        tipCents: String(gratuity)
       },
       success_url: CALCULATOR + "?payment=success&session_id={CHECKOUT_SESSION_ID}",
       cancel_url: CALCULATOR + "?payment=cancelled"
@@ -153,6 +157,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
     res.json({ url: session.url });
   } catch (error) {
     console.error("Checkout creation failed:", error.message);
+    if (error.type?.startsWith("Stripe")) return res.status(502).json({ error: "No se pudo abrir el pago. Inténtalo más tarde o contacta a la compañía." });
     sendError(res, error);
   }
 });
