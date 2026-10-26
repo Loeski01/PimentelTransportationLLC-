@@ -60,6 +60,8 @@ a{color:var(--gold)}
 <div class="detail"><span>Millas ($3.50/milla)</span><span id="milesCost"></span></div>
 <div class="detail"><span>Tiempo ($0.50/min)</span><span id="timeCost"></span></div>
 <div class="detail"><span>Recogida en aeropuerto</span><span id="airportCost"></span></div>
+<a id="payLater" style="display:block;text-align:center;margin-top:20px;padding:16px;border:1px solid #d6b36b;border-radius:12px" href="#">Reservar y pagar al finalizar el viaje</a>
+<p class="note">Completa la fecha y hora en el formulario de reserva. No se cobra ahora. La reserva está sujeta a confirmación.</p>
 <p class="note">Estimado sujeto a confirmación. El tiempo es una estimación de ruta, no tráfico en vivo. Peajes, espera, estacionamiento y otros cargos no están incluidos.</p>
 </section>
 </section>
@@ -67,62 +69,36 @@ a{color:var(--gold)}
 </main>
 <script>
 'use strict';
-const BASE=35,PER_MILE=3.50,PER_MINUTE=0.50,MINIMUM=65,AIRPORT_PICKUP=10;
+const API="https://pimenteltransportationllc.onrender.com";
 const $=id=>document.getElementById(id);
 const usd=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
 const fmt=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(n);
 
+let currentQuote=null;
+function updateBookingLink(){
+  if(!currentQuote)return;
+  const params=new URLSearchParams({from:currentQuote.from,to:currentQuote.to,
+    customerName:$('customerName').value.trim(),phone:$('phone').value.trim(),payment:'after_trip'});
+  $('payLater').href='https://loeski01.github.io/PimentelTransportationLLC-/?'+params.toString()+'#reserva';
+}
+for(const id of ['customerName','phone'])$(id).addEventListener('input',updateBookingLink);
+for(const id of ['from','to'])$(id).addEventListener('input',()=>{
+  currentQuote=null;
+  $('result').style.display='none';
+});
 function showStatus(message,error=false){
   $('status').textContent=message;
   $('status').className=error?'status error':'status';
-}
-
-async function fetchJSON(url,ms=12000){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),ms);
-  try{
-    const res=await fetch(url,{
-      signal:controller.signal,
-      headers:{Accept:'application/json'}
-    });
-    if(!res.ok)throw new Error('Servicio de mapas no disponible (HTTP '+res.status+')');
-    return await res.json();
-  }finally{
-    clearTimeout(timer);
-  }
-}
-
-function airportPickup(text,place){
-  const s=(text+' '+(place.display_name||'')).toLowerCase();
-  return /\b(logan|airport|aeropuerto|bos international|boston logan|tf green|t\. ?f\. ?green|bradley international|manchester.boston regional|pvd airport|boston airport)\b/i.test(s);
-}
-
-async function geocode(q){
-  const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q='+encodeURIComponent(q);
-  const data=await fetchJSON(url,14000);
-  if(!Array.isArray(data)||!data.length){
-    throw new Error('No se encontró esta dirección: '+q+'. Incluye ciudad y estado.');
-  }
-  return data[0];
-}
-
-async function route(a,b){
-  const coords=[a,b].map(p=>`${Number(p.lon)},${Number(p.lat)}`).join(';');
-  const url='https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=false&steps=false';
-  const data=await fetchJSON(url,16000);
-  if(data.code!=='Ok'||!data.routes?.length){
-    throw new Error('No se encontró una ruta en automóvil entre esas direcciones.');
-  }
-  return data.routes[0];
 }
 
 $('calculate').addEventListener('click',async()=>{
   const from=$('from').value.trim();
   const to=$('to').value.trim();
   $('result').style.display='none';
+  currentQuote=null;
 
-  if(!from||!to){
-    showStatus('Escribe las dos direcciones antes de calcular.',true);
+  if(!from||!to||from.length>200||to.length>200){
+    showStatus('Escribe las dos direcciones (máximo 200 caracteres cada una).',true);
     return;
   }
 
@@ -131,29 +107,37 @@ $('calculate').addEventListener('click',async()=>{
   btn.textContent='Calculando ruta…';
 
   try{
-    showStatus('Buscando dirección de recogida…');
-    const a=await geocode(from);
-
-    showStatus('Buscando dirección de destino…');
-    const b=await geocode(to);
-
-    showStatus('Calculando distancia y tiempo de conducción…');
-    const r=await route(a,b);
-
-    const miles=r.distance/1609.344;
-    const minutes=r.duration/60;
-    const airport=airportPickup(from,a)?AIRPORT_PICKUP:0;
-    const mileage=miles*PER_MILE;
-    const time=minutes*PER_MINUTE;
-    const total=Math.max(MINIMUM,BASE+mileage+time+airport);
+    showStatus('Consultando ruta y tarifa…');
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+    let quote;
+    try {
+      const res=await fetch(API+'/api/quote',{
+        method:'POST', signal:controller.signal,
+        headers:{'Content-Type':'application/json',Accept:'application/json'},
+        body:JSON.stringify({from,to})
+      });
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.error||'Servicio de cálculo no disponible.');
+      if(!['miles','minutes','base','mileage','time','airportFee','amount'].every(k=>Number.isFinite(data[k])&&data[k]>=0))throw new Error('Respuesta de cálculo inválida.');
+      quote=data;
+    } finally { clearTimeout(timer); }
+    const {miles,minutes,base,mileage,time,airportFee:airport,amount}=quote;
+    const total=amount/100;
 
     $('distance').textContent=fmt(miles)+' millas';
     $('duration').textContent=Math.round(minutes)+' minutos';
-    $('base').textContent=usd(BASE);
+    $('base').textContent=usd(base);
     $('milesCost').textContent=usd(mileage);
     $('timeCost').textContent=usd(time);
     $('airportCost').textContent=usd(airport);
     $('total').textContent=usd(total);
+    if($('from').value.trim()!==from||$('to').value.trim()!==to){
+      showStatus('Las direcciones cambiaron. Vuelve a calcular la tarifa.',true);
+      return;
+    }
+    currentQuote={from,to};
+    updateBookingLink();
     $('result').style.display='block';
     showStatus('Cálculo completado.');
   }catch(e){
@@ -161,7 +145,7 @@ $('calculate').addEventListener('click',async()=>{
     showStatus(
       timeout
         ?'El servicio de mapas tardó demasiado. Inténtalo nuevamente en unos segundos.'
-        :'No se pudo calcular: '+(e.message||'error de conexión')+'. Prueba direcciones más completas.',
+        :'No se pudo calcular: '+(e instanceof TypeError?'No hay conexión con el servidor. Comprueba tu conexión e inténtalo de nuevo.':e.message||'error de conexión'),
       true
     );
   }finally{

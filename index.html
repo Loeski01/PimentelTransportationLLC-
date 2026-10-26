@@ -1,4 +1,3 @@
-calculadora-gps-pimentel.html.
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -113,6 +112,13 @@ a.contacto{color:#d4af37}
 <option>6 or more</option>
 </select>
 
+<label for="pago">Payment preference / Preferencia de pago</label>
+<select id="pago">
+<option value="arrange">Coordinate payment with the company / Coordinar pago con la compañía</option>
+<option value="after_trip">Pay at the end of the trip / Pagar al finalizar el viaje</option>
+</select>
+<p>No payment is collected with this request. Payment arrangements are confirmed with your booking.<br>No se cobra al enviar esta solicitud. La forma de pago se confirma con tu reserva.</p>
+
 <label for="detalles">Flight number or details / Vuelo u otros detalles</label>
 <textarea id="detalles" rows="3"></textarea>
 
@@ -143,6 +149,15 @@ a.contacto{color:#d4af37}
 </footer>
 
 <script>
+const bookingParams=new URLSearchParams(window.location.search);
+for(const [param,id,max] of [['from','origen',200],['to','destino',200],['customerName','nombre',100],['phone','telefono',40]]){
+  const value=bookingParams.get(param);
+  if(value)document.getElementById(id).value=value.slice(0,max);
+}
+if(bookingParams.get('payment')==='after_trip')document.getElementById('pago').value='after_trip';
+document.getElementById("bookingForm").addEventListener("input",()=>{
+  document.getElementById("envios").style.display="none";
+});
 document.getElementById("bookingForm").addEventListener("submit",function(e){
 e.preventDefault();
 const v=id=>document.getElementById(id).value.trim();
@@ -155,6 +170,8 @@ const mensaje=
 "Pickup: "+v("origen")+"\n"+
 "Destination: "+v("destino")+"\n"+
 "Passengers: "+v("pasajeros")+"\n"+
+"Payment preference: "+(v("pago")==="after_trip"?"Pay at the end of the trip / Pagar al finalizar el viaje":"Coordinate with the company")+"\n"+
+"Payment status: Not collected / No cobrado\n"+
 "Details: "+(v("detalles")||"None");
 
 document.getElementById("whatsapp").href=
