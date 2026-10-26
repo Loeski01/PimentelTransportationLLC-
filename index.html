@@ -191,6 +191,8 @@ const tipText=tipChoice==='custom'?'$'+Number(customTip).toFixed(2):tipChoice===
 const afterTripParams=new URLSearchParams({from:v('origen'),to:v('destino'),mode:'after_trip',tip:tipChoice,tipAmount:tipChoice==='custom'?customTip:''});
 const afterTripURL='https://loeski01.github.io/PimentelTransportationLLC-/calculadora-gps-pimentel.html?'+afterTripParams.toString();
 document.getElementById('afterTripPayment').href=afterTripURL;
+const confirmationParams=new URLSearchParams({name:v('nombre'),phone:v('telefono'),date:v('fecha'),time:v('hora'),from:v('origen'),to:v('destino'),passengers:v('pasajeros')});
+const confirmationURL='https://loeski01.github.io/PimentelTransportationLLC-/confirmar-reserva.html#'+confirmationParams.toString();
 const mensaje=
 "RESERVATION REQUEST - PimentelTransportationLLC\n"+
 "Name: "+v("nombre")+"\n"+
@@ -204,7 +206,8 @@ const mensaje=
 "Payment status: Not collected / No cobrado\n"+
 "Optional tip preference (not charged): "+tipText+"\n"+
 "After-trip payment link: "+afterTripURL+"\n"+
-"Details: "+(v("detalles")||"None");
+"Details: "+(v("detalles")||"None")+"\n\n"+
+"PARA LA COMPAÑÍA: revisar y preparar confirmación al cliente (no enviada automáticamente): "+confirmationURL;
 
 document.getElementById("whatsapp").href=
 "https://wa.me/16177855657?text="+encodeURIComponent(mensaje);
