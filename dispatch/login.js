@@ -28,7 +28,10 @@ router.post("/login",async(req,res)=>{
  if(limited(req.ip))return res.status(429).json({error:"Demasiados intentos. Espera 15 minutos."});
  const {email,password}=req.body||{};
  if(typeof email!=="string"||typeof password!=="string"||email.length>254||password.length<1||password.length>128)return res.status(400).json({error:"Datos inválidos"});
- const r=await pool.query("SELECT id,password_hash FROM drivers WHERE email=$1 AND active=true",[email.trim().toLowerCase()]);
+ // Bound the normalized email to the same length as the driver registration field.
+ const normalizedEmail=email.trim().toLowerCase();
+ if(!normalizedEmail||normalizedEmail.length>254)return res.status(400).json({error:"Datos inválidos"});
+ const r=await pool.query("SELECT id,password_hash FROM drivers WHERE email=$1 AND active=true",[normalizedEmail]);
  // Perform the same expensive password verification even for unknown accounts.
  // This reduces account enumeration through response timing.
  const dummyHash="00000000000000000000000000000000:"+("00".repeat(64));
