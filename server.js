@@ -275,6 +275,10 @@ if (process.env.ENABLE_DISPATCH === "true") {
   const path = require("node:path");
   app.use("/api/dispatch", require("./dispatch/login"));
   app.use("/api/dispatch", require("./dispatch/router").router);
+  app.get("/despacho", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(path.join(__dirname, "dispatch/public/admin.html"));
+  });
   app.use("/conductores", express.static(path.join(__dirname, "dispatch/public"), {
     index: "index.html",
     setHeaders: res => res.setHeader("Cache-Control", "no-store")
