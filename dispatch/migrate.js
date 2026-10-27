@@ -8,7 +8,7 @@ const {Client}=require("pg");
 async function main(){
  if(process.env.DISPATCH_MIGRATION_TARGET!=="development")throw new Error("Set DISPATCH_MIGRATION_TARGET=development to acknowledge target");
  if(!process.env.DATABASE_URL)throw new Error("DATABASE_URL is required");
- const client=new Client({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==="disable"?false:undefined});
+ const client=new Client({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==="require"?{rejectUnauthorized:true}:false});
  await client.connect();
  try{
   const db=await client.query("SELECT current_database() AS name");
