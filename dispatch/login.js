@@ -11,7 +11,7 @@ router.post("/login",async(req,res)=>{
  try{
  if(limited(req.ip))return res.status(429).json({error:"Demasiados intentos. Espera 15 minutos."});
  const {email,password}=req.body||{};
- if(typeof email!=="string"||typeof password!=="string"||email.length>254||password.length>128)return res.status(400).json({error:"Datos inválidos"});
+ if(typeof email!=="string"||typeof password!=="string"||email.length>254||password.length<1||password.length>128)return res.status(400).json({error:"Datos inválidos"});
  const r=await pool.query("SELECT id,password_hash FROM drivers WHERE email=$1 AND active=true",[email.trim().toLowerCase()]);
  // Perform the same expensive password verification even for unknown accounts.
  // This reduces account enumeration through response timing.
@@ -21,7 +21,7 @@ router.post("/login",async(req,res)=>{
  const a=Buffer.from(expected,"hex");if(a.length!==key.length||!crypto.timingSafeEqual(a,key)||!r.rowCount)return res.status(401).json({error:"Credenciales incorrectas"});
  const token=randomToken();
  await pool.query("INSERT INTO driver_sessions(driver_id,token_hash,expires_at) VALUES($1,$2,now()+interval '12 hours')",[r.rows[0].id,hashToken(token)]);
- res.set("Cache-Control","no-store").json({token,expiresInSeconds:43200});
+ res.set("Cache-Control","no-store").set("Pragma","no-cache").json({token,expiresInSeconds:43200});
  }catch(e){console.error("Login error",e.code||e.message);res.status(500).json({error:"No se pudo iniciar sesión"});}
 });
 module.exports=router;
