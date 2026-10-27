@@ -5,6 +5,8 @@ const express = require("express");
 const crypto = require("node:crypto");
 const { Pool } = require("pg");
 const router = express.Router();
+// Never cache authenticated driver or administrator API responses.
+router.use((req,res,next)=>{res.set("Cache-Control","no-store");res.set("Pragma","no-cache");next();});
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "require" ? { rejectUnauthorized: true } : false });
 const hashToken = token => crypto.createHash("sha256").update(token).digest("hex");
 const safeEqual = (a,b) => { const x=crypto.createHash("sha256").update(String(a||"")).digest(),y=crypto.createHash("sha256").update(String(b||"")).digest(); return crypto.timingSafeEqual(x,y); };
