@@ -80,7 +80,7 @@ router.post("/logout",wrap(async(req,res)=>{
 }));
 router.get("/my-assignments",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
-  const r=await pool.query("SELECT a.id,a.status,b.reference,b.pickup,b.destination,b.pickup_at FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
+  const r=await pool.query("SELECT a.id,a.status,b.status AS booking_status,b.reference,b.pickup,b.destination,b.pickup_at FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
 }));
 router.post("/my-assignments/:id/respond",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
