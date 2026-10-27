@@ -163,22 +163,45 @@ app.post("/api/create-checkout-session", async (req, res) => {
 });
 
 
-const nodemailer = require("nodemailer");
+// Brevo Transactional Email uses HTTPS, compatible with Render free services.
+// Configure BREVO_API_KEY and a sender verified in Brevo before enabling.
 const notificationEmail = process.env.BOOKING_NOTIFY_EMAIL || "Cesarloeski17@gmail.com";
-const smtpUser = process.env.SMTP_USER;
-const smtpPassword = process.env.SMTP_APP_PASSWORD;
-const mailTransport = smtpUser && smtpPassword ? nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT || 465),
-  secure: true,
-  auth: { user: smtpUser, pass: smtpPassword }
-}) : null;
+const brevoApiKey = process.env.BREVO_API_KEY;
+const senderEmail = process.env.BREVO_SENDER_EMAIL;
+const senderName = "Pimentel Transportation LLC";
+const mailReady = Boolean(brevoApiKey && senderEmail);
+async function sendBookingEmail({to, subject, text, replyTo}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const payload = {
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: to }],
+      subject,
+      textContent: text
+    };
+    if (replyTo) payload.replyTo = { email: replyTo };
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "api-key": brevoApiKey },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      console.error("Brevo email request rejected; HTTP status:", response.status);
+      throw new Error("Email provider rejected the request");
+    }
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
 app.post("/api/booking-request", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  if (!mailTransport) return res.status(503).json({ error: "Las notificaciones por correo todavía no están activadas." });
+  if (!mailReady) return res.status(503).json({ error: "Las notificaciones automáticas todavía no están activadas. Usa WhatsApp o correo." });
   const ip = req.ip || "unknown";
   const last = bookingThrottle.get(ip) || 0;
   if (Date.now() - last < 60000) return res.status(429).json({ error: "Espera un minuto antes de enviar otra solicitud." });
@@ -214,8 +237,7 @@ app.post("/api/booking-request", async (req, res) => {
       "Pago: " + payment, "Detalles: " + details,
       "Estado: PENDIENTE DE CONFIRMACIÓN"
     ].join("\n");
-    await mailTransport.sendMail({
-      from: { name: "Pimentel Transportation LLC", address: smtpUser },
+    await sendBookingEmail({
       to: notificationEmail,
       replyTo: email,
       subject: "Nueva solicitud de reserva " + reference,
@@ -223,12 +245,11 @@ app.post("/api/booking-request", async (req, res) => {
     });
     let customerNoticeSent = false;
     try {
-      await mailTransport.sendMail({
-        from: { name: "Pimentel Transportation LLC", address: smtpUser },
+      await sendBookingEmail({
         to: email,
         replyTo: notificationEmail,
         subject: "Solicitud recibida / Request received - " + reference,
-        text: "Gracias por elegir Pimentel Transportation LLC.\\n\\nHemos recibido tu solicitud. Tu viaje NO está confirmado hasta que nuestra empresa lo apruebe.\\n\\nThank you for your request. Your ride is NOT confirmed until our company approves it.\\n\\n" + summary + "\\n\\nContacto: " + notificationEmail
+        text: "Gracias por elegir Pimentel Transportation LLC.\n\nHemos recibido tu solicitud. Tu viaje NO está confirmado hasta que nuestra empresa lo apruebe.\n\nThank you for your request. Your ride is NOT confirmed until our company approves it.\n\n" + summary + "\n\nContacto: " + notificationEmail
       });
       customerNoticeSent = true;
     } catch (error) {
