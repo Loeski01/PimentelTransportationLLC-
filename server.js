@@ -291,15 +291,6 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
   console.log("Dispatch test configuration:", JSON.stringify({dispatchFlag: process.env.ENABLE_DISPATCH === "false" ? "disabled" : process.env.ENABLE_DISPATCH === "true" ? "enabled" : "unset_or_invalid", databaseUrlConfigured: Boolean(process.env.DATABASE_URL), databaseNameMatches: (() => { try { return decodeURIComponent(new URL(process.env.DATABASE_URL).pathname.slice(1)) === "pimentel_dispatch_dev"; } catch { return false; } })()}));
-  // One-shot, explicitly gated schema migration for the isolated development database.
-  // The migration script itself refuses any database except pimentel_dispatch_dev.
-  if (process.env.ENABLE_DISPATCH === "false" && process.env.DISPATCH_MIGRATION_TARGET === "development" && process.env.DATABASE_URL) {
-    const { execFile } = require("node:child_process");
-    execFile(process.execPath, ["dispatch/migrate.js"], { cwd: __dirname, timeout: 20000, maxBuffer: 8192 }, (error, stdout) => {
-      console.log("Dispatch development migration:", error ? "FAILED" : "SUCCEEDED");
-      if (!error && stdout.trim()) console.log(stdout.trim());
-    });
-  }
   // Read-only PostgreSQL check for the isolated dispatch test service.
   // Never runs when dispatch is enabled; no secrets or customer data in logs.
   if (process.env.ENABLE_DISPATCH === "false" && process.env.DATABASE_URL) {
