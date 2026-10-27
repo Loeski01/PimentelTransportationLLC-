@@ -5,11 +5,11 @@ const express = require("express");
 const crypto = require("node:crypto");
 const { Pool } = require("pg");
 const router = express.Router();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "disable" ? false : { rejectUnauthorized: true } });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "require" ? { rejectUnauthorized: true } : false });
 const hashToken = token => crypto.createHash("sha256").update(token).digest("hex");
 const safeEqual = (a,b) => { const x=Buffer.from(a||""),y=Buffer.from(b||""); return x.length===y.length && crypto.timingSafeEqual(x,y); };
 const randomToken = () => crypto.randomBytes(32).toString("hex");
-const validEmail = s => typeof s==="string" && s.length<=254 && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s);
+const validEmail = s => typeof s==="string" && s.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 const fail = (res,code,message) => res.status(code).json({error:message});
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 async function auth(req,res,next) {
