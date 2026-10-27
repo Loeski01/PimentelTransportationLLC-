@@ -68,8 +68,19 @@ router.get("/my-assignments",wrap(async(req,res)=>{
 router.post("/my-assignments/:id/respond",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
   if(!["accepted","rejected"].includes(req.body?.status))return fail(res,400,"Estado inválido");
-  const r=await pool.query("UPDATE assignments SET status=$1,responded_at=now() WHERE id=$2 AND driver_id=$3 AND status='offered' RETURNING id,status",[req.body.status,req.params.id,req.actor.id]);
-  if(!r.rowCount)return fail(res,409,"Asignación no disponible");res.json(r.rows[0]);
+  const client=await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const r=await client.query("UPDATE assignments SET status=$1,responded_at=now() WHERE id=$2 AND driver_id=$3 AND status='offered' RETURNING id,booking_id,status",[req.body.status,req.params.id,req.actor.id]);
+    if(!r.rowCount){await client.query("ROLLBACK");return fail(res,409,"Asignación no disponible");}
+    if(req.body.status==="rejected"){
+      await client.query("UPDATE bookings SET status='approved' WHERE id=$1 AND status='assigned'",[r.rows[0].booking_id]);
+    }
+    await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'driver',$2,$3)",[r.rows[0].booking_id,String(req.actor.id),req.body.status]);
+    await client.query("COMMIT");
+    res.json({id:r.rows[0].id,status:r.rows[0].status});
+  } catch(e){await client.query("ROLLBACK");throw e;} finally {client.release();}
+
 }));
 router.use((err,req,res,next)=>{console.error("Dispatch error",err.code||err.message);res.status(err.code==="23505"?409:500).json({error:"No se pudo completar la operación"});});
 module.exports={router,pool,hashToken,randomToken};
