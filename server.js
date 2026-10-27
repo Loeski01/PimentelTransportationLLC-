@@ -174,7 +174,7 @@ const mailTransport = smtpUser && smtpPassword ? nodemailer.createTransport({
   auth: { user: smtpUser, pass: smtpPassword }
 }) : null;
 const bookingThrottle = new Map();
-const emailPattern = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+const emailPattern = /^[^\s@]+@[^\s@]+\\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
 app.post("/api/booking-request", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -191,7 +191,7 @@ app.post("/api/booking-request", async (req, res) => {
   const payment = clean(body.payment, 30);
   const tipPercent = Number(body.tipPercent), tipCents = Number(body.tipCents);
   if (!name || !phone || !emailPattern.test(email) || !validAddresses(from, to) ||
-      !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
       !Number.isSafeInteger(body.expectedFareCents) || body.expectedFareCents < 0 ||
       ![0, 10, 15, 20].includes(tipPercent) || !Number.isSafeInteger(tipCents) ||
       tipCents < 0 || tipCents > 100000 || (tipPercent > 0 && tipCents > 0) ||
@@ -213,7 +213,7 @@ app.post("/api/booking-request", async (req, res) => {
       "Total estimado: " + dollars(fare.amount + tip),
       "Pago: " + payment, "Detalles: " + details,
       "Estado: PENDIENTE DE CONFIRMACIÓN"
-    ].join("\\n");
+    ].join("\n");
     await mailTransport.sendMail({
       from: { name: "Pimentel Transportation LLC", address: smtpUser },
       to: notificationEmail,
