@@ -7,7 +7,7 @@ const { Pool } = require("pg");
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "require" ? { rejectUnauthorized: true } : false });
 const hashToken = token => crypto.createHash("sha256").update(token).digest("hex");
-const safeEqual = (a,b) => { const x=Buffer.from(a||""),y=Buffer.from(b||""); return x.length===y.length && crypto.timingSafeEqual(x,y); };
+const safeEqual = (a,b) => { const x=crypto.createHash("sha256").update(String(a||"")).digest(),y=crypto.createHash("sha256").update(String(b||"")).digest(); return crypto.timingSafeEqual(x,y); };
 const randomToken = () => crypto.randomBytes(32).toString("hex");
 const validEmail = s => typeof s==="string" && s.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 const fail = (res,code,message) => res.status(code).json({error:message});
