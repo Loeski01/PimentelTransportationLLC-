@@ -4,7 +4,7 @@
 const {Client}=require("pg");
 (async()=>{
  if(!process.env.DATABASE_URL)throw Error("DATABASE_URL is required");
- const client=new Client({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==="disable"?false:undefined});
+ const client=new Client({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==="require"?{rejectUnauthorized:true}:false});
  await client.connect();
  try{
   const name=(await client.query("SELECT current_database() AS name")).rows[0].name;
