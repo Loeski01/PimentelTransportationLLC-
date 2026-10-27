@@ -43,3 +43,11 @@ CREATE TABLE IF NOT EXISTS dispatch_audit (
   action VARCHAR(80) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS driver_sessions (
+  token_hash CHAR(64) PRIMARY KEY,
+  driver_id UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS driver_sessions_driver_id_idx ON driver_sessions(driver_id);
