@@ -174,7 +174,7 @@ const mailTransport = smtpUser && smtpPassword ? nodemailer.createTransport({
   auth: { user: smtpUser, pass: smtpPassword }
 }) : null;
 const bookingThrottle = new Map();
-const emailPattern = /^[^\s@]+@[^\s@]+\\.[^\s@]+$/;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
 app.post("/api/booking-request", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
