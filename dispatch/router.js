@@ -41,6 +41,17 @@ router.patch("/drivers/:id",admin,wrap(async(req,res)=>{
   if(!req.body.active)await pool.query("DELETE FROM driver_sessions WHERE driver_id=$1",[req.params.id]);
   res.json(r.rows[0]);
 }));
+router.post("/bookings",admin,wrap(async(req,res)=>{
+  const b=req.body||{};
+  const good=(v,n)=>typeof v==="string"&&v.trim().length>0&&v.trim().length<=n;
+  const date=typeof b.pickupAt==="string"?new Date(b.pickupAt):new Date(NaN);
+  if(!good(b.customerName,120)||!validEmail(b.customerEmail)||!good(b.customerPhone,40)||!good(b.pickup,1000)||!good(b.destination,1000)||!Number.isFinite(date.getTime())||!Number.isSafeInteger(b.estimatedFareCents)||b.estimatedFareCents<0||b.estimatedFareCents>100000000)return fail(res,400,"Datos de viaje inválidos");
+  const ref="DSP-"+crypto.randomBytes(8).toString("hex").toUpperCase();
+  const q=await pool.query("INSERT INTO bookings(reference,customer_name,customer_email,customer_phone,pickup,destination,pickup_at,estimated_fare_cents) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,reference,status",[
+    ref,b.customerName.trim(),b.customerEmail.trim().toLowerCase(),b.customerPhone.trim(),b.pickup.trim(),b.destination.trim(),date.toISOString(),b.estimatedFareCents
+  ]);
+  res.status(201).json(q.rows[0]);
+}));
 router.get("/bookings",admin,wrap(async(req,res)=>{
   const r=await pool.query("SELECT id,reference,customer_name,pickup,destination,pickup_at,estimated_fare_cents,status FROM bookings ORDER BY pickup_at DESC LIMIT 200");res.json(r.rows);
 }));
