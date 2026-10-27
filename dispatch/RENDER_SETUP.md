@@ -5,8 +5,8 @@
 - Plan gratuito temporal: expira el 26 de noviembre de 2026; no guardar datos reales de clientes.
 - La base bloquea conexiones externas; **no abrir la lista de IP para probarla**.
 - Servicio separado `pimentel-dispatch-test`, rama `feature/driver-dispatch-app`, primer despliegue `live`. Despliegue automático desactivado; los commits posteriores requieren despliegue manual.
-- El usuario confirmó que el panel Environment muestra `DATABASE_URL` y `ENABLE_DISPATCH`, con este último configurado como `false`. El aviso verde de Render confirma guardado, **no** conectividad a PostgreSQL.
-- No se han ejecutado migraciones ni verificación de tablas. La página pública de producción sigue separada y no debe modificarse.
+- Render confirmó por logs `DATABASE_URL` configurada, conexión a PostgreSQL correcta y `ENABLE_DISPATCH=false`.
+- La migración de desarrollo se ejecutó y verificó; la página pública de producción sigue separada y no debe modificarse.
 
 ## Resultado comprobado de la base de pruebas
 - 27 de octubre de 2026: conexión interna PostgreSQL confirmada con nombre `pimentel_dispatch_dev`.
@@ -15,6 +15,10 @@
 - `ENABLE_DISPATCH=false` permanece vigente; el despacho no está habilitado para clientes reales.
 - Sigue pendiente implementar autenticación administrativa segura y probar la API de conductores antes de activarla.
 - El despliegue reporta una vulnerabilidad alta de dependencias; revisar `npm audit` y corregir sin usar `--force` a ciegas.
+- Las operaciones de creación y aprobación de reservas guardan auditoría en la misma transacción; aún falta probarlas con datos ficticios.
+- Se añadió una barrera `DISPATCH_SECURITY_REVIEWED=true` obligatoria antes de activar el despacho, además del token administrativo fuerte y la validación del nombre de la base.
+- El portal de conductores mantiene el token solo en memoria; no se persiste en `localStorage`.
+- La última instalación del 27 de octubre está pendiente de confirmación; verificar estado de Render antes de declarar la versión instalada.
 
 ## Procedimiento seguro de verificación (solo servicio de pruebas)
 1. Confirmar en Render que el servicio seleccionado es **pimentel-dispatch-test** y la rama `feature/driver-dispatch-app`; nunca usar el servicio público.
