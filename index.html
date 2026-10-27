@@ -99,6 +99,7 @@ a.contacto{color:#d4af37}
 </div>
 <label for="nombre">Full name / Nombre completo *</label><input id="nombre" required maxlength="100" autocomplete="name">
 <label for="telefono">Phone / Teléfono *</label><input id="telefono" type="tel" required maxlength="40" autocomplete="tel">
+<label for="email">Email / Correo electrónico *</label><input id="email" type="email" required maxlength="254" autocomplete="email" placeholder="cliente@example.com">
 <label for="fecha">Pickup date / Fecha *</label><input id="fecha" type="date" required>
 <label for="hora">Pickup time / Hora *</label><input id="hora" type="time" required>
 <label for="pasajeros">Passengers / Pasajeros</label><select id="pasajeros"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6 or more</option></select>
@@ -205,6 +206,23 @@ el('unifiedForm').addEventListener('submit',async event=>{
  +'\nOptional tip: '+money(tipCents)+'\nEstimated total: '+money(total)
  +'\nPayment preference: '+val('pago')+'\nDetails: '+val('detalles')
  +'\nReservation status: Pending company confirmation.';
+ if(val('pago')!=='now'){
+  const btn=el('submitBooking');btn.disabled=true;
+  el('bookingStatus').textContent='Enviando solicitud automática...';
+  try{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);
+    let response,data;
+    try{
+      response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({name:val('nombre'),email:val('email'),phone:val('telefono'),from:quote.from,to:quote.to,date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:val('pago'),expectedFareCents:quote.amount,...tip})});
+      data=await response.json();
+    }finally{clearTimeout(timer);}
+    if(!response.ok)throw new Error(data.error||'No se pudo enviar la reserva.');
+    el('bookingStatus').textContent='Solicitud recibida: '+data.reference+'. Pendiente de confirmación. '+(data.customerNoticeSent?'Enviamos un correo al cliente.':'No se pudo enviar el correo al cliente; contacta a la compañía.');
+    el('envios').style.display='none';return;
+  }catch(e){
+    el('bookingStatus').textContent=e.name==='AbortError'?'No se pudo confirmar la entrega. Revisa tu correo antes de reintentar.':'Envío automático no disponible: '+e.message+' Puedes usar WhatsApp o correo debajo.';
+  }finally{btn.disabled=false;}
+ }
  if(val('pago')==='now'){
   const btn=el('submitBooking');btn.disabled=true;el('bookingStatus').textContent='Abriendo Stripe...';
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
