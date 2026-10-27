@@ -99,6 +99,20 @@ router.post("/my-assignments/:id/respond",wrap(async(req,res)=>{
   } catch(e){await client.query("ROLLBACK");throw e;} finally {client.release();}
 
 }));
+// Starting a trip requires an accepted assignment belonging to this driver.
+router.post("/my-assignments/:id/start",wrap(async(req,res)=>{
+  if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const a=await client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[req.params.id,req.actor.id]);
+    if(!a.rowCount||a.rows[0].status!=="accepted"){await client.query("ROLLBACK");return fail(res,409,"Primero debes aceptar este viaje");}
+    const b=await client.query("UPDATE bookings SET status='in_progress' WHERE id=$1 AND status='assigned' RETURNING id",[a.rows[0].booking_id]);
+    if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"El viaje ya se inició o no está disponible");}
+    await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'driver',$2,'started')",[a.rows[0].booking_id,String(req.actor.id)]);
+    await client.query("COMMIT");res.json({id:a.rows[0].id,status:"in_progress"});
+  }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
+}));
 // A driver can finish only a trip they personally accepted.
 router.post("/my-assignments/:id/complete",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
@@ -107,8 +121,8 @@ router.post("/my-assignments/:id/complete",wrap(async(req,res)=>{
     await client.query("BEGIN");
     const a=await client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[req.params.id,req.actor.id]);
     if(!a.rowCount||a.rows[0].status!=="accepted"){await client.query("ROLLBACK");return fail(res,409,"Solo puedes completar un viaje aceptado por ti");}
-    const b=await client.query("UPDATE bookings SET status='completed' WHERE id=$1 AND status='assigned' RETURNING id",[a.rows[0].booking_id]);
-    if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"El viaje no está disponible para completar");}
+    const b=await client.query("UPDATE bookings SET status='completed' WHERE id=$1 AND status='in_progress' RETURNING id",[a.rows[0].booking_id]);
+    if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"Debes iniciar el viaje antes de completarlo");}
     await client.query("UPDATE assignments SET status='completed' WHERE id=$1",[req.params.id]);
     await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'driver',$2,'completed')",[a.rows[0].booking_id,String(req.actor.id)]);
     await client.query("COMMIT");
