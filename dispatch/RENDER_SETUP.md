@@ -1,10 +1,22 @@
 # Render — puesta en marcha de Dispatch (desarrollo)
 
 ## Estado verificado el 27 de octubre de 2026
-- PostgreSQL 18: `pimentel-dispatch-dev` (Render, Oregón), estado `available`.
-- Plan gratuito temporal, expira el 26 de noviembre de 2026.
-- La base bloquea conexiones externas: lista de IP permitidas vacía. No se han ejecutado migraciones.
-- Servicio web actual sigue en `main`, no se ha desplegado esta rama.
+- PostgreSQL 18: `pimentel-dispatch-dev` (Render, Oregón), base `pimentel_dispatch_dev`.
+- Plan gratuito temporal: expira el 26 de noviembre de 2026; no guardar datos reales de clientes.
+- La base bloquea conexiones externas; **no abrir la lista de IP para probarla**.
+- Servicio separado `pimentel-dispatch-test`, rama `feature/driver-dispatch-app`, primer despliegue `live`. Despliegue automático desactivado; los commits posteriores requieren despliegue manual.
+- El usuario confirmó que el panel Environment muestra `DATABASE_URL` y `ENABLE_DISPATCH`, con este último configurado como `false`. El aviso verde de Render confirma guardado, **no** conectividad a PostgreSQL.
+- No se han ejecutado migraciones ni verificación de tablas. La página pública de producción sigue separada y no debe modificarse.
+
+## Procedimiento seguro de verificación (solo servicio de pruebas)
+1. Confirmar en Render que el servicio seleccionado es **pimentel-dispatch-test** y la rama `feature/driver-dispatch-app`; nunca usar el servicio público.
+2. Mantener `ENABLE_DISPATCH=false` durante toda la preparación. No colocar credenciales ni URL de base en GitHub, logs o chats.
+3. Desplegar manualmente la versión revisada de la rama de pruebas, sin activar despacho.
+4. Ejecutar desde un entorno privado dentro de Render con acceso a `DATABASE_URL`: `node dispatch/verify-db.js`. Este comando es **solo lectura**; si informa tablas faltantes, aún no se aplicó el esquema.
+5. Solo con autorización para modificar la base **de desarrollo** y después de comprobar el nombre `pimentel_dispatch_dev`, ejecutar `DISPATCH_MIGRATION_TARGET=development node dispatch/migrate.js`. Este comando **crea tablas**; nunca ejecutarlo sobre producción.
+6. Repetir `node dispatch/verify-db.js` y confirmar `ready: true` con cinco tablas: `drivers`, `bookings`, `assignments`, `dispatch_audit`, `driver_sessions`.
+7. Si el plan o panel de Render no permite ejecutar comandos en el servicio, **detenerse** y preparar un mecanismo de migración aislado; no publicar una ruta HTTP de migración ni abrir la base a Internet.
+8. No habilitar `ENABLE_DISPATCH=true` hasta completar seguridad, autenticación administrativa y pruebas. El panel `/despacho` permanece deshabilitado por diseño.
 
 ## Preparación pendiente
 1. Servicio web **separado de pruebas** ya creado: `pimentel-dispatch-test`, conectado a `feature/driver-dispatch-app`. El servicio público permanece en `main`. El despliegue de pruebas no es automático.
