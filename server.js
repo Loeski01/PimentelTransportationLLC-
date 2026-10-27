@@ -268,6 +268,12 @@ app.post("/api/booking-request", async (req, res) => {
 // administrator credentials have been configured. Existing payment and
 // booking endpoints remain unchanged when it is disabled.
 if (process.env.ENABLE_DISPATCH === "true") {
+  // This feature branch is development-only. Never enable dispatch against any other DB.
+  let dispatchDbName = "";
+  try { dispatchDbName = decodeURIComponent(new URL(process.env.DATABASE_URL).pathname.slice(1)); } catch {}
+  if (dispatchDbName !== "pimentel_dispatch_dev") {
+    throw new Error("Dispatch refuses to start: unexpected database target");
+  }
   if (!process.env.DATABASE_URL || !process.env.DISPATCH_ADMIN_TOKEN ||
       process.env.DISPATCH_ADMIN_TOKEN.length < 32) {
     throw new Error("Dispatch requires DATABASE_URL and a strong DISPATCH_ADMIN_TOKEN");
