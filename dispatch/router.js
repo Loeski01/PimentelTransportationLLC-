@@ -61,6 +61,12 @@ router.post("/bookings/:id/assign",admin,wrap(async(req,res)=>{
     await client.query("COMMIT");res.status(201).json(a.rows[0]);
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
+router.post("/logout",wrap(async(req,res)=>{
+  if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
+  const token=/^Bearer (.+)$/i.exec(req.get("authorization")||"")?.[1];
+  await pool.query("DELETE FROM driver_sessions WHERE token_hash=$1 AND driver_id=$2",[hashToken(token),req.actor.id]);
+  res.set("Cache-Control","no-store").json({ok:true});
+}));
 router.get("/my-assignments",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
   const r=await pool.query("SELECT a.id,a.status,b.reference,b.pickup,b.destination,b.pickup_at FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
