@@ -278,6 +278,9 @@ if (process.env.ENABLE_DISPATCH === "true") {
       process.env.DISPATCH_ADMIN_TOKEN.length < 32) {
     throw new Error("Dispatch requires DATABASE_URL and a strong DISPATCH_ADMIN_TOKEN");
   }
+  if (process.env.DISPATCH_SECURITY_REVIEWED !== "true") {
+    throw new Error("Dispatch cannot be enabled before security review is explicitly approved");
+  }
   const path = require("node:path");
   app.use("/api/dispatch", require("./dispatch/login"));
   app.use("/api/dispatch", require("./dispatch/router").router);
