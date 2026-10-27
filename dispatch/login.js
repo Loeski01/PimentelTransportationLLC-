@@ -3,6 +3,8 @@ const express=require("express");
 const crypto=require("node:crypto");
 const {pool,hashToken,randomToken}=require("./router");
 const router=express.Router();
+// Login responses must never be cached, including failures.
+router.use((req,res,next)=>{res.set("Cache-Control","no-store");res.set("Pragma","no-cache");next();});
 const attempts=new Map();
 const WINDOW=15*60*1000;
 const MAX_TRACKED_IPS=10000;
