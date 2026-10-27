@@ -281,12 +281,6 @@ if (process.env.ENABLE_DISPATCH === "true") {
     res.setHeader("Cache-Control", "no-store");
     res.status(503).json({ error: "Panel administrativo pendiente de autenticación segura" });
   });
-  /* Deprecated prototype route retained for future review:
-
-    res.setHeader("Cache-Control", "no-store");
-    res.sendFile(path.join(__dirname, "dispatch/public/admin.html"));
-  });
-  */
   app.use("/conductores", express.static(path.join(__dirname, "dispatch/public"), {
     index: "index.html",
     setHeaders: res => res.setHeader("Cache-Control", "no-store")
