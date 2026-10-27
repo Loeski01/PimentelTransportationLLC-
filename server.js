@@ -263,6 +263,24 @@ app.post("/api/booking-request", async (req, res) => {
   }
 });
 
+
+// Driver dispatch is opt-in until the private PostgreSQL database and
+// administrator credentials have been configured. Existing payment and
+// booking endpoints remain unchanged when it is disabled.
+if (process.env.ENABLE_DISPATCH === "true") {
+  if (!process.env.DATABASE_URL || !process.env.DISPATCH_ADMIN_TOKEN ||
+      process.env.DISPATCH_ADMIN_TOKEN.length < 32) {
+    throw new Error("Dispatch requires DATABASE_URL and a strong DISPATCH_ADMIN_TOKEN");
+  }
+  const path = require("node:path");
+  app.use("/api/dispatch", require("./dispatch/login"));
+  app.use("/api/dispatch", require("./dispatch/router").router);
+  app.use("/conductores", express.static(path.join(__dirname, "dispatch/public"), {
+    index: "index.html",
+    setHeaders: res => res.setHeader("Cache-Control", "no-store")
+  }));
+}
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
