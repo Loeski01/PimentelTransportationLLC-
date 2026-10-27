@@ -275,10 +275,18 @@ if (process.env.ENABLE_DISPATCH === "true") {
   const path = require("node:path");
   app.use("/api/dispatch", require("./dispatch/login"));
   app.use("/api/dispatch", require("./dispatch/router").router);
-  app.get("/despacho", (req, res) => {
+  // Keep the prototype administrator page inaccessible until secure
+  // server-side administrator authentication has been implemented.
+  app.use("/despacho", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(503).json({ error: "Panel administrativo pendiente de autenticación segura" });
+  });
+  /* Deprecated prototype route retained for future review:
+
     res.setHeader("Cache-Control", "no-store");
     res.sendFile(path.join(__dirname, "dispatch/public/admin.html"));
   });
+  */
   app.use("/conductores", express.static(path.join(__dirname, "dispatch/public"), {
     index: "index.html",
     setHeaders: res => res.setHeader("Cache-Control", "no-store")
