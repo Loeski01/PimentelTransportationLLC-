@@ -290,6 +290,7 @@ if (process.env.ENABLE_DISPATCH === "true") {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
+  console.log("Dispatch test configuration:", JSON.stringify({dispatchFlag: process.env.ENABLE_DISPATCH === "false" ? "disabled" : process.env.ENABLE_DISPATCH === "true" ? "enabled" : "unset_or_invalid", databaseUrlConfigured: Boolean(process.env.DATABASE_URL)}));
   // Read-only PostgreSQL check for the isolated dispatch test service.
   // Never runs when dispatch is enabled; no secrets or customer data in logs.
   if (process.env.ENABLE_DISPATCH === "false" && process.env.DATABASE_URL) {
