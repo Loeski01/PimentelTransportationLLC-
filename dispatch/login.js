@@ -5,7 +5,21 @@ const {pool,hashToken,randomToken}=require("./router");
 const router=express.Router();
 const attempts=new Map();
 const WINDOW=15*60*1000;
-function limited(ip){const now=Date.now();const item=attempts.get(ip);if(!item||now-item.start>WINDOW){attempts.set(ip,{start:now,count:1});return false;}item.count++;return item.count>8;}
+const MAX_TRACKED_IPS=10000;
+function limited(ip){
+ const now=Date.now();
+ const key=String(ip||"unknown");
+ const item=attempts.get(key);
+ if(!item||now-item.start>WINDOW){
+  // Keep the in-memory limiter bounded under high-cardinality traffic.
+  if(!item&&attempts.size>=MAX_TRACKED_IPS){
+   for(const [address,entry] of attempts){if(now-entry.start>WINDOW)attempts.delete(address);}
+   if(attempts.size>=MAX_TRACKED_IPS)return true;
+  }
+  attempts.set(key,{start:now,count:1});return false;
+ }
+ item.count++;return item.count>8;
+}
 setInterval(()=>{const now=Date.now();for(const [ip,item] of attempts){if(now-item.start>WINDOW)attempts.delete(ip);}},WINDOW).unref();
 router.post("/login",async(req,res)=>{
  try{
