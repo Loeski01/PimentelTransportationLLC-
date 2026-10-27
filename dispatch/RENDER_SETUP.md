@@ -8,6 +8,14 @@
 - El usuario confirmó que el panel Environment muestra `DATABASE_URL` y `ENABLE_DISPATCH`, con este último configurado como `false`. El aviso verde de Render confirma guardado, **no** conectividad a PostgreSQL.
 - No se han ejecutado migraciones ni verificación de tablas. La página pública de producción sigue separada y no debe modificarse.
 
+## Resultado comprobado de la base de pruebas
+- 27 de octubre de 2026: conexión interna PostgreSQL confirmada con nombre `pimentel_dispatch_dev`.
+- Migración de desarrollo ejecutada correctamente; verificación posterior `ready: true`, cinco tablas encontradas, ninguna faltante.
+- Se deshabilitó el permiso temporal de migración cambiando `DISPATCH_MIGRATION_TARGET` a `disabled`; reinicio posterior completado sin ejecutar migración.
+- `ENABLE_DISPATCH=false` permanece vigente; el despacho no está habilitado para clientes reales.
+- Sigue pendiente implementar autenticación administrativa segura y probar la API de conductores antes de activarla.
+- El despliegue reporta una vulnerabilidad alta de dependencias; revisar `npm audit` y corregir sin usar `--force` a ciegas.
+
 ## Procedimiento seguro de verificación (solo servicio de pruebas)
 1. Confirmar en Render que el servicio seleccionado es **pimentel-dispatch-test** y la rama `feature/driver-dispatch-app`; nunca usar el servicio público.
 2. Mantener `ENABLE_DISPATCH=false` durante toda la preparación. No colocar credenciales ni URL de base en GitHub, logs o chats.
