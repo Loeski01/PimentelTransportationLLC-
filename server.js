@@ -162,6 +162,86 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
+
+const nodemailer = require("nodemailer");
+const notificationEmail = process.env.BOOKING_NOTIFY_EMAIL || "Cesarloeski17@gmail.com";
+const smtpUser = process.env.SMTP_USER;
+const smtpPassword = process.env.SMTP_APP_PASSWORD;
+const mailTransport = smtpUser && smtpPassword ? nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: Number(process.env.SMTP_PORT || 465),
+  secure: true,
+  auth: { user: smtpUser, pass: smtpPassword }
+}) : null;
+const bookingThrottle = new Map();
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+app.post("/api/booking-request", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  if (!mailTransport) return res.status(503).json({ error: "Las notificaciones por correo todavía no están activadas." });
+  const ip = req.ip || "unknown";
+  const last = bookingThrottle.get(ip) || 0;
+  if (Date.now() - last < 60000) return res.status(429).json({ error: "Espera un minuto antes de enviar otra solicitud." });
+  if (bookingThrottle.size > 2000) bookingThrottle.clear();
+  const body = req.body || {};
+  const name = clean(body.name, 100), phone = clean(body.phone, 40);
+  const email = clean(body.email, 254), from = clean(body.from, 200), to = clean(body.to, 200);
+  const date = clean(body.date, 10), time = clean(body.time, 5);
+  const passengers = clean(body.passengers, 20), details = clean(body.details, 500);
+  const payment = clean(body.payment, 30);
+  const tipPercent = Number(body.tipPercent), tipCents = Number(body.tipCents);
+  if (!name || !phone || !emailPattern.test(email) || !validAddresses(from, to) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
+      !Number.isSafeInteger(body.expectedFareCents) || body.expectedFareCents < 0 ||
+      ![0, 10, 15, 20].includes(tipPercent) || !Number.isSafeInteger(tipCents) ||
+      tipCents < 0 || tipCents > 100000 || (tipPercent > 0 && tipCents > 0) ||
+      !["later", "coordinate"].includes(payment)) {
+    return res.status(400).json({ error: "Revisa los datos de la reserva." });
+  }
+  bookingThrottle.set(ip, Date.now());
+  try {
+    const fare = await calculateFare(from, to);
+    if (fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
+    const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
+    const dollars = cents => "$" + (cents / 100).toFixed(2);
+    const reference = "PT-" + Date.now().toString(36).toUpperCase();
+    const summary = [
+      "Solicitud: " + reference, "Nombre: " + name, "Correo: " + email,
+      "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
+      "Recogida: " + from, "Destino: " + to, "Pasajeros: " + passengers,
+      "Tarifa estimada: " + dollars(fare.amount), "Propina opcional: " + dollars(tip),
+      "Total estimado: " + dollars(fare.amount + tip),
+      "Pago: " + payment, "Detalles: " + details,
+      "Estado: PENDIENTE DE CONFIRMACIÓN"
+    ].join("\n");
+    await mailTransport.sendMail({
+      from: { name: "Pimentel Transportation LLC", address: smtpUser },
+      to: notificationEmail,
+      replyTo: email,
+      subject: "Nueva solicitud de reserva " + reference,
+      text: summary
+    });
+    let customerNoticeSent = false;
+    try {
+      await mailTransport.sendMail({
+        from: { name: "Pimentel Transportation LLC", address: smtpUser },
+        to: email,
+        replyTo: notificationEmail,
+        subject: "Solicitud recibida / Request received - " + reference,
+        text: "Gracias por elegir Pimentel Transportation LLC.\\n\\nHemos recibido tu solicitud. Tu viaje NO está confirmado hasta que nuestra empresa lo apruebe.\\n\\nThank you for your request. Your ride is NOT confirmed until our company approves it.\\n\\n" + summary + "\\n\\nContacto: " + notificationEmail
+      });
+      customerNoticeSent = true;
+    } catch (error) {
+      console.error("Customer email delivery error:", error.message);
+    }
+    res.json({ reference, received: true, customerNoticeSent });
+  } catch (error) {
+    console.error("Booking request failed:", error.message);
+    if (error.status) return sendError(res, error);
+    res.status(502).json({ error: "No se pudo enviar la solicitud. Intenta nuevamente o utiliza WhatsApp." });
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
