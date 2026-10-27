@@ -299,7 +299,9 @@ app.listen(PORT, "0.0.0.0", () => {
       cwd: __dirname, timeout: 15000, maxBuffer: 8192
     }, (error, stdout) => {
       if (error) {
-        console.log("Dispatch DB check: connection failed or schema incomplete; exit code:", error.code || "unknown");
+        const stderr = String(error.stderr || "");
+        const category = /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(stderr) ? "DNS_RESOLUTION" : /ECONNREFUSED|ETIMEDOUT|timeout|ENETUNREACH/i.test(stderr) ? "NETWORK_CONNECTION" : /password authentication failed|28P01/i.test(stderr) ? "AUTHENTICATION" : /database .* does not exist|3D000/i.test(stderr) ? "DATABASE_NOT_FOUND" : /Unexpected database/i.test(stderr) ? "WRONG_DATABASE" : /certificate|SSL|self.signed/i.test(stderr) ? "TLS_CONFIGURATION" : "OTHER";
+        console.log("Dispatch DB check failed:", JSON.stringify({category, exitCode: error.code || "unknown"}));
       }
       const result = stdout.trim();
       if (result) console.log("Dispatch DB check result:", result);
