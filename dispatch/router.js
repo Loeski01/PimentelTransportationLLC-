@@ -63,7 +63,14 @@ router.get("/bookings",admin,wrap(async(req,res)=>{
   const r=await pool.query("SELECT id,reference,customer_name,pickup,destination,pickup_at,estimated_fare_cents,status FROM bookings ORDER BY pickup_at DESC LIMIT 200");res.json(r.rows);
 }));
 router.post("/bookings/:id/approve",admin,wrap(async(req,res)=>{
-  const r=await pool.query("UPDATE bookings SET status='approved' WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);if(!r.rowCount)return fail(res,409,"Reserva inexistente o no pendiente");res.json(r.rows[0]);
+  const client=await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const r=await client.query("UPDATE bookings SET status='approved' WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
+    if(!r.rowCount){await client.query("ROLLBACK");return fail(res,409,"Reserva inexistente o no pendiente");}
+    await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'admin','admin','approved')",[req.params.id]);
+    await client.query("COMMIT");res.json(r.rows[0]);
+  }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
 router.post("/bookings/:id/assign",admin,wrap(async(req,res)=>{
   const client=await pool.connect();
