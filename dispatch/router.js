@@ -31,7 +31,7 @@ router.post("/drivers",admin,wrap(async(req,res)=>{
   if(typeof name!=="string"||!name.trim()||name.length>120||!validEmail(email)||typeof phone!=="string"||!phone.trim()||phone.length>40||typeof password!=="string"||password.length<12||password.length>128||typeof vehicle!=="string"||vehicle.length>160)return fail(res,400,"Datos de conductor inválidos; contraseña mínimo 12 caracteres");
   const salt=crypto.randomBytes(16).toString("hex");
   const key=await new Promise((resolve,reject)=>crypto.scrypt(password,salt,64,(err,v)=>err?reject(err):resolve(v)));
-  const saved=await pool.query("INSERT INTO drivers(name,email,phone,vehicle,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id,name,email,phone,vehicle,active",[name.trim(),email.toLowerCase(),phone.trim(),vehicle.trim(),salt+":"+key.toString("hex")]);
+  const saved=await pool.query("INSERT INTO drivers(name,email,phone,vehicle,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id,name,email,phone,vehicle,active",[name.trim(),email.trim().toLowerCase(),phone.trim(),vehicle.trim(),salt+":"+key.toString("hex")]);
   res.status(201).json(saved.rows[0]);
 }));
 router.get("/drivers",admin,wrap(async(req,res)=>{
