@@ -21,6 +21,6 @@ if(trip.status==='accepted'&&trip.booking_status==='in_progress'){const btn=node
 $('trips').append(card);}}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const data=new FormData(e.currentTarget);notice('Iniciando sesión…');try{const result=await request('/login',{method:'POST',body:JSON.stringify({email:data.get('email'),password:data.get('password')})});token=result.token;$('loginPanel').hidden=true;$('tripsPanel').hidden=false;e.currentTarget.reset();await load();notice('Sesión iniciada.');}catch(err){notice(err.message);}});
 $('refresh').onclick=()=>load().catch(e=>notice(e.message));
-$('logout').onclick=async()=>{try{await request('/logout',{method:'POST'});}catch(e){notice('No se pudo confirmar el cierre en el servidor.');}finally{token=null;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();notice('Sesión cerrada en este dispositivo.');}};
+$('logout').onclick=async()=>{let revoked=false;try{await request('/logout',{method:'POST'});revoked=true;}catch(e){}finally{token=null;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();notice(revoked?'Sesión cerrada correctamente.':'Se cerró el acceso en este dispositivo, pero no se pudo confirmar la revocación en el servidor. La sesión caduca automáticamente.');}};
 })();
 </script></body></html>
