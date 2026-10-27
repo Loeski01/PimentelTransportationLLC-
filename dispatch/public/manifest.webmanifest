@@ -1,0 +1,10 @@
+{
+  "name": "Pimentel Transportation Conductores",
+  "short_name": "Pimentel Driver",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "lang": "es"
+}
