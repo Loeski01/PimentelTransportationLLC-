@@ -37,9 +37,14 @@ router.get("/drivers",admin,wrap(async(req,res)=>{
 }));
 router.patch("/drivers/:id",admin,wrap(async(req,res)=>{
   if(typeof req.body?.active!=="boolean")return fail(res,400,"active debe ser booleano");
-  const r=await pool.query("UPDATE drivers SET active=$1 WHERE id=$2 RETURNING id,name,active",[req.body.active,req.params.id]);if(!r.rowCount)return fail(res,404,"Conductor no encontrado");
-  if(!req.body.active)await pool.query("DELETE FROM driver_sessions WHERE driver_id=$1",[req.params.id]);
-  res.json(r.rows[0]);
+  const client=await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const r=await client.query("UPDATE drivers SET active=$1 WHERE id=$2 RETURNING id,name,active",[req.body.active,req.params.id]);
+    if(!r.rowCount){await client.query("ROLLBACK");return fail(res,404,"Conductor no encontrado");}
+    if(!req.body.active)await client.query("DELETE FROM driver_sessions WHERE driver_id=$1",[req.params.id]);
+    await client.query("COMMIT");res.json(r.rows[0]);
+  }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
 router.post("/bookings",admin,wrap(async(req,res)=>{
   const b=req.body||{};
