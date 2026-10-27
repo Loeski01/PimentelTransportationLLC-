@@ -67,6 +67,8 @@ a{color:var(--gold)}
 <div class="detail"><span>Propina / Tip</span><span id="tipTotal">$0.00</span></div>
 <label for="paymentKind">¿Qué vas a pagar? / What are you paying?</label>
 <select id="paymentKind"><option value="ride">Viaje + propina elegida / Ride + selected tip</option><option value="tip_only">Solo propina: el viaje ya está pagado / Tip only: ride already paid</option></select>
+<button id="continueBooking" type="button" style="margin-top:18px">CONTINUAR A RESERVA / CONTINUE TO BOOKING</button>
+<p class="note">Continúa al formulario de reserva con las direcciones y datos ingresados. No se cobra al reservar.</p>
 <div class="detail"><span>Total para pagar / Payment total</span><span id="paymentTotal"></span></div>
 <p class="note">Si ya pagaste el viaje, selecciona «Solo propina». Revisa lo ya pagado antes de continuar. Este pago usa la tarifa GPS mostrada; coordina con la compañía cualquier peaje, espera u otro ajuste.</p>
 <button id="checkout" type="button">Continuar al pago seguro / Continue to secure payment</button>
@@ -134,6 +136,16 @@ function showStatus(message,error=false){
   $('status').className=error?'status error':'status';
 }
 
+$('continueBooking').addEventListener('click',()=>{
+  const details={from:$('from').value.trim(),to:$('to').value.trim(),customerName:$('customerName').value.trim(),phone:$('phone').value.trim(),tip:$('tipChoice').value,tipAmount:$('customTip').value};
+  if(!currentQuote||details.from!==currentQuote.from||details.to!==currentQuote.to){showStatus('Primero calcula la tarifa GPS para continuar.',true);return;}
+  if(window.parent!==window&&window.parent.location.origin===window.location.origin){
+    window.parent.postMessage({type:'pimentel:continue-booking',details},window.location.origin);
+  }else{
+    const params=new URLSearchParams({from:details.from,to:details.to,customerName:details.customerName,phone:details.phone,tip:details.tip,tipAmount:details.tipAmount});
+    window.location.assign('https://loeski01.github.io/PimentelTransportationLLC-/?'+params.toString()+'#reserva');
+  }
+});
 $('checkout').addEventListener('click',async()=>{
   if(!currentQuote)return;
   const customerName=$('customerName').value.trim(),phone=$('phone').value.trim();
