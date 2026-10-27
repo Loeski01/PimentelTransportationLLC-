@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111111">
+<title>Administración de viajes | Pimentel Transportation</title>
+<style>
+*{box-sizing:border-box}body{font:16px system-ui,Arial;background:#101010;color:#f3f3f3;margin:0;padding:16px}main{max-width:700px;margin:auto}h1,h2{color:#d4af37}section{border:1px solid #65551e;background:#202020;border-radius:12px;padding:18px;margin:16px 0}label{display:block;margin:12px 0}input,select{width:100%;padding:12px;font:inherit;border-radius:6px}button{background:#d4af37;color:#111;border:0;border-radius:7px;padding:12px;margin:5px 5px 5px 0;font-weight:700}button:disabled{opacity:.5}article{border-top:1px solid #555;padding:12px 0}small{color:#bbb}#message{min-height:24px}
+</style></head><body><main><h1>Pimentel Transportation</h1><p>Panel privado de despacho · Pruebas</p>
+<section id="auth"><h2>Administrador</h2><label>Clave de administrador<input id="key" type="password" autocomplete="off" required></label><button id="enter">Entrar</button><small>La clave se mantiene solo en la memoria de esta pestaña. No la compartas por mensajes.</small></section>
+<div id="dashboard" hidden>
+<section><h2>Nuevo viaje</h2><form id="create">
+<label>Cliente<input name="customerName" maxlength="120" required></label><label>Correo<input name="customerEmail" type="email" required></label><label>Teléfono<input name="customerPhone" required></label><label>Origen<input name="pickup" required></label><label>Destino<input name="destination" required></label><label>Fecha y hora de recogida<input name="pickupAt" type="datetime-local" required></label><label>Precio estimado (USD)<input name="fare" type="number" min="0" max="1000000" step="0.01" required></label><button>Crear viaje pendiente</button></form></section>
+<section><h2>Viajes</h2><button id="refresh">Actualizar</button><div id="bookings"></div></section>
+<section><h2>Conductores</h2><button id="refreshDrivers">Actualizar conductores</button><div id="drivers"></div></section>
+<button id="exit">Cerrar sesión</button>
+</div><p id="message" role="status" aria-live="polite"></p></main>
+<script>
+(()=>{'use strict';let token='';let drivers=[];const el=id=>document.getElementById(id);const say=s=>el('message').textContent=s;
+async function api(path,options={}){const r=await fetch('/api/dispatch'+path,{...options,cache:'no-store',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(options.headers||{})}});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||'Error del servidor');return data;}
+const text=(tag,value)=>{const n=document.createElement(tag);n.textContent=value;return n;};
+async function loadDrivers(){drivers=await api('/drivers');el('drivers').replaceChildren();for(const d of drivers){const a=text('article',d.name+' — '+(d.active?'Activo':'Suspendido')+' — '+d.vehicle);el('drivers').append(a);}if(!drivers.length)el('drivers').append(text('p','Todavía no hay conductores.'));}
+async function loadBookings(){const bookings=await api('/bookings');el('bookings').replaceChildren();for(const b of bookings){const a=text('article','');for(const line of [b.reference+' — '+b.customer_name,b.pickup+' → '+b.destination,new Date(b.pickup_at).toLocaleString('es-US'), 'Estado: '+b.status])a.append(text('p',line));
+if(b.status==='pending'){const button=text('button','Aprobar');button.onclick=async()=>{button.disabled=true;try{await api('/bookings/'+encodeURIComponent(b.id)+'/approve',{method:'POST'});await loadBookings();}catch(e){say(e.message);button.disabled=false;}};a.append(button);}
+if(b.status==='approved'){const select=document.createElement('select');select.setAttribute('aria-label','Conductor');for(const d of drivers.filter(d=>d.active)){const option=document.createElement('option');option.value=d.id;option.textContent=d.name;select.append(option);}a.append(select);const button=text('button','Asignar conductor');button.disabled=!select.options.length;button.onclick=async()=>{button.disabled=true;try{await api('/bookings/'+encodeURIComponent(b.id)+'/assign',{method:'POST',body:JSON.stringify({driverId:select.value})});await loadBookings();}catch(e){say(e.message);button.disabled=false;}};a.append(button);}
+el('bookings').append(a);}if(!bookings.length)el('bookings').append(text('p','Todavía no hay viajes.'));}
+el('enter').onclick=async()=>{token=el('key').value.trim();el('key').value='';try{await loadDrivers();await loadBookings();el('auth').hidden=true;el('dashboard').hidden=false;say('Panel de pruebas conectado.');}catch(e){token='';say('No se pudo acceder: '+e.message);}};
+el('create').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget);const pickupAt=new Date(String(f.get('pickupAt')));const cents=Math.round(Number(f.get('fare'))*100);try{await api('/bookings',{method:'POST',body:JSON.stringify({customerName:f.get('customerName'),customerEmail:f.get('customerEmail'),customerPhone:f.get('customerPhone'),pickup:f.get('pickup'),destination:f.get('destination'),pickupAt:pickupAt.toISOString(),estimatedFareCents:cents})});e.currentTarget.reset();await loadBookings();say('Viaje de prueba creado; pendiente de aprobación.');}catch(err){say(err.message);}};
+el('refresh').onclick=()=>loadBookings().catch(e=>say(e.message));el('refreshDrivers').onclick=()=>loadDrivers().catch(e=>say(e.message));
+el('exit').onclick=()=>{token='';drivers=[];el('dashboard').hidden=true;el('auth').hidden=false;el('bookings').replaceChildren();el('drivers').replaceChildren();say('Sesión local cerrada.');};
+})();
+</script></body></html>
