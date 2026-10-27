@@ -26,6 +26,14 @@ footer{padding:25px;background:#080808;border-top:2px solid #d4af37}
 a.contacto{color:#d4af37}
 
 .brand-heading{display:flex;align-items:center;justify-content:space-between;gap:24px;max-width:1100px;margin:0 auto}.brand-heading h1{min-width:0;text-align:left;overflow-wrap:anywhere}.booking-qr{flex:0 0 auto;width:144px;margin:0;padding:10px;background:#191919;border:1px solid #d4af37;border-radius:10px;text-align:center}.booking-qr h2{font-size:11px;line-height:1.4;margin:0 0 6px}.booking-qr svg{display:block;width:123px;height:123px;max-width:100%;margin:auto;border-radius:4px}.booking-qr p{display:none}.booking-qr a{color:#e8c969;font-size:10px;font-weight:bold}@media(max-width:600px){header{padding:24px 12px}.brand-heading{gap:10px}.brand-heading h1{font-size:clamp(17px,4.7vw,26px);letter-spacing:1px;line-height:1.35;margin:0}.booking-qr{width:112px;padding:5px}.booking-qr svg{width:100px;height:100px}.booking-qr h2{font-size:9px;margin-bottom:4px}.booking-qr>a:last-child{font-size:9px}}
+
+.install-help{max-width:570px;margin:14px auto 0;padding:0 12px}
+.install-help .boton{background:transparent;color:#e8c969;border:1px solid #d4af37;max-width:100%;white-space:normal}
+#installGuide{background:#191919;border:1px solid #55451c;border-radius:10px;padding:18px;text-align:left}
+#installGuide h2{font-size:20px;margin-top:0}
+#installGuide ol{padding-left:24px}
+#installGuide summary{cursor:pointer;color:#e8c969;font-weight:bold}
+#installGuide button:focus-visible,#installPimentel:focus-visible{outline:3px solid white;outline-offset:4px}
 </style>
 </head>
 <body>
@@ -37,6 +45,35 @@ a.contacto{color:#d4af37}
 <a class="boton" href="#cotizar">CALCULATE FARE / CALCULAR TARIFA</a>
 <a class="boton" href="#cotizar">BOOK NOW / RESERVAR</a>
 <a class="boton" href="tel:+16177855657">CALL NOW</a>
+
+<div class="install-help">
+<button type="button" class="boton" id="installPimentel" aria-expanded="false" aria-controls="installGuide">＋ Agregar Pimentel a mi pantalla / Add to Home Screen</button>
+<div id="installGuide" hidden>
+<h2>Ten tus reservas a mano / Book faster next time</h2>
+<p>Guarda un acceso a esta página en tu teléfono. / Save this page to your phone’s Home Screen.</p>
+<details id="installIOS">
+<summary>iPhone / iPad</summary>
+<ol>
+<li>Abre esta página en Safari. / Open this page in Safari.</li>
+<li>Toca <strong>Compartir</strong> (cuadrado con flecha hacia arriba). Si no lo ves, toca primero los tres puntos de Safari. / Tap <strong>Share</strong>; it may be inside Safari’s three-dot menu.</li>
+<li>Elige <strong>Agregar a inicio</strong> o <strong>Añadir a pantalla de inicio</strong>. / Choose <strong>Add to Home Screen</strong>.</li>
+<li>Deja el nombre “Pimentel Transportation” y toca <strong>Agregar</strong>. / Keep the name and tap <strong>Add</strong>.</li>
+</ol>
+<p>Si falta esa opción, baja hasta “Editar acciones”. / If the option is missing, scroll to “Edit Actions”.</p>
+</details>
+<details id="installAndroid">
+<summary>Android / Google Pixel</summary>
+<ol>
+<li>Abre esta página en Chrome. / Open this page in Chrome.</li>
+<li>Toca el menú de tres puntos. / Tap the three-dot menu.</li>
+<li>Elige <strong>Instalar y crear acceso directo → Crear acceso directo</strong>. En otras versiones puede decir <strong>Agregar a la pantalla principal</strong> o <strong>Instalar aplicación</strong>. / Choose <strong>Install and create shortcut → Create shortcut</strong>. Other versions may say <strong>Add to Home screen</strong> or <strong>Install app</strong>.</li>
+<li>Confirma <strong>Agregar</strong> o <strong>Instalar</strong>. / Confirm <strong>Add</strong> or <strong>Install</strong>.</li>
+</ol>
+</details>
+<p>Si abriste el enlace dentro de WhatsApp u otra app, ábrelo primero en Safari o Chrome. Cada persona debe confirmar para guardar el icono. / If using an in-app browser, open in Safari or Chrome first. Each person must confirm.</p>
+<button type="button" class="boton" id="closeInstallGuide">Cerrar / Close</button>
+</div>
+</div>
 </header>
 
 
@@ -240,6 +277,52 @@ el('unifiedForm').addEventListener('submit',async event=>{
  el('envios').style.display='block';el('bookingStatus').textContent='Selecciona WhatsApp o correo para enviar la solicitud.';
  el('envios').scrollIntoView({behavior:'smooth'});
 });
+</script>
+
+
+<script>
+(function () {
+ 'use strict';
+ const button = document.getElementById('installPimentel');
+ const guide = document.getElementById('installGuide');
+ const close = document.getElementById('closeInstallGuide');
+ let installPrompt = null;
+ function showGuide(show) {
+  guide.hidden = !show;
+  button.setAttribute('aria-expanded', String(show));
+ }
+ window.addEventListener('beforeinstallprompt', function (event) {
+  event.preventDefault();
+  installPrompt = event;
+ });
+ window.addEventListener('appinstalled', function () {
+  installPrompt = null;
+  showGuide(false);
+  button.hidden = true;
+ });
+ const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+ document.getElementById(ios ? 'installIOS' : 'installAndroid').open = true;
+ if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) {
+  button.hidden = true;
+ }
+ button.addEventListener('click', async function () {
+  if (installPrompt && !ios) {
+   const prompt = installPrompt;
+   installPrompt = null;
+   try {
+    await prompt.prompt();
+    const choice = await prompt.userChoice;
+    if (choice.outcome === 'accepted') { showGuide(false); return; }
+   } catch (_) { /* Fall back to the manual instructions. */ }
+  }
+  showGuide(guide.hidden);
+ });
+ close.addEventListener('click', function () { showGuide(false); button.focus(); });
+ guide.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') { showGuide(false); button.focus(); }
+ });
+}());
 </script>
 
 </body>
