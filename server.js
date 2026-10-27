@@ -297,10 +297,10 @@ app.listen(PORT, "0.0.0.0", () => {
     const { execFile } = require("node:child_process");
     execFile(process.execPath, ["dispatch/verify-db.js"], {
       cwd: __dirname, timeout: 15000, maxBuffer: 8192
-    }, (error, stdout) => {
+    }, (error, stdout, stderr) => {
       if (error) {
-        const stderr = String(error.stderr || "");
-        const category = /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(stderr) ? "DNS_RESOLUTION" : /ECONNREFUSED|ETIMEDOUT|timeout|ENETUNREACH/i.test(stderr) ? "NETWORK_CONNECTION" : /password authentication failed|28P01/i.test(stderr) ? "AUTHENTICATION" : /database .* does not exist|3D000/i.test(stderr) ? "DATABASE_NOT_FOUND" : /Unexpected database/i.test(stderr) ? "WRONG_DATABASE" : /certificate|SSL|self.signed/i.test(stderr) ? "TLS_CONFIGURATION" : "OTHER";
+        const diagnostic = String(stderr || "");
+        const category = /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(diagnostic) ? "DNS_RESOLUTION" : /ECONNREFUSED|ETIMEDOUT|timeout|ENETUNREACH/i.test(diagnostic) ? "NETWORK_CONNECTION" : /password authentication failed|28P01/i.test(diagnostic) ? "AUTHENTICATION" : /database .* does not exist|3D000/i.test(diagnostic) ? "DATABASE_NOT_FOUND" : /Unexpected database/i.test(diagnostic) ? "WRONG_DATABASE" : /certificate|SSL|self.signed/i.test(diagnostic) ? "TLS_CONFIGURATION" : "OTHER";
         console.log("Dispatch DB check failed:", JSON.stringify({category, exitCode: error.code || "unknown"}));
       }
       const result = stdout.trim();
