@@ -1,25 +1,42 @@
-# Contrato de API — versión de desarrollo
+# API de despacho — rama de desarrollo (no desplegada para uso real)
 
-Todas las rutas bajo `/api/dispatch` requieren HTTPS, sesión validada y autorización en el servidor. No están implementadas aún.
+Base: `/api/dispatch`. Esta API solo se monta con `ENABLE_DISPATCH=true`, `DATABASE_URL` y `DISPATCH_ADMIN_TOKEN` configurados. En Render, el servicio separado de pruebas permanece con despacho desactivado. **No utilizar con datos reales antes de pruebas y autenticación administrativa segura.**
+
+## Acceso
+- `POST /login`: correo y contraseña de conductor; devuelve token temporal de 12 horas.
+- `POST /logout`: conductor autenticado; invalida la sesión.
+- Las demás rutas exigen `Authorization: Bearer <token>`; el servidor valida identidad y rol.
+- La clave global `DISPATCH_ADMIN_TOKEN` es **solo provisional para llamadas desde un backend de confianza**. No introducirla en el navegador. El panel `/despacho` está bloqueado hasta sustituirla por autenticación segura.
+
+## Endpoints implementados en código (aún sin pruebas de integración)
 
 | Método | Ruta | Permiso | Acción |
 |---|---|---|---|
-| POST | /drivers | administrador | Invitar/crear conductor |
+| POST | /drivers | administrador | Crear conductor con contraseña cifrada mediante scrypt |
 | GET | /drivers | administrador | Listar conductores |
-| PATCH | /drivers/:id | administrador | Activar/suspender conductor |
-| GET | /bookings | administrador | Listar solicitudes |
-| POST | /bookings/:id/approve | administrador | Aprobar reserva |
-| POST | /bookings/:id/assign | administrador | Asignar conductor |
-| POST | /bookings/:id/reassign | administrador | Revocar y reasignar |
-| GET | /my-assignments | conductor | Solo viajes propios |
-| POST | /my-assignments/:id/accept | conductor asignado | Aceptar |
-| POST | /my-assignments/:id/reject | conductor asignado | Rechazar |
-| POST | /my-assignments/:id/status | conductor asignado | Actualizar estado permitido |
+| PATCH | /drivers/:id | administrador | Activar o desactivar; al desactivar revoca sesiones |
+| POST | /bookings | administrador | Crear viaje manual; no modifica las reservas públicas |
+| GET | /bookings | administrador | Listar hasta 200 viajes |
+| POST | /bookings/:id/approve | administrador | Aprobar viaje pendiente |
+| POST | /bookings/:id/assign | administrador | Ofrecer viaje aprobado a conductor activo |
+| GET | /my-assignments | conductor | Consultar solo asignaciones propias y estado del viaje |
+| POST | /my-assignments/:id/respond | conductor asignado | Responder con `{"status":"accepted"}` o `{"status":"rejected"}` |
+| POST | /my-assignments/:id/start | conductor asignado | Iniciar viaje aceptado |
+| POST | /my-assignments/:id/complete | conductor asignado | Completar viaje iniciado |
+| POST | /logout | conductor | Cerrar sesión actual |
 
-## Reglas
-- Nunca confiar en el identificador de conductor enviado por el cliente para determinar quién inició sesión.
-- El servidor obtiene el rol e identidad de una sesión verificada.
-- Las asignaciones se hacen mediante transacciones de base de datos.
-- Los viajes no pueden asignarse sin aprobación del administrador.
-- La creación de reservas debe persistir en la base de datos; actualmente `/api/booking-request` solo envía correos.
-- La integración con Stripe existente se mantiene sin cambios.
+## Transiciones y controles
+- Viaje: `pending → approved → assigned → in_progress → completed`.
+- Oferta: `offered → accepted → completed` o `offered → rejected`.
+- Si el conductor rechaza, el viaje vuelve a `approved` para otra asignación.
+- El inicio y la finalización verifican que el conductor sea el titular de una asignación aceptada.
+- Las operaciones de asignación, inicio y finalización utilizan transacciones y auditoría.
+- El navegador del conductor conserva el token únicamente en memoria; al recargar deberá iniciar sesión otra vez.
+
+## Pendientes antes de activar
+1. Autenticación administrativa con sesión segura y cookies HttpOnly; reemplazar el token administrativo introducido en navegador.
+2. Conectar la base PostgreSQL **de desarrollo**, aplicar migración protegida y verificar tablas.
+3. Probar permisos, aceptación/rechazo, inicio/finalización, revocación de sesiones y errores de concurrencia.
+4. Realizar pruebas desde iPhone y validar controles de producción, copias de seguridad y límites de solicitudes.
+
+**No implementado:** reasignación directa mediante `/bookings/:id/reassign`, recuperación de contraseñas y sincronización automática con las reservas públicas. No se ha modificado el sistema existente de reservas, calculadora o Stripe.
