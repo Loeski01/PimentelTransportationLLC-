@@ -265,10 +265,12 @@ el('unifiedForm').addEventListener('submit',async event=>{
   }finally{btn.disabled=false;}
  }
  if(val('pago')==='now'){
+  const paymentSignature=JSON.stringify({from:quote.from,to:quote.to,amount:quote.amount,name:val('nombre'),email:val('email'),phone:val('telefono'),date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:'now',...tip});
+  if(paymentSignature!==bookingRequestSignature){bookingRequestId=crypto.randomUUID();bookingRequestSignature=paymentSignature;}
   const btn=el('submitBooking');btn.disabled=true;el('bookingStatus').textContent='Abriendo Stripe...';
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
   try{
-   const response=await fetch(API+'/api/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({from:quote.from,to:quote.to,customerName:val('nombre'),phone:val('telefono'),expectedFareCents:quote.amount,paymentKind:'ride',...tip})});
+   const response=await fetch(API+'/api/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({from:quote.from,to:quote.to,customerName:val('nombre'),name:val('nombre'),email:val('email'),phone:val('telefono'),date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:'now',requestId:bookingRequestId,expectedFareCents:quote.amount,paymentKind:'ride',...tip})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||'No se pudo abrir el pago.');
    const url=new URL(data.url);if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')throw new Error('Enlace de pago no válido.');
    location.assign(url.href);

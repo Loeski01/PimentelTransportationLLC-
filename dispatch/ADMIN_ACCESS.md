@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Trece pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Dieciséis pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
@@ -117,3 +117,25 @@ En esta beta ENABLE_DISPATCH_EMAIL_NOTIFICATIONS=false: se registran como desact
 El proceso retoma avisos pendientes tras reiniciar y reintenta rechazos temporales. Una aceptación incierta, un fallo de guardado después de aceptar el proveedor o una interrupción antigua requieren revisar el registro de Brevo antes de reenviar. Los avisos de asignaciones retiradas, aceptadas o canceladas se omiten. El correo al chofer solo anuncia la asignación y enlaza al portal: no contiene ruta, datos del pasajero, precio ni propina.
 
 La retención de la clave de idempotencia de Brevo es limitada; no se promete entrega exactamente una vez. Los errores no se registran con datos personales ni credenciales. En servidor gratuito, los reintentos pueden demorarse si el servicio se suspende por inactividad.
+
+## Enlace de pagos y viajes preparado (desactivado en esta beta)
+ENABLE_DISPATCH_PAYMENTS=false mantiene la nueva conexión apagada. Para probarla
+se necesitan una clave Stripe de prueba y STRIPE_DISPATCH_WEBHOOK_SECRET guardadas
+privadamente en Render. El arranque rechaza claves reales en este entorno.
+La ruta /api/dispatch/stripe/webhook verifica el cuerpo original con la firma Stripe;
+no usa la redirección del navegador como prueba de pago.
+
+El formulario unificado queda preparado en esta rama para enviar el viaje completo
+al abrir Stripe. El nuevo flujo guarda la solicitud primero, usa una clave estable
+al reintentar el checkout y verifica importe, moneda y sesión al confirmar el pago.
+El importe se calcula en el servidor. Un evento repetido no duplica el registro de
+pago y una caducidad tardía no revierte un pago confirmado. El viaje continúa
+pendiente de aprobación; el precio, la propina y el estado de pago no se exponen al
+conductor. La aprobación de una solicitud marcada para pago con tarjeta exige pago
+confirmado por el servidor.
+
+Se probaron eventos firmados con el SDK y checkout simulado, sin solicitudes a la
+API de Stripe ni cobros. Falta una prueba real en el sandbox de Stripe y configurar
+su endpoint de eventos. El checkout anterior de la web pública sigue separado y
+no se alteró su configuración. Los pagos rápidos de la calculadora y las propinas
+conservan el flujo previo; deben revisarse antes de conectar la web a producción.

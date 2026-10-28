@@ -3,6 +3,11 @@ const express = require("express");
 const Stripe = require("stripe");
 
 const app = express();
+let dispatchCheckout=null,dispatchWebhook=null;
+app.post("/api/dispatch/stripe/webhook",express.raw({type:"application/json",limit:"256kb"}),(req,res)=>{
+  if(!dispatchWebhook)return res.status(404).json({error:"Pagos de despacho no habilitados"});
+  return dispatchWebhook(req,res);
+});
 app.use(express.json({ limit: "10kb" }));app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "https://loeski01.github.io");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -99,6 +104,7 @@ app.post("/api/quote", async (req, res) => {
 });
 
 app.post("/api/create-checkout-session", async (req, res) => {
+  if(dispatchCheckout&&req.body?.payment==="now"&&req.body?.requestId)return dispatchCheckout(req,res);
   if (!stripe) {
     return res.status(503).json({ error: "Stripe is not configured" });
   }
@@ -336,6 +342,13 @@ async function startServer(){
     if(enabled)app.locals.notificationWorker.runOnce();
   }
   if(intakeEnabled)await require("./dispatch/booking-intake").ensureIntakeSchema(require("./dispatch/router").pool);
+  if(process.env.ENABLE_DISPATCH_PAYMENTS==="true"){
+    if(!intakeEnabled||!stripe||!stripeKey.startsWith("sk_test_")||!process.env.STRIPE_DISPATCH_WEBHOOK_SECRET?.startsWith("whsec_"))throw Error("Dispatch test payments require test Stripe credentials and a webhook secret");
+    const {createDispatchCheckout,createDispatchWebhook}=require("./dispatch/payments");
+    const pool=require("./dispatch/router").pool;
+    dispatchCheckout=createDispatchCheckout({pool,stripe,calculateFare,origin:process.env.DISPATCH_ORIGIN});
+    dispatchWebhook=createDispatchWebhook({pool,stripe,webhookSecret:process.env.STRIPE_DISPATCH_WEBHOOK_SECRET,testOnly:true});
+  }
   app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
   console.log("Dispatch test configuration:", JSON.stringify({dispatchFlag: process.env.ENABLE_DISPATCH === "false" ? "disabled" : process.env.ENABLE_DISPATCH === "true" ? "enabled" : "unset_or_invalid", databaseUrlConfigured: Boolean(process.env.DATABASE_URL), databaseNameMatches: (() => { try { return decodeURIComponent(new URL(process.env.DATABASE_URL).pathname.slice(1)) === "pimentel_dispatch_dev"; } catch { return false; } })()}));

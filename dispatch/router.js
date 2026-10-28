@@ -87,8 +87,9 @@ router.post("/bookings/:id/approve",admin,wrap(async(req,res)=>{
   const client=await pool.connect();
   try {
     await client.query("BEGIN");
-    const r=await client.query("UPDATE bookings SET status='approved' WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
-    if(!r.rowCount){await client.query("ROLLBACK");return fail(res,409,"Reserva inexistente o no pendiente");}
+    const paymentGuard=process.env.ENABLE_DISPATCH_BOOKING_INTAKE==="true"?" AND (request_metadata->>'payment' IS DISTINCT FROM 'now' OR request_metadata->>'payment_status'='paid')":"";
+    const r=await client.query("UPDATE bookings SET status='approved' WHERE id=$1 AND status='pending'"+paymentGuard+" RETURNING id,status",[req.params.id]);
+    if(!r.rowCount){await client.query("ROLLBACK");return fail(res,409,"Reserva inexistente, no pendiente o con pago por verificar");}
     await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'admin','admin','approved')",[req.params.id]);
     await client.query("COMMIT");res.json(r.rows[0]);
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}

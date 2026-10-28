@@ -49,6 +49,9 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal(r.status,201);const booking=r.body.id;
   await db.query("UPDATE bookings SET request_metadata=$1::jsonb WHERE id=$2",[JSON.stringify({details:"Fictitious flight notes",passengers:3}),booking]);
   assert.equal((await request("/bookings/"+booking+"/assign","POST",{driverId:drivers[0].id},admin)).status,409);
+  await db.query("UPDATE bookings SET request_metadata=request_metadata||$1::jsonb WHERE id=$2",[JSON.stringify({payment:"now",payment_status:"awaiting_payment"}),booking]);
+  assert.equal((await request("/bookings/"+booking+"/approve","POST",{},admin)).status,409);
+  await db.query("UPDATE bookings SET request_metadata=request_metadata||$1::jsonb WHERE id=$2",[JSON.stringify({payment_status:"paid"}),booking]);
   assert.equal((await request("/bookings/"+booking+"/approve","POST",{},admin)).status,200);
   await db.query("UPDATE drivers SET pin_configured=false WHERE id=$1",[drivers[0].id]);
   assert.equal((await request("/bookings/"+booking+"/assign","POST",{driverId:drivers[0].id},admin)).status,404);
