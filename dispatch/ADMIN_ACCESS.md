@@ -103,3 +103,8 @@ La tabla privada admin_credentials se añade al esquema de pruebas durante el ar
 comprobando el nombre real de la base antes de crearla. No hay migración pública.
 
 Verificación real en Render: administrador puede entrar, formulario de clave propia disponible, PIN 0123 conserva el cero inicial, PIN corto rechazado y restablecimiento a otro PIN invalida el anterior y sus sesiones. La cuenta ficticia fue suspendida. No se cambió la contraseña personal del propietario durante las pruebas. Solo conductores activos con PIN configurado pueden recibir nuevas asignaciones.
+
+## Navegación del conductor
+Después de aceptar un viaje activo aparecen Ir a recoger al pasajero e Ir al destino, con selección de Google Maps, Apple Maps o Waze. Los enlaces se abren solo al pulsarlos y llevan únicamente la dirección de esa etapa; no incluyen precio, propina, referencia ni datos del pasajero. No se solicita geolocalización desde Pimentel: el mapa elegido maneja la ubicación y los permisos. Se ocultan en asignaciones rechazadas, retiradas, canceladas o completadas. La actualización automática no interrumpe la selección de mapa.
+
+Pruebas: enlaces codificados para las dos etapas y los tres proveedores, estados sin navegación y lista cerrada de campos del API de conductores sin datos financieros. La apertura nativa de cada aplicación requiere prueba física en el teléfono del propietario.

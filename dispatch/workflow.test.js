@@ -69,6 +69,10 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/my-assignments/"+assignment+"/respond","POST",{status:"accepted"},drivers[1].headers)).status,200);
   privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
   assert.equal(privateTrip.customer_name,"Fictitious Customer");assert.equal(privateTrip.customer_phone,"5550000000");assert.equal(privateTrip.details,"Fictitious flight notes");assert.equal(privateTrip.passengers,"3");
+  const allowed=new Set(['id','status','booking_status','reference','pickup','destination','pickup_at','customer_name','customer_phone','details','passengers']);
+  assert.ok(Object.keys(privateTrip).every(key=>allowed.has(key)),"Driver API must not disclose pricing, tips or payment metadata");
+  assert.equal(privateTrip.estimated_fare_cents,undefined);assert.equal(privateTrip.request_metadata,undefined);
+
 
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
   assert.equal((await request("/my-assignments/"+assignment+"/start","POST",{},drivers[1].headers)).status,200);
