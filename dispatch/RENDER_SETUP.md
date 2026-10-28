@@ -1,58 +1,29 @@
-# Render — puesta en marcha de Dispatch (desarrollo)
+# Render — estado operativo de pruebas
 
-## Avance posterior: acceso administrativo y pruebas locales
-- Implementado login administrativo con cookie HttpOnly, scrypt, origen y CSRF.
-- Configuración nueva y límites: consultar ADMIN_ACCESS.md. El token administrativo antiguo ya no autentica.
-- Panel de pruebas permite agregar, suspender/reactivar conductores y gestionar asignaciones.
-- Pruebas locales pasan con PostgreSQL embebido PGlite: aislamiento, rechazo, reasignación, aceptación, inicio, finalización, auditoría y revocación de sesiones al suspender.
-- Despliegue confirmado live: dep-dbgkca3l550s73cpf6gg, commit eb2603ad9444221d64b87e7182b64d62fd9307d2, el 27 de octubre de 2026 (Boston). PostgreSQL ready:true, cinco tablas, ninguna faltante; ENABLE_DISPATCH=false. Raíz HTTP 200 y rutas de despacho HTTP 404. Falta configurar credenciales y probar operaciones contra Render; el flujo completo se probó en PGlite.
-- Se retiró nodemailer: el servidor utiliza Brevo HTTPS y no lo importa. Se añadió lockfile y dependencia de desarrollo para las pruebas.
-- Mantener ENABLE_DISPATCH=false hasta completar revisión y configuración del entorno de pruebas.
+Actualizado el 27 de octubre de 2026 (Boston).
+Servicio separado: pimentel-dispatch-test, srv-dbggcu6k1f9s73e81m00.
+Workspace autorizado: My Workspace, tea-dbec85m7bikc73fvfb7g.
+Rama: feature/driver-dispatch-app, despliegues automáticos desactivados.
+Commit desplegado: 029a4553cee618899b5d9a54ffd404ebd0c29e83.
+Deploy dep-dbgkeao8v5cc73fuih1g confirmado live.
 
-## Historial verificado el 27 de octubre de 2026
-- PostgreSQL 18: `pimentel-dispatch-dev` (Render, Oregón), base `pimentel_dispatch_dev`.
-- Plan gratuito temporal: expira el 26 de noviembre de 2026; no guardar datos reales de clientes.
-- La base bloquea conexiones externas; **no abrir la lista de IP para probarla**.
-- Servicio separado `pimentel-dispatch-test`, rama `feature/driver-dispatch-app`, primer despliegue `live`. Despliegue automático desactivado; los commits posteriores requieren despliegue manual.
-- Render confirmó por logs `DATABASE_URL` configurada, conexión a PostgreSQL correcta y `ENABLE_DISPATCH=false`.
-- La migración de desarrollo se ejecutó y verificó; la página pública de producción sigue separada y no debe modificarse.
+PostgreSQL interno pimentel_dispatch_dev: esquema de cinco tablas verificado.
+La base bloquea conexiones externas; no abrir la lista de IP.
+La migración inicial ya se aplicó y el permiso de migración temporal quedó desactivado.
+No repetir migraciones ni crear rutas públicas para ejecutarlas.
 
-## Resultado comprobado de la base de pruebas
-- 27 de octubre de 2026: conexión interna PostgreSQL confirmada con nombre `pimentel_dispatch_dev`.
-- Migración de desarrollo ejecutada correctamente; verificación posterior `ready: true`, cinco tablas encontradas, ninguna faltante.
-- Se deshabilitó el permiso temporal de migración cambiando `DISPATCH_MIGRATION_TARGET` a `disabled`; reinicio posterior completado sin ejecutar migración.
-- `ENABLE_DISPATCH=false` permanece vigente; el despacho no está habilitado para clientes reales.
-- En ese momento seguía pendiente la autenticación administrativa; ver avance posterior arriba.
-- Ese despliegue reportó una vulnerabilidad alta; nodemailer se retiró posteriormente de esta rama.
-- Las operaciones de creación y aprobación de reservas guardan auditoría en la misma transacción; aún falta probarlas con datos ficticios.
-- Se añadió una barrera `DISPATCH_SECURITY_REVIEWED=true` obligatoria antes de activar el despacho, además de la configuración administrativa y la validación del nombre de la base.
-- El portal de conductores mantiene el token solo en memoria; no se persiste en `localStorage`.
-- La última instalación del 27 de octubre está pendiente de confirmación; verificar estado de Render antes de declarar la versión instalada.
+La configuración de acceso administrativo quedó guardada sin exponer secretos.
+ENABLE_DISPATCH=true y DISPATCH_SECURITY_REVIEWED=true están activos en el servicio
+separado de pruebas. El servicio de producción sigue en main y no fue modificado.
 
-## Procedimiento seguro de verificación (solo servicio de pruebas)
-1. Confirmar en Render que el servicio seleccionado es **pimentel-dispatch-test** y la rama `feature/driver-dispatch-app`; nunca usar el servicio público.
-2. Mantener `ENABLE_DISPATCH=false` durante toda la preparación. No colocar credenciales ni URL de base en GitHub, logs o chats.
-3. Desplegar manualmente la versión revisada de la rama de pruebas, sin activar despacho.
-4. Ejecutar desde un entorno privado dentro de Render con acceso a `DATABASE_URL`: `node dispatch/verify-db.js`. Este comando es **solo lectura**; si informa tablas faltantes, aún no se aplicó el esquema.
-5. Solo con autorización para modificar la base **de desarrollo** y después de comprobar el nombre `pimentel_dispatch_dev`, ejecutar `DISPATCH_MIGRATION_TARGET=development node dispatch/migrate.js`. Este comando **crea tablas**; nunca ejecutarlo sobre producción.
-6. Repetir `node dispatch/verify-db.js` y confirmar `ready: true` con cinco tablas: `drivers`, `bookings`, `assignments`, `dispatch_audit`, `driver_sessions`.
-7. Si el plan o panel de Render no permite ejecutar comandos en el servicio, **detenerse** y preparar un mecanismo de migración aislado; no publicar una ruta HTTP de migración ni abrir la base a Internet.
-8. No habilitar `ENABLE_DISPATCH=true` hasta completar seguridad, autenticación administrativa y pruebas. El panel `/despacho` permanece deshabilitado por diseño.
+Pruebas HTTP reales pasaron: administrador, roles, creación y suspensión de conductores,
+creación/aprobación/asignación de viajes, aislamiento, rechazo, reasignación,
+inicio/finalización, liberación, cancelación y revocación de sesiones.
+Páginas y recursos PWA devuelven HTTP 200; API privada anónima devuelve HTTP 401.
+Dos viajes y dos cuentas ficticias permanecen identificados como PRUEBA AUTOMÁTICA;
+las cuentas ficticias están suspendidas.
 
-## Preparación pendiente
-1. Servicio web **separado de pruebas** ya creado: `pimentel-dispatch-test`, conectado a `feature/driver-dispatch-app`. El servicio público permanece en `main`. El despliegue de pruebas no es automático.
-2. Configurar en el servicio de pruebas `DATABASE_URL` con la URL interna de Render; nunca copiarla a GitHub.
-3. Configurar DISPATCH_ADMIN_EMAIL, DISPATCH_ADMIN_PASSWORD_HASH y DISPATCH_ORIGIN según ADMIN_ACCESS.md; retirar DISPATCH_ADMIN_TOKEN.
-4. Ejecutar `dispatch/schema.sql` en la base privada por un canal de administración autorizado.
-5. Configurar `ENABLE_DISPATCH=true` **solo** después de migrar y probar permisos. En producción mantenerlo apagado hasta auditoría.
-6. Verificar autenticación, errores, sesiones, aislamiento por conductor, asignaciones concurrentes, protección ante intentos de login, revocación y recuperación.
-7. Configurar almacenamiento persistente de solicitudes de reserva antes de ofrecer asignaciones reales.
-
-## Riesgos y pendientes antes de uso real
-- El login tiene un límite básico de intentos por IP en memoria, pero requiere pruebas y endurecimiento antes de uso real; no hay recuperación de contraseña.
-- Existe un prototipo de panel visual en `/despacho`, aún sin probar y no apto para producción.
-- La PWA ahora tiene manifest, iconos, service worker y pantalla sin conexión. Instalación en dispositivos pendiente de prueba tras desplegar.
-- Los estados de viaje, auditoría y reasignación requieren pruebas y más lógica.
-- `/despacho` ahora utiliza sesión HttpOnly; falta configurar y validar la versión en el entorno de pruebas. No utilizar datos reales todavía.
-- Base gratuita temporal: migrar a almacenamiento persistente con copias de seguridad antes de guardar datos de clientes reales.
-
+No usar datos reales: base gratuita temporal, expira 26 de noviembre de 2026.
+Antes de producción: almacenamiento persistente con backups, integración de reservas,
+recuperación de contraseñas, revisión operacional y pruebas en teléfonos.
+Consultar ADMIN_ACCESS.md para el uso y las limitaciones.

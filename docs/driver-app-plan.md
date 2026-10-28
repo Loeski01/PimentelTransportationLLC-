@@ -38,15 +38,14 @@ Aplicación web instalable (PWA) para iPhone y Android, con control exclusivo de
 6. Validar en entorno de prueba antes de publicar.
 
 ## Estado actualizado el 27 de octubre de 2026 (Boston)
-Código implementado: acceso administrativo con sesión HttpOnly, cuentas y suspensión
-de conductores, login, creación/aprobación/asignación, rechazo y reasignación,
-aceptación/inicio/finalización con auditoría. PWA con iconos y pantalla offline.
-Cinco pruebas locales pasan, incluyendo flujo SQL en PGlite. Audit sin alertas.
+Primera versión de pruebas activada en Render y verificada contra su PostgreSQL.
+Acceso administrativo con sesión HttpOnly, cuentas/suspensión de conductores,
+creación/aprobación/asignación, rechazo/reasignación, inicio/finalización,
+liberación/cancelación administrativa y auditoría.
+PWA con iconos y pantalla sin conexión, preparada para probar en teléfonos.
+Cinco pruebas locales pasan y el flujo HTTP completo se verificó en Render.
 
-Despliegue de pruebas live: eb2603ad9444221d64b87e7182b64d62fd9307d2.
-PostgreSQL Render conectado y esquema listo; despacho desactivado.
-No está lista para uso real: faltan credenciales administrativas, pruebas en Render
-y teléfonos, integración de reservas de la web, recuperación de contraseñas,
-cancelación/reasignación administrativa y notificaciones.
-Consultar dispatch/ADMIN_ACCESS.md y dispatch/RENDER_SETUP.md.
-
+La web y los pagos públicos permanecen separados. La integración automática con
+reservas de producción, almacenamiento permanente, recuperación de contraseña,
+notificaciones y validación en teléfonos siguen pendientes antes de uso real.
+Estado operativo y guía: dispatch/ADMIN_ACCESS.md y dispatch/RENDER_SETUP.md.

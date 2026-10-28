@@ -1,38 +1,51 @@
-# Acceso administrativo — desarrollo
+# Pimentel App — acceso y operación de pruebas
 
-Implementado: login por correo y contraseña con scrypt, cookie de sesión
-HttpOnly/Secure/SameSite=Strict, expiración de una hora, verificación de origen,
-CSRF, límites de intentos y cierre de sesión con revocación.
-El token administrativo anterior ya no concede acceso a la API.
+Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
+Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
+Commit funcional desplegado: 029a4553cee618899b5d9a54ffd404ebd0c29e83.
+Despliegue: dep-dbgkeao8v5cc73fuih1g, confirmado live.
 
-Configurar solo en el servicio separado pimentel-dispatch-test:
+Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
+Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
+Correo administrador: cesarloeski17@gmail.com.
+La contraseña generada se entrega al propietario en su archivo privado,
+fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 
-- DISPATCH_ADMIN_EMAIL: correo del administrador.
-- DISPATCH_ADMIN_PASSWORD_HASH: salt hexadecimal de 16 bytes, dos puntos y
-  resultado hexadecimal de scrypt de 64 bytes. Usar contraseña única de 12–128 caracteres.
-- DISPATCH_ORIGIN: origen HTTPS exacto del servicio de pruebas, sin barra final.
+## Uso
+1. Entrar al panel con la cuenta administrativa.
+2. Agregar un conductor y establecer su contraseña inicial (mínimo 12 caracteres).
+3. Entregarle su propia cuenta y el enlace del portal de conductores.
+4. Crear un viaje, aprobarlo y elegir el conductor.
+5. El conductor acepta o rechaza; si rechaza, puede reasignarse.
+6. Tras aceptar, el conductor inicia y completa el viaje.
+7. El administrador puede liberar la asignación para reasignarla o cancelar
+   antes de iniciar. No se retiran viajes en curso mediante estos botones.
+8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
-No guardar contraseñas, hashes ni conexiones privadas en GitHub o en el chat.
-DISPATCH_ADMIN_TOKEN deja de ser necesario y debe retirarse de la configuración.
-Mantener ENABLE_DISPATCH=false hasta verificar configuración y pruebas de integración.
-DISPATCH_SECURITY_REVIEWED sigue siendo una barrera independiente; este cambio
-no constituye una auditoría completa ni autoriza uso con clientes reales.
+## Verificado
+- Cinco pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- En Render: login de administrador y conductores; bloqueo anónimo;
+  aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
+  bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
+  cierre de sesión administrativo y carga de páginas, manifest, iconos y service worker.
+- Quedaron dos viajes marcados PRUEBA AUTOMÁTICA y dos conductores ficticios suspendidos.
+- Dependencias: npm audit y build Render reportaron cero vulnerabilidades conocidas.
 
-Las sesiones se guardan en memoria del servidor, caducan al reiniciar y requieren
-una sola instancia. Antes de escalar, usar un almacén compartido de sesiones.
-El límite de intentos también es local a la instancia; no se confía en cabeceras
-de IP de proxy proporcionadas por el visitante.
+## Límites actuales
+- Esta es una versión de pruebas; no introducir datos reales de clientes.
+- La web pública, pagos, correos y solicitudes existentes siguen separados.
+  La importación automática de reservas de producción aún no está conectada.
+- La base gratuita temporal pimentel-dispatch-dev vence el 26 de noviembre de 2026.
+  Antes de producción se requiere almacenamiento persistente con copias de seguridad.
+- Sesiones administrativas y límites de intentos en memoria: una sola instancia;
+  reiniciar el servicio cierra las sesiones administrativas.
+- Recuperación de contraseña y notificaciones push pendientes.
+- Instalación física en iPhone/Android pendiente de prueba por el propietario.
+  El service worker solo almacena iconos y pantalla sin conexión; nunca viajes ni API.
 
-Panel: /despacho. Permite registrar y suspender/reactivar conductores, crear
-viajes, aprobarlos y asignarlos. Suspender revoca las sesiones del conductor,
-pero no reasigna sus viajes automáticamente; revisar sus asignaciones.
-
-Generar el hash desde entrada estándar privada con node dispatch/hash-admin-password.js; no pasar la contraseña como argumento. El resultado es sensible y se guarda solo en Render.
-
-Validación local: npm ci y npm run test:dispatch. Pruebas HTTP de credenciales,
-sesión, origen, CSRF, logout, expiración y límites de intentos.
-Flujo de viajes verificado localmente con PostgreSQL embebido PGlite y datos ficticios.
-Pendiente: verificar la conexión y el flujo contra PostgreSQL en Render,
-probar instalación y operación en iPhone/Android y completar recuperación de contraseña.
-PWA: manifest, iconos y service worker preparados. Solo se cachean iconos y pantalla sin conexión; nunca respuestas de la API ni viajes. No hay notificaciones push todavía.
-Desplegado el 27 de octubre de 2026 (Boston): commit eb2603ad9444221d64b87e7182b64d62fd9307d2, deploy dep-dbgkca3l550s73cpf6gg, estado live. Raíz HTTP 200; rutas de despacho HTTP 404 con ENABLE_DISPATCH=false. PostgreSQL ready:true, cinco tablas, ninguna faltante. Login administrativo en Render pendiente de configuración y validación.
+## Configuración privada
+DISPATCH_ADMIN_EMAIL, DISPATCH_ADMIN_PASSWORD_HASH (scrypt salt:hash),
+DISPATCH_ORIGIN y DATABASE_URL se administran en Render.
+ENABLE_DISPATCH=true y DISPATCH_SECURITY_REVIEWED=true habilitan solo este entorno
+verificado; el código exige la base pimentel_dispatch_dev.
+DISPATCH_ADMIN_TOKEN está vacío y ya no autentica.
