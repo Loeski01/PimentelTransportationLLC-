@@ -6,6 +6,18 @@ const express = require('express');
 function createDispatchRouter({db, requireAdmin, requireDriver}) {
   if (!db || !requireAdmin || !requireDriver) throw new Error('Missing dispatch security dependencies');
   const router = express.Router();
+  // A trip update and its audit record must commit together.
+  async function updateAndAudit(sql,params,actorRole,actorId,action){
+    const client=await db.connect();
+    try {
+      await client.query('BEGIN');
+      const q=await client.query(sql,params);
+      if(q.rowCount)await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,actorRole,String(actorId),action]);
+      await client.query('COMMIT');
+      return q;
+    }catch(e){await client.query('ROLLBACK');throw e}
+    finally{client.release()}
+  }
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
@@ -34,7 +46,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin can cancel a trip that has not yet started; assigned drivers lose access immediately.
   router.post('/admin/trips/:id/cancel',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("UPDATE dispatch_trips SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status IN ('pending','approved','assigned','accepted') RETURNING id,status",[req.params.id]);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status IN ('pending','approved','assigned','accepted') RETURNING id,status",[req.params.id], 'admin', req.session?.userId||'admin', 'cancelled');
       if(!q.rowCount)return res.status(409).json({error:'Trip cannot be cancelled in current state'});
       res.json(q.rows[0]);
     }catch(e){next(e)}
@@ -47,14 +59,14 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.post('/admin/trips/:id/approve', requireAdmin, async (req,res,next)=>{
     try {
-      const q=await db.query("UPDATE dispatch_trips SET status='approved',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET status='approved',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id], 'admin', req.session?.userId||'admin', 'approved');
       if(!q.rowCount) return res.status(409).json({error:'Trip not pending'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
   });
   router.post('/admin/trips/:id/reject',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("UPDATE dispatch_trips SET status='rejected',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET status='rejected',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id], 'admin', req.session?.userId||'admin', 'rejected');
       if(!q.rowCount)return res.status(409).json({error:'Trip not pending'});
       res.json(q.rows[0]);
     }catch(e){next(e)}
@@ -63,7 +75,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
     try {
       const {driverId}=req.body||{};
       if(!Number.isSafeInteger(driverId)||driverId<1) return res.status(400).json({error:'Invalid driver'});
-      const q=await db.query("UPDATE dispatch_trips SET driver_id=$1,status='assigned',updated_at=NOW() WHERE id=$2 AND status='approved' AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) RETURNING id,status,driver_id",[driverId,req.params.id]);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET driver_id=$1,status='assigned',updated_at=NOW() WHERE id=$2 AND status='approved' AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) RETURNING id,status,driver_id",[driverId,req.params.id], 'admin', req.session?.userId||'admin', 'assigned');
       if(!q.rowCount) return res.status(409).json({error:'Trip not assignable'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
@@ -80,7 +92,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       const {status}=req.body||{};
       if(!['accepted','rejected','started','completed'].includes(status)) return res.status(400).json({error:'Invalid status'});
       const allowedFrom=Object.keys(nextStatus).filter(k=>nextStatus[k].includes(status));
-      const q=await db.query("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom]);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
       if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
