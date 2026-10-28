@@ -38,6 +38,13 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows[0]);
     } catch(e){next(e)}
   });
+  router.post('/admin/trips/:id/reject',requireAdmin,async(req,res,next)=>{
+    try {
+      const q=await db.query("UPDATE dispatch_trips SET status='rejected',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
+      if(!q.rowCount)return res.status(409).json({error:'Trip not pending'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.post('/admin/trips/:id/assign',requireAdmin,async(req,res,next)=>{
     try {
       const {driverId}=req.body||{};
