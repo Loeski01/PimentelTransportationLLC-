@@ -36,6 +36,15 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.status(201).json(q.rows[0]);
     }catch(e){next(e)}
   });
+  // Disable a driver without deleting trip or audit history.
+  router.post('/admin/drivers/:id/deactivate',requireAdmin,async(req,res,next)=>{
+    try {
+      if(!/^[1-9][0-9]*$/.test(req.params.id))return res.status(400).json({error:'Invalid driver ID'});
+      const q=await db.query('UPDATE dispatch_drivers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id,display_name,active',[req.params.id]);
+      if(!q.rowCount)return res.status(404).json({error:'Active driver not found'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.get('/admin/drivers',requireAdmin,async(req,res,next)=>{
     try {
       const q=await db.query("SELECT id,display_name,active FROM dispatch_drivers ORDER BY display_name");
