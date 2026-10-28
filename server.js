@@ -358,8 +358,9 @@ async function startServer(){
   console.log("Payment server listening on port", PORT);
   console.log("Dispatch test configuration:", JSON.stringify({dispatchFlag: process.env.ENABLE_DISPATCH === "false" ? "disabled" : process.env.ENABLE_DISPATCH === "true" ? "enabled" : "unset_or_invalid", databaseUrlConfigured: Boolean(process.env.DATABASE_URL), databaseNameMatches: (() => { try { return decodeURIComponent(new URL(process.env.DATABASE_URL).pathname.slice(1)) === "pimentel_dispatch_dev"; } catch { return false; } })()}));
   // Read-only PostgreSQL check for the isolated dispatch test service.
-  // Never runs when dispatch is enabled; no secrets or customer data in logs.
-  if (process.env.ENABLE_DISPATCH === "false" && process.env.DATABASE_URL) {
+  // Runs after dispatch schema initialization, including when dispatch is enabled.
+  // Read-only and never logs credentials or customer data.
+  if (process.env.ENABLE_DISPATCH === "true" && process.env.DATABASE_URL) {
     const { execFile } = require("node:child_process");
     execFile(process.execPath, ["dispatch/verify-db.js"], {
       cwd: __dirname, timeout: 15000, maxBuffer: 8192
