@@ -17,7 +17,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
     try {
       const {driverId}=req.body||{};
       if(!Number.isSafeInteger(driverId)||driverId<1) return res.status(400).json({error:'Invalid driver'});
-      const q=await db.query("UPDATE dispatch_trips SET driver_id=$1,status='assigned',updated_at=NOW() WHERE id=$2 AND status IN ('approved','rejected') RETURNING id,status,driver_id",[driverId,req.params.id]);
+      const q=await db.query("UPDATE dispatch_trips SET driver_id=$1,status='assigned',updated_at=NOW() WHERE id=$2 AND status='approved' RETURNING id,status,driver_id",[driverId,req.params.id]);
       if(!q.rowCount) return res.status(409).json({error:'Trip not assignable'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
