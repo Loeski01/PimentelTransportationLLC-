@@ -6,6 +6,7 @@ const express=require("express");
 const {PGlite}=require("@electric-sql/pglite");
 test("PostgreSQL workflow and isolation between drivers",async()=>{
  const db=new PGlite();
+ process.env.ENABLE_DISPATCH_BOOKING_INTAKE="true";
  const dispatch=require("./router");
  const originalQuery=dispatch.pool.query,originalConnect=dispatch.pool.connect;
  const query=async(sql,args)=>{
@@ -41,6 +42,7 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/drivers","GET",undefined,drivers[0].headers)).status,403);
   let r=await request("/bookings","POST",{customerName:"Fictitious Customer",customerEmail:"customer@example.com",customerPhone:"5550000000",pickup:"Test pickup",destination:"Test destination",pickupAt:"2026-11-01T12:00:00Z",estimatedFareCents:10000},admin);
   assert.equal(r.status,201);const booking=r.body.id;
+  await db.query("UPDATE bookings SET request_metadata=$1::jsonb WHERE id=$2",[JSON.stringify({details:"Fictitious flight notes",passengers:3}),booking]);
   assert.equal((await request("/bookings/"+booking+"/assign","POST",{driverId:drivers[0].id},admin)).status,409);
   assert.equal((await request("/bookings/"+booking+"/approve","POST",{},admin)).status,200);
   r=await request("/bookings/"+booking+"/assign","POST",{driverId:drivers[0].id},admin);assert.equal(r.status,201);let assignment=r.body.id;
@@ -54,11 +56,18 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/my-assignments/"+assignment+"/respond","POST",{status:"accepted"},drivers[1].headers)).status,409);
   r=await request("/bookings/"+booking+"/assign","POST",{driverId:drivers[1].id},admin);assert.equal(r.status,201);assignment=r.body.id;
   assert.equal((await request("/my-assignments/"+assignment+"/start","POST",{},drivers[1].headers)).status,409);
+  let privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
+  assert.equal(privateTrip.customer_name,null);assert.equal(privateTrip.customer_phone,null);
   assert.equal((await request("/my-assignments/"+assignment+"/respond","POST",{status:"accepted"},drivers[1].headers)).status,200);
+  privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
+  assert.equal(privateTrip.customer_name,"Fictitious Customer");assert.equal(privateTrip.customer_phone,"5550000000");assert.equal(privateTrip.details,"Fictitious flight notes");assert.equal(privateTrip.passengers,"3");
+
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
   assert.equal((await request("/my-assignments/"+assignment+"/start","POST",{},drivers[1].headers)).status,200);
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,200);
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
+  privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
+  assert.equal(privateTrip.customer_name,null);assert.equal(privateTrip.customer_phone,null);
   const rows=(await db.query("SELECT status FROM bookings WHERE id=$1",[booking])).rows;assert.equal(rows[0].status,"completed");
   const audit=(await db.query("SELECT action FROM dispatch_audit ORDER BY id")).rows.map(r=>r.action);
   assert.deepEqual(audit,["created","approved","assigned","rejected","assigned","assignment_released","assigned","accepted","started","completed"]);
@@ -71,6 +80,12 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/bookings/"+cancelled+"/cancel","POST",{},admin)).status,200);
   assert.equal((await request("/my-assignments/"+revoked+"/start","POST",{},drivers[0].headers)).status,409);
   assert.equal((await request("/bookings/"+cancelled+"/assign","POST",{driverId:drivers[0].id},admin)).status,409);
+  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"replacement-password-123"},drivers[0].headers)).status,403);
+  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"short"},admin)).status,400);
+  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"replacement-password-123"},admin)).status,200);
+  assert.equal((await request("/my-assignments","GET",undefined,drivers[0].headers)).status,401);
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"test-password-123"})).status,401);
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"replacement-password-123"})).status,200);
   assert.equal((await request("/drivers/"+drivers[1].id,"PATCH",{active:false},admin)).status,200);
   assert.equal((await request("/my-assignments","GET",undefined,drivers[1].headers)).status,401);
  }finally{

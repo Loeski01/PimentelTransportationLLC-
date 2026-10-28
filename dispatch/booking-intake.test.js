@@ -44,5 +44,7 @@ test("web requests persist once, retain notes, enforce fare and stay pending",as
   assert.equal((await query("SELECT * FROM bookings")).rows.length,1);
   breakAudit=false;assert.equal((await send(retry)).status,200);
   assert.equal((await query("SELECT * FROM bookings")).rows.length,2);
+  const legacy=await send({...body,requestId:crypto.randomUUID(),passengers:"6 or more"});assert.equal(legacy.status,200);
+  assert.equal((await query("SELECT request_metadata FROM bookings WHERE reference=$1",[legacy.body.reference])).rows[0].request_metadata.passengers,"6 or more");
  }finally{await new Promise(resolve=>server.close(resolve));await db.close();}
 });

@@ -1,18 +1,6 @@
 "use strict";
 const crypto = require("node:crypto");
-const format = new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York",
-  year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23" });
-function bostonDateTime(date,time) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time || "")) return null;
-  const wanted = date + "T" + time, utc = Date.parse(wanted + ":00Z");
-  if (!Number.isFinite(utc)) return null;
-  const candidates = [4,5].map(hours=>new Date(utc+hours*3600000)).filter(value=>{
-    const p=Object.fromEntries(format.formatToParts(value).map(part=>[part.type,part.value]));
-    return p.year+"-"+p.month+"-"+p.day+"T"+p.hour+":"+p.minute===wanted;
-  });
-  // Reject nonexistent spring hours and ambiguous fall hours rather than shift a pickup.
-  return candidates.length===1?candidates[0]:null;
-}
+const {bostonDateTime}=require("./public/time");
 async function ensureIntakeSchema(pool,expectedDatabase="pimentel_dispatch_dev") {
   const result=await pool.query("SELECT current_database() AS name");
   if(result.rows[0]?.name!==expectedDatabase)throw new Error("Unexpected intake database");
@@ -27,10 +15,10 @@ function createIntakeHandler({pool,calculateFare,now=Date.now}) {
     const b=req.body||{};
     const pickup=bostonDateTime(b.date,b.time);
     const tipPercent=Number(b.tipPercent??0),tipCents=Number(b.tipCents??0);
-    const passengers=Number(b.passengers);
+    const passengers=b.passengers==="6 or more"?"6 or more":Number(b.passengers);
     if(!text(b.name,100)||!text(b.phone,40)||!text(b.email,254)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)||
        !text(b.from,200)||!text(b.to,200)||!pickup||pickup.getTime()<=now()||
-       !Number.isInteger(passengers)||passengers<1||passengers>6||
+       (passengers!=="6 or more"&&(!Number.isInteger(passengers)||passengers<1||passengers>6))||
        !Number.isSafeInteger(b.expectedFareCents)||b.expectedFareCents<0||b.expectedFareCents>100000000||
        ![0,10,15,20].includes(tipPercent)||!Number.isSafeInteger(tipCents)||tipCents<0||tipCents>100000||
        (tipPercent>0&&tipCents>0)||!["later","coordinate"].includes(b.payment)||

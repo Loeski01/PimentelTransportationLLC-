@@ -172,6 +172,7 @@ a.contacto{color:#d4af37}
 <script>
 'use strict';
 const API='https://pimenteltransportationllc.onrender.com';
+let bookingRequestId=null,bookingRequestSignature=null;
 const el=id=>document.getElementById(id);
 const money=cents=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
 let quote=null;
@@ -250,7 +251,10 @@ el('unifiedForm').addEventListener('submit',async event=>{
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);
     let response,data;
     try{
-      response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({name:val('nombre'),email:val('email'),phone:val('telefono'),from:quote.from,to:quote.to,date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:val('pago'),expectedFareCents:quote.amount,...tip})});
+      const bookingData={name:val('nombre'),email:val('email'),phone:val('telefono'),from:quote.from,to:quote.to,date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:val('pago'),expectedFareCents:quote.amount,...tip};
+      const signature=JSON.stringify(bookingData);
+      if(signature!==bookingRequestSignature){bookingRequestId=crypto.randomUUID();bookingRequestSignature=signature;}
+      response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({...bookingData,requestId:bookingRequestId})});
       data=await response.json();
     }finally{clearTimeout(timer);}
     if(!response.ok)throw new Error(data.error||'No se pudo enviar la reserva.');
@@ -327,4 +331,5 @@ el('unifiedForm').addEventListener('submit',async event=>{
 
 </body>
 </html>
+
 

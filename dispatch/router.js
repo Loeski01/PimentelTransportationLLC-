@@ -45,6 +45,21 @@ router.patch("/drivers/:id",admin,wrap(async(req,res)=>{
     await client.query("COMMIT");res.json(r.rows[0]);
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
+router.post("/drivers/:id/password",admin,wrap(async(req,res)=>{
+  const password=req.body?.password;
+  if(typeof password!=="string"||password.length<12||password.length>128)return fail(res,400,"La contraseña debe tener entre 12 y 128 caracteres");
+  const salt=crypto.randomBytes(16).toString("hex");
+  const key=await new Promise((resolve,reject)=>crypto.scrypt(password,salt,64,(err,value)=>err?reject(err):resolve(value)));
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const changed=await client.query("UPDATE drivers SET password_hash=$1 WHERE id=$2 RETURNING id",[salt+":"+key.toString("hex"),req.params.id]);
+    if(!changed.rowCount){await client.query("ROLLBACK");return fail(res,404,"Conductor no encontrado");}
+    await client.query("DELETE FROM driver_sessions WHERE driver_id=$1",[req.params.id]);
+    await client.query("INSERT INTO dispatch_audit(actor_role,actor_id,action) VALUES('admin','admin',$1)",["driver_password_reset:"+req.params.id]);
+    await client.query("COMMIT");res.json({ok:true});
+  }catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
+}));
 router.post("/bookings",admin,wrap(async(req,res)=>{
   const b=req.body||{};
   const good=(v,n)=>typeof v==="string"&&v.trim().length>0&&v.trim().length<=n;
@@ -119,7 +134,8 @@ router.post("/logout",wrap(async(req,res)=>{
 }));
 router.get("/my-assignments",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
-  const r=await pool.query("SELECT a.id,a.status,b.status AS booking_status,b.reference,b.pickup,b.destination,b.pickup_at FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
+  const metadata=process.env.ENABLE_DISPATCH_BOOKING_INTAKE==="true"?",CASE WHEN a.status='accepted' THEN b.request_metadata->>'details' END AS details,CASE WHEN a.status='accepted' THEN b.request_metadata->>'passengers' END AS passengers":"";
+  const r=await pool.query("SELECT a.id,a.status,b.status AS booking_status,b.reference,b.pickup,b.destination,b.pickup_at,CASE WHEN a.status='accepted' THEN b.customer_name END AS customer_name,CASE WHEN a.status='accepted' THEN b.customer_phone END AS customer_phone"+metadata+" FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
 }));
 router.post("/my-assignments/:id/respond",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
