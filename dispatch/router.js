@@ -81,7 +81,7 @@ router.post("/bookings/:id/assign",admin,wrap(async(req,res)=>{
     await client.query("BEGIN");
     const b=await client.query("SELECT id,status FROM bookings WHERE id=$1 FOR UPDATE",[req.params.id]);
     if(!b.rowCount||b.rows[0].status!=="approved"){await client.query("ROLLBACK");return fail(res,409,"La reserva debe estar aprobada y sin asignar");}
-    const d=await client.query("SELECT id FROM drivers WHERE id=$1 AND active=true",[req.body?.driverId]);
+    const d=await client.query("SELECT id FROM drivers WHERE id=$1 AND active=true FOR SHARE",[req.body?.driverId]);
     if(!d.rowCount){await client.query("ROLLBACK");return fail(res,404,"Conductor no disponible");}
     const a=await client.query("INSERT INTO assignments(booking_id,driver_id) VALUES($1,$2) RETURNING id,status",[req.params.id,req.body.driverId]);
     await client.query("UPDATE bookings SET status='assigned' WHERE id=$1",[req.params.id]);
@@ -89,6 +89,27 @@ router.post("/bookings/:id/assign",admin,wrap(async(req,res)=>{
     await client.query("COMMIT");res.status(201).json(a.rows[0]);
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
+// All operations that change a booking lock it before its assignments.
+router.post("/bookings/:id/:action(release|cancel)",admin,wrap(async(req,res)=>{
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const b=await client.query("SELECT id,status FROM bookings WHERE id=$1 FOR UPDATE",[req.params.id]);
+    const allowed=req.params.action==="release"?["assigned"]:["pending","approved","assigned"];
+    if(!b.rowCount||!allowed.includes(b.rows[0].status)){await client.query("ROLLBACK");return fail(res,409,"El viaje no permite esta acción; revisa su estado");}
+    await client.query("UPDATE assignments SET status='revoked',responded_at=now() WHERE booking_id=$1 AND status IN ('offered','accepted')",[req.params.id]);
+    const status=req.params.action==="release"?"approved":"cancelled";
+    await client.query("UPDATE bookings SET status=$1 WHERE id=$2",[status,req.params.id]);
+    await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'admin','admin',$2)",[req.params.id,req.params.action==="release"?"assignment_released":"cancelled"]);
+    await client.query("COMMIT");res.json({id:req.params.id,status});
+  }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
+}));
+async function lockAssignment(client,id,driverId){
+  const found=await client.query("SELECT booking_id FROM assignments WHERE id=$1 AND driver_id=$2",[id,driverId]);
+  if(!found.rowCount)return {rowCount:0,rows:[]};
+  await client.query("SELECT id FROM bookings WHERE id=$1 FOR UPDATE",[found.rows[0].booking_id]);
+  return client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[id,driverId]);
+}
 router.post("/logout",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
   const token=/^Bearer (.+)$/i.exec(req.get("authorization")||"")?.[1];
@@ -105,6 +126,8 @@ router.post("/my-assignments/:id/respond",wrap(async(req,res)=>{
   const client=await pool.connect();
   try {
     await client.query("BEGIN");
+    const locked=await lockAssignment(client,req.params.id,req.actor.id);
+    if(!locked.rowCount||locked.rows[0].status!=="offered"){await client.query("ROLLBACK");return fail(res,409,"Asignación no disponible");}
     const r=await client.query("UPDATE assignments SET status=$1,responded_at=now() WHERE id=$2 AND driver_id=$3 AND status='offered' RETURNING id,booking_id,status",[req.body.status,req.params.id,req.actor.id]);
     if(!r.rowCount){await client.query("ROLLBACK");return fail(res,409,"Asignación no disponible");}
     if(req.body.status==="rejected"){
@@ -122,7 +145,7 @@ router.post("/my-assignments/:id/start",wrap(async(req,res)=>{
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
-    const a=await client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[req.params.id,req.actor.id]);
+    const a=await lockAssignment(client,req.params.id,req.actor.id);
     if(!a.rowCount||a.rows[0].status!=="accepted"){await client.query("ROLLBACK");return fail(res,409,"Primero debes aceptar este viaje");}
     const b=await client.query("UPDATE bookings SET status='in_progress' WHERE id=$1 AND status='assigned' RETURNING id",[a.rows[0].booking_id]);
     if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"El viaje ya se inició o no está disponible");}
@@ -136,7 +159,7 @@ router.post("/my-assignments/:id/complete",wrap(async(req,res)=>{
   const client=await pool.connect();
   try {
     await client.query("BEGIN");
-    const a=await client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[req.params.id,req.actor.id]);
+    const a=await lockAssignment(client,req.params.id,req.actor.id);
     if(!a.rowCount||a.rows[0].status!=="accepted"){await client.query("ROLLBACK");return fail(res,409,"Solo puedes completar un viaje aceptado por ti");}
     const b=await client.query("UPDATE bookings SET status='completed' WHERE id=$1 AND status='in_progress' RETURNING id",[a.rows[0].booking_id]);
     if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"Debes iniciar el viaje antes de completarlo");}
