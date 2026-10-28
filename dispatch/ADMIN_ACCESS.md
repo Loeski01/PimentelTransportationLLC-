@@ -27,8 +27,11 @@ Panel: /despacho. Permite registrar y suspender/reactivar conductores, crear
 viajes, aprobarlos y asignarlos. Suspender revoca las sesiones del conductor,
 pero no reasigna sus viajes automáticamente; revisar sus asignaciones.
 
-Validación local: npm run test:dispatch. Pruebas HTTP de credenciales,
+Generar el hash desde entrada estándar privada con node dispatch/hash-admin-password.js; no pasar la contraseña como argumento. El resultado es sensible y se guarda solo en Render.
+
+Validación local: npm ci y npm run test:dispatch. Pruebas HTTP de credenciales,
 sesión, origen, CSRF, logout, expiración y límites de intentos.
-Pendiente: verificar PostgreSQL y el flujo de viajes con datos ficticios,
+Flujo de viajes verificado localmente con PostgreSQL embebido PGlite y datos ficticios.
+Pendiente: verificar la conexión y el flujo contra PostgreSQL en Render,
 probar en iPhone/Android y completar recuperación de contraseña y PWA.
 No se ha desplegado ni habilitado este cambio en Render.

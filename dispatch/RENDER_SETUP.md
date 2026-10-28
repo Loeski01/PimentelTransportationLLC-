@@ -1,6 +1,15 @@
 # Render — puesta en marcha de Dispatch (desarrollo)
 
-## Estado verificado el 27 de octubre de 2026
+## Avance posterior: acceso administrativo y pruebas locales
+- Implementado login administrativo con cookie HttpOnly, scrypt, origen y CSRF.
+- Configuración nueva y límites: consultar ADMIN_ACCESS.md. El token administrativo antiguo ya no autentica.
+- Panel de pruebas permite agregar, suspender/reactivar conductores y gestionar asignaciones.
+- Pruebas locales pasan con PostgreSQL embebido PGlite: aislamiento, rechazo, reasignación, aceptación, inicio, finalización, auditoría y revocación de sesiones al suspender.
+- Esto no confirma un despliegue en Render ni una prueba contra su PostgreSQL.
+- Se retiró nodemailer: el servidor utiliza Brevo HTTPS y no lo importa. Se añadió lockfile y dependencia de desarrollo para las pruebas.
+- Mantener ENABLE_DISPATCH=false hasta completar revisión y configuración del entorno de pruebas.
+
+## Historial verificado el 27 de octubre de 2026
 - PostgreSQL 18: `pimentel-dispatch-dev` (Render, Oregón), base `pimentel_dispatch_dev`.
 - Plan gratuito temporal: expira el 26 de noviembre de 2026; no guardar datos reales de clientes.
 - La base bloquea conexiones externas; **no abrir la lista de IP para probarla**.
@@ -13,10 +22,10 @@
 - Migración de desarrollo ejecutada correctamente; verificación posterior `ready: true`, cinco tablas encontradas, ninguna faltante.
 - Se deshabilitó el permiso temporal de migración cambiando `DISPATCH_MIGRATION_TARGET` a `disabled`; reinicio posterior completado sin ejecutar migración.
 - `ENABLE_DISPATCH=false` permanece vigente; el despacho no está habilitado para clientes reales.
-- Sigue pendiente implementar autenticación administrativa segura y probar la API de conductores antes de activarla.
-- El despliegue reporta una vulnerabilidad alta de dependencias; revisar `npm audit` y corregir sin usar `--force` a ciegas.
+- En ese momento seguía pendiente la autenticación administrativa; ver avance posterior arriba.
+- Ese despliegue reportó una vulnerabilidad alta; nodemailer se retiró posteriormente de esta rama.
 - Las operaciones de creación y aprobación de reservas guardan auditoría en la misma transacción; aún falta probarlas con datos ficticios.
-- Se añadió una barrera `DISPATCH_SECURITY_REVIEWED=true` obligatoria antes de activar el despacho, además del token administrativo fuerte y la validación del nombre de la base.
+- Se añadió una barrera `DISPATCH_SECURITY_REVIEWED=true` obligatoria antes de activar el despacho, además de la configuración administrativa y la validación del nombre de la base.
 - El portal de conductores mantiene el token solo en memoria; no se persiste en `localStorage`.
 - La última instalación del 27 de octubre está pendiente de confirmación; verificar estado de Render antes de declarar la versión instalada.
 
@@ -33,7 +42,7 @@
 ## Preparación pendiente
 1. Servicio web **separado de pruebas** ya creado: `pimentel-dispatch-test`, conectado a `feature/driver-dispatch-app`. El servicio público permanece en `main`. El despliegue de pruebas no es automático.
 2. Configurar en el servicio de pruebas `DATABASE_URL` con la URL interna de Render; nunca copiarla a GitHub.
-3. Configurar `DISPATCH_ADMIN_TOKEN` con secreto aleatorio de al menos 32 caracteres. No incrustarlo en frontend ni compartirlo con conductores.
+3. Configurar DISPATCH_ADMIN_EMAIL, DISPATCH_ADMIN_PASSWORD_HASH y DISPATCH_ORIGIN según ADMIN_ACCESS.md; retirar DISPATCH_ADMIN_TOKEN.
 4. Ejecutar `dispatch/schema.sql` en la base privada por un canal de administración autorizado.
 5. Configurar `ENABLE_DISPATCH=true` **solo** después de migrar y probar permisos. En producción mantenerlo apagado hasta auditoría.
 6. Verificar autenticación, errores, sesiones, aislamiento por conductor, asignaciones concurrentes, protección ante intentos de login, revocación y recuperación.
@@ -44,5 +53,6 @@
 - Existe un prototipo de panel visual en `/despacho`, aún sin probar y no apto para producción.
 - La PWA no tiene iconos ni service worker; no se debe prometer instalación completa.
 - Los estados de viaje, auditoría y reasignación requieren pruebas y más lógica.
-- **Bloqueo de seguridad:** el prototipo `/despacho` solicita el token de administrador en el navegador. Antes de usarlo con datos reales, sustituirlo por autenticación administrativa segura con sesión y cookies HttpOnly; no introducir un token de producción en el prototipo.
+- `/despacho` ahora utiliza sesión HttpOnly; falta configurar y validar la versión en el entorno de pruebas. No utilizar datos reales todavía.
 - Base gratuita temporal: migrar a almacenamiento persistente con copias de seguridad antes de guardar datos de clientes reales.
+

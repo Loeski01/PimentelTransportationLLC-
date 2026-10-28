@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "stripe": "^20.0.0",
-    "nodemailer": "^6.10.1",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "stripe": "^20.0.0"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.12"
   }
 }
