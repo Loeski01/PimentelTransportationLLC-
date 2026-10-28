@@ -40,7 +40,18 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   router.post('/admin/drivers/:id/deactivate',requireAdmin,async(req,res,next)=>{
     try {
       if(!/^[1-9][0-9]*$/.test(req.params.id))return res.status(400).json({error:'Invalid driver ID'});
-      const q=await db.query('UPDATE dispatch_drivers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id,display_name,active',[req.params.id]);
+      const client=await db.connect();
+      let q;
+      try{
+        await client.query('BEGIN');
+        q=await client.query('UPDATE dispatch_drivers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id,display_name,active',[req.params.id]);
+        if(q.rowCount){
+          // Unstarted assignments return to the administrator queue for reassignment.
+          const affected=await client.query("UPDATE dispatch_trips SET status='approved',driver_id=NULL,updated_at=NOW() WHERE driver_id=$1 AND status IN ('assigned','accepted') RETURNING id",[req.params.id]);
+          for(const trip of affected.rows)await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[trip.id,'admin',String(req.session?.userId||'admin'),'driver_deactivated_unassigned']);
+        }
+        await client.query('COMMIT');
+      }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       if(!q.rowCount)return res.status(404).json({error:'Active driver not found'});
       res.json(q.rows[0]);
     }catch(e){next(e)}
