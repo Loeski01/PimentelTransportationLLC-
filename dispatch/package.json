@@ -1,0 +1,21 @@
+{
+  "name": "pimentel-dispatch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated driver dispatch backend",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "check": "node --check app.js && node --check router.js && node --check login.js && node --check auth-utils.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "connect-pg-simple": "^10.0.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.1",
+    "pg": "^8.13.1"
+  }
+}
