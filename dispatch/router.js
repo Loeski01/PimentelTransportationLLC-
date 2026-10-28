@@ -3,6 +3,7 @@
 // PostgreSQL required. Never expose administrator token in browser source.
 const express = require("express");
 const crypto = require("node:crypto");
+const {validPin,driverLimiter}=require("./driver-pin-policy");
 const { Pool } = require("pg");
 const router = express.Router();
 // Never cache authenticated driver or administrator API responses.
@@ -17,7 +18,7 @@ async function auth(req,res,next) {
   if (req.actor?.role === "admin") return next();
   const token = /^Bearer (.+)$/i.exec(req.get("authorization")||"")?.[1];
   if (!token) return fail(res,401,"Se requiere iniciar sesión");
-  const result=await pool.query("SELECT s.driver_id,d.active FROM driver_sessions s JOIN drivers d ON d.id=s.driver_id WHERE s.token_hash=$1 AND s.expires_at>now()",[hashToken(token)]);
+  const result=await pool.query("SELECT s.driver_id,(d.active AND d.pin_configured) AS active FROM driver_sessions s JOIN drivers d ON d.id=s.driver_id WHERE s.token_hash=$1 AND s.expires_at>now()",[hashToken(token)]);
   if (!result.rows[0]?.active) return fail(res,401,"Sesión inválida");
   req.actor={role:"driver",id:result.rows[0].driver_id};next();
 }
@@ -25,14 +26,14 @@ router.use(wrap(auth));
 const admin=(req,res,next)=>req.actor.role==="admin"?next():fail(res,403,"Acceso exclusivo del administrador");
 router.post("/drivers",admin,wrap(async(req,res)=>{
   const {name,email,phone,vehicle,password}=req.body||{};
-  if(typeof name!=="string"||!name.trim()||name.length>120||!validEmail(email)||typeof phone!=="string"||!phone.trim()||phone.length>40||typeof password!=="string"||password.length<12||password.length>128||typeof vehicle!=="string"||vehicle.length>160)return fail(res,400,"Datos de conductor inválidos; contraseña mínimo 12 caracteres");
+  if(typeof name!=="string"||!name.trim()||name.length>120||!validEmail(email)||typeof phone!=="string"||!phone.trim()||phone.length>40||!validPin(password)||typeof vehicle!=="string"||vehicle.length>160)return fail(res,400,"Datos de conductor inválidos; el PIN debe tener exactamente 4 dígitos");
   const salt=crypto.randomBytes(16).toString("hex");
   const key=await new Promise((resolve,reject)=>crypto.scrypt(password,salt,64,(err,v)=>err?reject(err):resolve(v)));
-  const saved=await pool.query("INSERT INTO drivers(name,email,phone,vehicle,password_hash) VALUES($1,$2,$3,$4,$5) RETURNING id,name,email,phone,vehicle,active",[name.trim(),email.trim().toLowerCase(),phone.trim(),vehicle.trim(),salt+":"+key.toString("hex")]);
+  const saved=await pool.query("INSERT INTO drivers(name,email,phone,vehicle,password_hash,pin_configured) VALUES($1,$2,$3,$4,$5,true) RETURNING id,name,email,phone,vehicle,active",[name.trim(),email.trim().toLowerCase(),phone.trim(),vehicle.trim(),salt+":"+key.toString("hex")]);
   res.status(201).json(saved.rows[0]);
 }));
 router.get("/drivers",admin,wrap(async(req,res)=>{
-  const r=await pool.query("SELECT id,name,email,phone,vehicle,active,created_at FROM drivers ORDER BY created_at DESC");res.json(r.rows);
+  const r=await pool.query("SELECT id,name,email,phone,vehicle,active,pin_configured,created_at FROM drivers ORDER BY created_at DESC");res.json(r.rows);
 }));
 router.patch("/drivers/:id",admin,wrap(async(req,res)=>{
   if(typeof req.body?.active!=="boolean")return fail(res,400,"active debe ser booleano");
@@ -47,17 +48,17 @@ router.patch("/drivers/:id",admin,wrap(async(req,res)=>{
 }));
 router.post("/drivers/:id/password",admin,wrap(async(req,res)=>{
   const password=req.body?.password;
-  if(typeof password!=="string"||password.length<12||password.length>128)return fail(res,400,"La contraseña debe tener entre 12 y 128 caracteres");
+  if(!validPin(password))return fail(res,400,"El PIN debe tener exactamente 4 dígitos");
   const salt=crypto.randomBytes(16).toString("hex");
   const key=await new Promise((resolve,reject)=>crypto.scrypt(password,salt,64,(err,value)=>err?reject(err):resolve(value)));
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
-    const changed=await client.query("UPDATE drivers SET password_hash=$1 WHERE id=$2 RETURNING id",[salt+":"+key.toString("hex"),req.params.id]);
+    const changed=await client.query("UPDATE drivers SET password_hash=$1,pin_configured=true,failed_pin_attempts=0,pin_locked_until=NULL WHERE id=$2 RETURNING id,email",[salt+":"+key.toString("hex"),req.params.id]);
     if(!changed.rowCount){await client.query("ROLLBACK");return fail(res,404,"Conductor no encontrado");}
     await client.query("DELETE FROM driver_sessions WHERE driver_id=$1",[req.params.id]);
-    await client.query("INSERT INTO dispatch_audit(actor_role,actor_id,action) VALUES('admin','admin',$1)",["driver_password_reset:"+req.params.id]);
-    await client.query("COMMIT");res.json({ok:true});
+    await client.query("INSERT INTO dispatch_audit(actor_role,actor_id,action) VALUES('admin','admin',$1)",["driver_pin_reset:"+req.params.id]);
+    await client.query("COMMIT");driverLimiter.clear(changed.rows[0].email);res.json({ok:true});
   }catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
 }));
 router.post("/bookings",admin,wrap(async(req,res)=>{

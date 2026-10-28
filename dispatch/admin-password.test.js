@@ -1,0 +1,63 @@
+"use strict";
+const {test}=require("node:test");
+const assert=require("node:assert/strict");
+const crypto=require("node:crypto");
+const fs=require("node:fs");
+const express=require("express");
+const {PGlite}=require("@electric-sql/pglite");
+const {createAdminAuth}=require("./admin-auth");
+const {createAdminCredentialStore}=require("./admin-credentials");
+test("administrator selects a durable password and old sessions and credentials stop working",async()=>{
+ const db=new PGlite();let breakAudit=false;
+ const query=async(sql,args)=>{
+  if(sql==="SELECT current_database() AS name")return {rows:[{name:"pimentel_dispatch_dev"}],rowCount:1};
+  if(breakAudit&&sql.includes("'admin_password_changed'"))throw Error("simulated audit failure");
+  const r=await db.query(sql,args);return {...r,rowCount:r.affectedRows||r.rows.length};
+ };
+ const pool={query,connect:async()=>({query,release(){}})};
+ await db.exec(fs.readFileSync(__dirname+"/schema.sql","utf8"));
+ const salt="b".repeat(32),oldPassword="initial-test-password-123",newPassword="owner-selected-test-password-456";
+ const bootstrap=salt+":"+crypto.scryptSync(oldPassword,salt,64).toString("hex");
+ const store=createAdminCredentialStore(pool,"admin@example.com");
+ await store.initialize(bootstrap);
+ const config={email:"admin@example.com",passwordHash:bootstrap,credentialStore:store,origin:"https://dispatch.example"};
+ let auth=createAdminAuth(config);
+ const app=express();app.use(express.json());
+ app.post("/login",(req,res,next)=>auth.login(req,res,next));
+ app.get("/session",(req,res,next)=>auth.authenticate(req,res,()=>res.json({ok:true})));
+ app.post("/password",(req,res,next)=>auth.authenticate(req,res,()=>auth.changePassword(req,res)));
+ const server=app.listen(0,"127.0.0.1");await new Promise(resolve=>server.once("listening",resolve));
+ const base="http://127.0.0.1:"+server.address().port;
+ const request=(path,body,headers={})=>fetch(base+path,{method:body?"POST":"GET",headers:{"Content-Type":"application/json",Origin:config.origin,...headers},body:body?JSON.stringify(body):undefined});
+ const login=password=>request("/login",{email:config.email,password});
+ try{
+  const valid={currentPassword:oldPassword,newPassword,confirmPassword:newPassword};
+  assert.equal((await request("/password",valid)).status,401);
+  let r=await login(oldPassword);assert.equal(r.status,200);
+  const headers={Cookie:r.headers.get("set-cookie").split(";")[0],"X-CSRF-Token":(await r.json()).csrfToken};
+  const other=await login(oldPassword);const otherCookie=other.headers.get("set-cookie").split(";")[0];
+  assert.equal((await request("/password",valid,{Cookie:headers.Cookie})).status,403);
+  assert.equal((await request("/password",{...valid,currentPassword:"incorrect-password"},headers)).status,403);
+  assert.equal((await request("/password",{...valid,confirmPassword:"does-not-match"},headers)).status,400);
+  assert.equal((await request("/password",{...valid,newPassword:"short",confirmPassword:"short"},headers)).status,400);
+  breakAudit=true;assert.equal((await request("/password",valid,headers)).status,503);
+  assert.equal(await store.getHash(),bootstrap);
+  breakAudit=false;r=await request("/password",valid,headers);assert.equal(r.status,200);
+  assert.ok(r.headers.get("set-cookie").includes("Max-Age=0"));
+  assert.equal((await request("/session",undefined,{Cookie:headers.Cookie})).status,401);
+  assert.equal((await request("/session",undefined,{Cookie:otherCookie})).status,401);
+  assert.equal((await login(oldPassword)).status,401);
+  assert.equal((await login(newPassword)).status,200);
+  const saved=await store.getHash();assert.notEqual(saved,bootstrap);assert.ok(!saved.includes(newPassword));
+  await store.initialize(bootstrap);assert.equal(await store.getHash(),saved);
+  auth=createAdminAuth(config);assert.equal((await login(newPassword)).status,200);
+  assert.equal((await login(oldPassword)).status,401);
+  assert.equal(await store.replaceHash(bootstrap,bootstrap),false);
+  const audit=(await db.query("SELECT action FROM dispatch_audit")).rows;
+  assert.deepEqual(audit,[{action:"admin_password_changed"}]);
+ }finally{await new Promise(resolve=>server.close(resolve));await db.close();}
+});
+test("administrator credential initialization refuses another database",async()=>{
+ const store=createAdminCredentialStore({query:async()=>({rows:[{name:"other_database"}]})},"admin@example.com");
+ await assert.rejects(store.initialize("unused"));
+});

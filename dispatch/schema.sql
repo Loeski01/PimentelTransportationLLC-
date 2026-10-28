@@ -55,3 +55,5 @@ CREATE INDEX IF NOT EXISTS driver_sessions_driver_id_idx ON driver_sessions(driv
 
 -- Public intake metadata; additive and safe to re-run in the isolated development DB.
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS request_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS pin_configured BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS failed_pin_attempts INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMPTZ;

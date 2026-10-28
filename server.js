@@ -287,13 +287,16 @@ if (process.env.ENABLE_DISPATCH === "true") {
   }
   const path = require("node:path");
   const { createAdminAuth } = require("./dispatch/admin-auth");
-  const adminAuth = createAdminAuth({ email: process.env.DISPATCH_ADMIN_EMAIL,
+  const credentialStore=require("./dispatch/admin-credentials").createAdminCredentialStore(require("./dispatch/router").pool,process.env.DISPATCH_ADMIN_EMAIL);
+  app.locals.adminCredentialStore=credentialStore;
+  const adminAuth = createAdminAuth({ credentialStore, email: process.env.DISPATCH_ADMIN_EMAIL,
     passwordHash: process.env.DISPATCH_ADMIN_PASSWORD_HASH, origin: process.env.DISPATCH_ORIGIN });
   app.use("/api/dispatch", (req,res,next) => { res.set("Cache-Control","no-store"); next(); });
   app.post("/api/dispatch/admin/login", adminAuth.login);
   app.get("/api/dispatch/admin/session", adminAuth.authenticate,
     (req,res) => res.json({csrfToken:req.adminSession.csrf}));
   app.post("/api/dispatch/admin/logout", adminAuth.authenticate, adminAuth.logout);
+  app.post("/api/dispatch/admin/password",adminAuth.authenticate,adminAuth.changePassword);
   app.use("/api/dispatch", require("./dispatch/login"));
   app.use("/api/dispatch", (req,res,next) => {
     // Bearer credentials are exclusively driver sessions; admin uses HttpOnly cookies.
@@ -313,6 +316,8 @@ if (process.env.ENABLE_DISPATCH === "true") {
 
 const PORT = process.env.PORT || 10000;
 async function startServer(){
+  if(app.locals.adminCredentialStore)await app.locals.adminCredentialStore.initialize(process.env.DISPATCH_ADMIN_PASSWORD_HASH);
+  if(process.env.ENABLE_DISPATCH==="true")await require("./dispatch/driver-pin-policy").ensureDriverPinSchema(require("./dispatch/router").pool);
   if(intakeEnabled)await require("./dispatch/booking-intake").ensureIntakeSchema(require("./dispatch/router").pool);
   app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);

@@ -7,10 +7,18 @@ const digest = value => crypto.createHash("sha256").update(value).digest("hex");
 const equal = (a, b) => crypto.timingSafeEqual(Buffer.from(digest(a)), Buffer.from(digest(b)));
 
 // Sessions deliberately expire on restart and are never sent to browser JavaScript.
-function createAdminAuth({ email, passwordHash, origin, now = Date.now }) {
+function createAdminAuth({ email, passwordHash, origin, credentialStore, now = Date.now }) {
   if (!email || !/^[a-f0-9]{32}:[a-f0-9]{128}$/.test(passwordHash || "") ||
       !origin || new URL(origin).origin !== origin || !origin.startsWith("https://")) {
     throw new Error("Configure DISPATCH_ADMIN_EMAIL, DISPATCH_ADMIN_PASSWORD_HASH and HTTPS DISPATCH_ORIGIN");
+  }
+  let activeHash=passwordHash,revision=0;
+  const credentials=credentialStore||{getHash:async()=>activeHash,replaceHash:async(previous,replacement)=>{if(activeHash!==previous)return false;activeHash=replacement;return true;}};
+  async function verify(password,hash){
+    const [salt,expected]=hash.split(":");
+    const actual=await scrypt(password,salt,64);
+    const stored=Buffer.from(expected,"hex");
+    return actual.length===stored.length&&crypto.timingSafeEqual(actual,stored);
   }
   const sessions = new Map(), attempts = new Map();
   const ttl = 60 * 60 * 1000, window = 15 * 60 * 1000;
@@ -28,6 +36,10 @@ function createAdminAuth({ email, passwordHash, origin, now = Date.now }) {
     return { key, ...item };
   }
   function sameOrigin(req) { return req.get("origin") === origin; }
+  function limited(key){
+    clean();const item=attempts.get(key)||{count:0,expires:now()+window};
+    if(item.count>=8)return true;item.count++;attempts.set(key,item);return false;
+  }
   async function login(req, res, next) {
     try {
       if (!sameOrigin(req)) return fail(res, 403, "Origen no permitido");
@@ -42,11 +54,11 @@ function createAdminAuth({ email, passwordHash, origin, now = Date.now }) {
       if (typeof body.email !== "string" || body.email.length > 254 ||
           typeof body.password !== "string" || body.password.length < 12 || body.password.length > 128)
         return fail(res, 401, "Credenciales incorrectas");
-      const [salt, expected] = passwordHash.split(":");
-      const actual = await scrypt(body.password, salt, 64);
-      if (!crypto.timingSafeEqual(actual, Buffer.from(expected, "hex")) ||
+      const loginRevision=revision;
+      if (!(await verify(body.password,await credentials.getHash())) ||
           !equal(body.email.trim().toLowerCase(), email.trim().toLowerCase()))
         return fail(res, 401, "Credenciales incorrectas");
+      if(loginRevision!==revision)return fail(res,401,"Credenciales incorrectas");
       if (sessions.size >= 1000) return fail(res, 503, "Intenta más tarde");
       const previous = session(req);
       if (previous) sessions.delete(previous.key);
@@ -69,6 +81,23 @@ function createAdminAuth({ email, passwordHash, origin, now = Date.now }) {
     sessions.delete(req.adminSession.key);
     res.set("Set-Cookie", cookie("", 0)).json({ ok: true });
   }
-  return { login, authenticate, logout };
+  async function changePassword(req,res){
+    try{
+      if(limited("password-change"))return fail(res,429,"Demasiados intentos. Espera 15 minutos.");
+      const {currentPassword,newPassword,confirmPassword}=req.body||{};
+      if(typeof currentPassword!=="string"||currentPassword.length<12||currentPassword.length>128||
+         typeof newPassword!=="string"||newPassword.length<12||newPassword.length>128||newPassword!==confirmPassword)
+        return fail(res,400,"Usa entre 12 y 128 caracteres y confirma la nueva contraseña.");
+      const previous=await credentials.getHash();
+      if(!(await verify(currentPassword,previous)))return fail(res,403,"La contraseña actual no es correcta.");
+      if(equal(currentPassword,newPassword))return fail(res,400,"Elige una contraseña diferente de la actual.");
+      const salt=crypto.randomBytes(16).toString("hex");
+      const key=await scrypt(newPassword,salt,64);
+      if(!(await credentials.replaceHash(previous,salt+":"+key.toString("hex"))))return fail(res,409,"La contraseña cambió en otra sesión. Vuelve a iniciar sesión.");
+      revision++;sessions.clear();
+      res.set("Set-Cookie",cookie("",0)).json({ok:true,signInRequired:true});
+    }catch(error){console.error("Admin password update failed");fail(res,503,"No se pudo cambiar la contraseña. Inténtalo nuevamente.");}
+  }
+  return { login, authenticate, logout, changePassword };
 }
 module.exports = { createAdminAuth };

@@ -29,9 +29,13 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
  const admin={"x-test-admin":"yes"};
  try{
   await db.exec(fs.readFileSync(__dirname+"/schema.sql","utf8"));
+  for(const password of ["123","12345","12a4",1234]){
+   assert.equal((await request("/drivers","POST",{name:"Invalid PIN",email:"invalid@example.com",phone:"000",vehicle:"Test",password},admin)).status,400);
+   assert.equal((await request("/login","POST",{email:"driver0@example.com",password})).status,400);
+  }
   const drivers=[];
   for(let i=0;i<2;i++){
-   const email="driver"+i+"@example.com",password="test-password-123";
+   const email="driver"+i+"@example.com",password="0123";
    let r=await request("/drivers","POST",{name:"Test "+i,email,phone:"5550000000",vehicle:"Test SUV",password},admin);
    assert.equal(r.status,201);assert.equal(r.body.password_hash,undefined);
    const id=r.body.id;
@@ -80,12 +84,19 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/bookings/"+cancelled+"/cancel","POST",{},admin)).status,200);
   assert.equal((await request("/my-assignments/"+revoked+"/start","POST",{},drivers[0].headers)).status,409);
   assert.equal((await request("/bookings/"+cancelled+"/assign","POST",{driverId:drivers[0].id},admin)).status,409);
-  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"replacement-password-123"},drivers[0].headers)).status,403);
+  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"0456"},drivers[0].headers)).status,403);
   assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"short"},admin)).status,400);
-  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"replacement-password-123"},admin)).status,200);
+  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"0456"},admin)).status,200);
   assert.equal((await request("/my-assignments","GET",undefined,drivers[0].headers)).status,401);
-  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"test-password-123"})).status,401);
-  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"replacement-password-123"})).status,200);
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"0123"})).status,401);
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"0456"})).status,200);
+  for(let i=0;i<5;i++)assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"9999"})).status,401);
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"0456"})).status,429);
+  require("./driver-pin-policy").driverLimiter.clear("driver0@example.com");
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"0456"})).status,429);
+  assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"0789"},admin)).status,200);
+  assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"0789"})).status,200);
+
   assert.equal((await request("/drivers/"+drivers[1].id,"PATCH",{active:false},admin)).status,200);
   assert.equal((await request("/my-assignments","GET",undefined,drivers[1].headers)).status,401);
  }finally{
