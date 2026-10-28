@@ -6,6 +6,19 @@ const express = require('express');
 function createDispatchRouter({db, requireAdmin, requireDriver}) {
   if (!db || !requireAdmin || !requireDriver) throw new Error('Missing dispatch security dependencies');
   const router = express.Router();
+  // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
+  router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
+    try {
+      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      res.json(q.rows);
+    } catch(e){next(e)}
+  });
+  router.get('/admin/drivers',requireAdmin,async(req,res,next)=>{
+    try {
+      const q=await db.query("SELECT id,display_name,active FROM dispatch_drivers ORDER BY display_name");
+      res.json(q.rows); // Never expose driver PIN hashes.
+    } catch(e){next(e)}
+  });
   router.post('/admin/trips/:id/approve', requireAdmin, async (req,res,next)=>{
     try {
       const q=await db.query("UPDATE dispatch_trips SET status='approved',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
@@ -17,7 +30,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
     try {
       const {driverId}=req.body||{};
       if(!Number.isSafeInteger(driverId)||driverId<1) return res.status(400).json({error:'Invalid driver'});
-      const q=await db.query("UPDATE dispatch_trips SET driver_id=$1,status='assigned',updated_at=NOW() WHERE id=$2 AND status='approved' RETURNING id,status,driver_id",[driverId,req.params.id]);
+      const q=await db.query("UPDATE dispatch_trips SET driver_id=$1,status='assigned',updated_at=NOW() WHERE id=$2 AND status='approved' AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) RETURNING id,status,driver_id",[driverId,req.params.id]);
       if(!q.rowCount) return res.status(409).json({error:'Trip not assignable'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
