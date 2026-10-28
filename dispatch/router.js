@@ -39,6 +39,12 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows[0]);
     }catch(e){next(e)}
   });
+  router.get('/admin/trips/:id/history',requireAdmin,async(req,res,next)=>{
+    try {
+      const q=await db.query('SELECT actor_role,actor_id,action,created_at FROM dispatch_audit WHERE trip_id=$1 ORDER BY created_at DESC LIMIT 100',[req.params.id]);
+      res.json(q.rows);
+    }catch(e){next(e)}
+  });
   router.post('/admin/trips/:id/approve', requireAdmin, async (req,res,next)=>{
     try {
       const q=await db.query("UPDATE dispatch_trips SET status='approved',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
