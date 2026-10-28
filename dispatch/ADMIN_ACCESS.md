@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: d4b66352e1f0076f9764ab70d29d981e7ba6f06b.
-Despliegue: dep-dbgkmpqfngtc73fumlf0, confirmado live.
+Commit funcional desplegado: e5486065cab197f65cf3027942ffd2022ed75d03.
+Despliegue: dep-dbgkqogae00c73cnub90, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
@@ -13,7 +13,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 
 ## Uso
 1. Entrar al panel con la cuenta administrativa.
-2. Agregar un conductor y establecer su contraseña inicial (mínimo 12 caracteres).
+2. Agregar un conductor y establecer su PIN inicial de exactamente 4 dígitos.
 3. Entregarle su propia cuenta y el enlace del portal de conductores.
 4. Crear un viaje, aprobarlo y elegir el conductor.
 5. El conductor acepta o rechaza; si rechaza, puede reasignarse.
@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Nueve pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Once pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
@@ -82,3 +82,24 @@ comprobar el nombre de la base interna pimentel_dispatch_dev. No hay ruta públi
   heredada de seis o más pasajeros se conserva como tal para revisión manual.
 
 La verificación HTTP posterior también confirmó contacto tras aceptar y restablecimiento de contraseña con revocación de sesiones. Las cuentas ficticias de esa verificación quedaron suspendidas.
+
+## Contraseñas elegidas por el propietario y PIN de conductores
+Administrador: entrar al panel y usar Mi contraseña de administrador. Se verifica
+la contraseña actual y se pide la nueva dos veces (12–128 caracteres). El hash se
+guarda en admin_credentials, no en el navegador. Cambiarla revoca las sesiones.
+La inicialización no sustituye una contraseña ya elegida aunque se vuelva a desplegar.
+La contraseña inicial del archivo privado deja de ser válida después del cambio.
+No pedir la nueva contraseña al propietario por el chat ni introducirla por él.
+
+Conductores: correo más PIN de exactamente cuatro dígitos, incluidos ceros iniciales.
+Se guardan hashes scrypt con sal única, nunca PIN en texto. Cinco intentos fallidos
+bloquean temporalmente esa cuenta durante 15 minutos; el bloqueo persiste al reiniciar.
+El administrador puede restablecer el PIN y desbloquear la cuenta.
+Las cuentas anteriores sin PIN configurado requieren asignarlo desde el panel;
+no se les asigna un PIN por defecto. Sus sesiones anteriores quedan revocadas.
+La contraseña administrativa mantiene requisitos independientes del PIN del chofer.
+
+La tabla privada admin_credentials se añade al esquema de pruebas durante el arranque,
+comprobando el nombre real de la base antes de crearla. No hay migración pública.
+
+Verificación real en Render: administrador puede entrar, formulario de clave propia disponible, PIN 0123 conserva el cero inicial, PIN corto rechazado y restablecimiento a otro PIN invalida el anterior y sus sesiones. La cuenta ficticia fue suspendida. No se cambió la contraseña personal del propietario durante las pruebas. Solo conductores activos con PIN configurado pueden recibir nuevas asignaciones.

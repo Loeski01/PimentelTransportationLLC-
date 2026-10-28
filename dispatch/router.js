@@ -98,7 +98,7 @@ router.post("/bookings/:id/assign",admin,wrap(async(req,res)=>{
     await client.query("BEGIN");
     const b=await client.query("SELECT id,status FROM bookings WHERE id=$1 FOR UPDATE",[req.params.id]);
     if(!b.rowCount||b.rows[0].status!=="approved"){await client.query("ROLLBACK");return fail(res,409,"La reserva debe estar aprobada y sin asignar");}
-    const d=await client.query("SELECT id FROM drivers WHERE id=$1 AND active=true FOR SHARE",[req.body?.driverId]);
+    const d=await client.query("SELECT id FROM drivers WHERE id=$1 AND active=true AND pin_configured=true FOR SHARE",[req.body?.driverId]);
     if(!d.rowCount){await client.query("ROLLBACK");return fail(res,404,"Conductor no disponible");}
     const a=await client.query("INSERT INTO assignments(booking_id,driver_id) VALUES($1,$2) RETURNING id,status",[req.params.id,req.body.driverId]);
     await client.query("UPDATE bookings SET status='assigned' WHERE id=$1",[req.params.id]);

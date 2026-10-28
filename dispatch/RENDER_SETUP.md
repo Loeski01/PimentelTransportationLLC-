@@ -4,8 +4,8 @@ Actualizado el 27 de octubre de 2026 (Boston).
 Servicio separado: pimentel-dispatch-test, srv-dbggcu6k1f9s73e81m00.
 Workspace autorizado: My Workspace, tea-dbec85m7bikc73fvfb7g.
 Rama: feature/driver-dispatch-app, despliegues automáticos desactivados.
-Commit desplegado: d4b66352e1f0076f9764ab70d29d981e7ba6f06b.
-Deploy dep-dbgkmpqfngtc73fumlf0 confirmado live.
+Commit desplegado: e5486065cab197f65cf3027942ffd2022ed75d03.
+Deploy dep-dbgkqogae00c73cnub90 confirmado live.
 
 PostgreSQL interno pimentel_dispatch_dev: esquema de cinco tablas verificado.
 La base bloquea conexiones externas; no abrir la lista de IP.
@@ -33,3 +33,11 @@ pendiente en /api/booking-request en este servicio separado. El arranque privado
 verifica current_database() y añade request_metadata si falta. No borra datos.
 El flujo de pruebas no envía correo ni cobra. La producción permanece en main.
 Probado en Render: cotización real, persistencia, metadatos y reenvío sin duplicado.
+
+Acceso actualizado: contraseña de administrador elegida desde el panel y persistida
+en admin_credentials. DISPATCH_ADMIN_PASSWORD_HASH solo inicializa la cuenta si aún
+no existe; reiniciar o actualizar no restablece la clave elegida.
+Los conductores usan PIN de cuatro dígitos y bloqueo temporal persistente por cuenta.
+El arranque privado agrega pin_configured, failed_pin_attempts y pin_locked_until a
+drivers y revoca sesiones de cuentas antiguas sin PIN. Sus PIN los asigna el propietario.
+No se realizaron contrataciones ni cambios a planes de pago en esta actualización.
