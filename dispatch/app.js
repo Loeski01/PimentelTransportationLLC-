@@ -13,7 +13,8 @@ app.set('trust proxy',1);
 app.use(express.json({limit:'16kb'}));
 // Private browser panel served only by the standalone dispatch service.
 app.get('/',(req,res)=>res.redirect('/panel'));
-app.get('/panel',(req,res)=>res.sendFile(require('node:path').join(__dirname,'private-panel.html')));
+app.get('/panel',(req,res)=>{res.set('Cache-Control','no-store');res.sendFile(require('node:path').join(__dirname,'private-panel.html'))});
+app.get('/health',(req,res)=>res.status(200).json({service:'pimentel-dispatch',status:'ok'}));
 app.use(session({store:new PgStore({pool:db,createTableIfMissing:true}),secret:process.env.DISPATCH_SESSION_SECRET,resave:false,saveUninitialized:false,name:'dispatch_sid',cookie:{httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',maxAge:28800000}}));
 function checkAdminPassword(password){
  if(typeof password!=='string'||password.length>1024) return false;
