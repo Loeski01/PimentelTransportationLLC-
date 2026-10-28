@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: faa60519c1253b0eba3c07433d0758373b94cff1.
-Despliegue: dep-dbgkhq88v5cc73fuubig, confirmado live.
+Commit funcional desplegado: d4b66352e1f0076f9764ab70d29d981e7ba6f06b.
+Despliegue: dep-dbgkmpqfngtc73fumlf0, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Siete pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Nueve pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
@@ -64,3 +64,21 @@ y comprobación de una sola solicitud pendiente con notas en la bandeja privada.
 Quedó una solicitud PRUEBA WEB pendiente para que el propietario pueda inspeccionarla.
 La instalación habilita una columna JSONB de manera aditiva y solo después de
 comprobar el nombre de la base interna pimentel_dispatch_dev. No hay ruta pública de migración.
+
+## Mejoras operativas posteriores
+- Actualización automática cada 30 segundos mientras la pantalla está visible,
+  con sesión activa y conexión. Evita peticiones superpuestas y no reemplaza
+  una selección de conductor o una contraseña mientras el administrador escribe.
+  Esto no equivale a notificaciones push con la app cerrada.
+- Nombre, teléfono, pasajeros y notas visibles al conductor solo mientras su
+  asignación está aceptada. Después de cancelar, retirar o completar, se ocultan
+  los datos de contacto del pasajero. No se revela el correo al conductor.
+- El administrador puede restablecer la contraseña de un conductor. Se guarda
+  un hash scrypt, se revocan sus sesiones y queda constancia en auditoría.
+- Fechas mostradas en horario de Boston y creación manual con validación de
+  cambio de horario. Tarifas visibles en el panel y estados en español.
+- El formulario del sitio público queda preparado en esta rama para enviar
+  un requestId estable en reintentos; main no fue modificado. La solicitud
+  heredada de seis o más pasajeros se conserva como tal para revisión manual.
+
+La verificación HTTP posterior también confirmó contacto tras aceptar y restablecimiento de contraseña con revocación de sesiones. Las cuentas ficticias de esa verificación quedaron suspendidas.
