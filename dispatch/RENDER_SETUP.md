@@ -4,8 +4,8 @@ Actualizado el 27 de octubre de 2026 (Boston).
 Servicio separado: pimentel-dispatch-test, srv-dbggcu6k1f9s73e81m00.
 Workspace autorizado: My Workspace, tea-dbec85m7bikc73fvfb7g.
 Rama: feature/driver-dispatch-app, despliegues automáticos desactivados.
-Commit desplegado: 908e06917a58d5d583e339a24c647e38f31782a9.
-Deploy dep-dbglck6c6qcc73c0lvag confirmado live.
+Commit desplegado: 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f.
+Deploy dep-dbglj1egekts73899660 confirmado live.
 
 PostgreSQL interno pimentel_dispatch_dev: esquema de cinco tablas verificado.
 La base bloquea conexiones externas; no abrir la lista de IP.
@@ -48,4 +48,6 @@ La conexión checkout-viaje y el webhook firmado están disponibles detrás de E
 
 Se requieren conexión autorizada de Stripe y una prueba de sandbox antes de activar esta parte. Los pagos de la web pública permanecen separados. No se crearon planes de pago ni se modificó la base de producción.
 
-Despliegue de preparación de pagos confirmado live: 908e06917a58d5d583e339a24c647e38f31782a9, dep-dbglck6c6qcc73c0lvag. Dieciséis pruebas automatizadas aprobadas. Avisos en Render: solicitud guardada una sola vez, dos avisos persistidos como desactivados y endpoint privado bloqueado sin login. Stripe ya está instalado y conectado a PimentelTransportationLLC; la lista de cuentas solo devuelve livemode=true. Falta acceso al entorno de prueba. No pedir claves por chat.
+Despliegue de preparación de pagos confirmado live: 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f, dep-dbglj1egekts73899660. Dieciséis pruebas automatizadas aprobadas. Avisos en Render: solicitud guardada una sola vez, dos avisos persistidos como desactivados y endpoint privado bloqueado sin login. Stripe ya está instalado y conectado a PimentelTransportationLLC; la lista de cuentas solo devuelve livemode=true. Falta acceso al entorno de prueba. No pedir claves por chat.
+
+La versión de preparación aislada con Stripe SDK 23.0.1 quedó live en dep-dbglj1egekts73899660 (commit 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f). Diecisiete pruebas aprobadas; npm audit de dependencias de producción sin vulnerabilidades. Se confirmó en Stripe una sola cuenta: PimentelTransportationLLC, livemode=true. Se entregó enlace de gestión de permisos para habilitar un entorno de prueba; no se cambió el modo de la cuenta ni se ejecutaron cobros. No crear sesiones reales para probar. Esperar confirmación de que el usuario terminó los cambios de permisos antes de volver a sincronizar la lista de cuentas.

@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: 908e06917a58d5d583e339a24c647e38f31782a9.
-Despliegue: dep-dbglck6c6qcc73c0lvag, confirmado live.
+Commit funcional desplegado: 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f.
+Despliegue: dep-dbglj1egekts73899660, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
