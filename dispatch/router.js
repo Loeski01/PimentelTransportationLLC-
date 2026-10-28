@@ -19,6 +19,18 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows); // Never expose driver PIN hashes.
     } catch(e){next(e)}
   });
+  router.post('/admin/trips',requireAdmin,async(req,res,next)=>{
+    try {
+      const {passengerSurname,pickupAddress,destinationAddress,pickupAt}=req.body||{};
+      const valid=s=>typeof s==='string'&&s.trim().length>0&&s.trim().length<=250;
+      const date=typeof pickupAt==='string'?new Date(pickupAt):new Date(NaN);
+      if(!valid(passengerSurname)||!valid(pickupAddress)||!valid(destinationAddress)||!Number.isFinite(date.getTime()))
+        return res.status(400).json({error:'Invalid trip fields'});
+      const q=await db.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,status) VALUES ($1,$2,$3,$4,'pending') RETURNING id,status",
+        [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString()]);
+      res.status(201).json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.post('/admin/trips/:id/approve', requireAdmin, async (req,res,next)=>{
     try {
       const q=await db.query("UPDATE dispatch_trips SET status='approved',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
