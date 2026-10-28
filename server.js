@@ -274,21 +274,29 @@ if (process.env.ENABLE_DISPATCH === "true") {
   if (dispatchDbName !== "pimentel_dispatch_dev") {
     throw new Error("Dispatch refuses to start: unexpected database target");
   }
-  if (!process.env.DATABASE_URL || !process.env.DISPATCH_ADMIN_TOKEN ||
-      process.env.DISPATCH_ADMIN_TOKEN.length < 32) {
-    throw new Error("Dispatch requires DATABASE_URL and a strong DISPATCH_ADMIN_TOKEN");
-  }
+  if (!process.env.DATABASE_URL) throw new Error("Dispatch requires DATABASE_URL");
   if (process.env.DISPATCH_SECURITY_REVIEWED !== "true") {
     throw new Error("Dispatch cannot be enabled before security review is explicitly approved");
   }
   const path = require("node:path");
+  const { createAdminAuth } = require("./dispatch/admin-auth");
+  const adminAuth = createAdminAuth({ email: process.env.DISPATCH_ADMIN_EMAIL,
+    passwordHash: process.env.DISPATCH_ADMIN_PASSWORD_HASH, origin: process.env.DISPATCH_ORIGIN });
+  app.use("/api/dispatch", (req,res,next) => { res.set("Cache-Control","no-store"); next(); });
+  app.post("/api/dispatch/admin/login", adminAuth.login);
+  app.get("/api/dispatch/admin/session", adminAuth.authenticate,
+    (req,res) => res.json({csrfToken:req.adminSession.csrf}));
+  app.post("/api/dispatch/admin/logout", adminAuth.authenticate, adminAuth.logout);
   app.use("/api/dispatch", require("./dispatch/login"));
+  app.use("/api/dispatch", (req,res,next) => {
+    // Bearer credentials are exclusively driver sessions; admin uses HttpOnly cookies.
+    if (req.get("authorization")) return next();
+    adminAuth.authenticate(req,res,next);
+  });
   app.use("/api/dispatch", require("./dispatch/router").router);
-  // Keep the prototype administrator page inaccessible until secure
-  // server-side administrator authentication has been implemented.
-  app.use("/despacho", (req, res) => {
-    res.setHeader("Cache-Control", "no-store");
-    res.status(503).json({ error: "Panel administrativo pendiente de autenticación segura" });
+  app.get(["/despacho", "/despacho/"], (req,res) => {
+    res.set("Cache-Control","no-store").set("X-Frame-Options","DENY");
+    res.sendFile(path.join(__dirname,"dispatch/public/admin.html"));
   });
   app.use("/conductores", express.static(path.join(__dirname, "dispatch/public"), {
     index: "index.html",
@@ -317,3 +325,4 @@ app.listen(PORT, "0.0.0.0", () => {
     });
   }
 });
+

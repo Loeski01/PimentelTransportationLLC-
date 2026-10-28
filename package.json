@@ -5,7 +5,8 @@
   "description": "Servidor de pagos Stripe para PimentelTransportationLLC",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:dispatch": "node --test dispatch/*.test.js"
   },
   "dependencies": {
     "express": "^4.21.2",

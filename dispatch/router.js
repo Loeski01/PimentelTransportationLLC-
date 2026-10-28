@@ -15,11 +15,9 @@ const validEmail = s => typeof s==="string" && s.length<=254 && /^[^\s@]+@[^\s@]
 const fail = (res,code,message) => res.status(code).json({error:message});
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 async function auth(req,res,next) {
+  if (req.actor?.role === "admin") return next();
   const token = /^Bearer (.+)$/i.exec(req.get("authorization")||"")?.[1];
   if (!token) return fail(res,401,"Se requiere iniciar sesión");
-  if (process.env.DISPATCH_ADMIN_TOKEN && safeEqual(token,process.env.DISPATCH_ADMIN_TOKEN)) {
-    req.actor={role:"admin",id:"admin"};return next();
-  }
   const result=await pool.query("SELECT s.driver_id,d.active FROM driver_sessions s JOIN drivers d ON d.id=s.driver_id WHERE s.token_hash=$1 AND s.expires_at>now()",[hashToken(token)]);
   if (!result.rows[0]?.active) return fail(res,401,"Sesión inválida");
   req.actor={role:"driver",id:result.rows[0].driver_id};next();
@@ -151,3 +149,4 @@ router.post("/my-assignments/:id/complete",wrap(async(req,res)=>{
 }));
 router.use((err,req,res,next)=>{console.error("Dispatch error",err.code||err.message);res.status(err.code==="23505"?409:500).json({error:"No se pudo completar la operación"});});
 module.exports={router,pool,hashToken,randomToken};
+
