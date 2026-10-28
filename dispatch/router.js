@@ -63,7 +63,8 @@ router.post("/bookings",admin,wrap(async(req,res)=>{
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
 router.get("/bookings",admin,wrap(async(req,res)=>{
-  const r=await pool.query("SELECT id,reference,customer_name,pickup,destination,pickup_at,estimated_fare_cents,status FROM bookings ORDER BY pickup_at DESC LIMIT 200");res.json(r.rows);
+  const extra=process.env.ENABLE_DISPATCH_BOOKING_INTAKE==="true"?",request_metadata":"";
+  const r=await pool.query("SELECT id,reference,customer_name,customer_email,customer_phone,pickup,destination,pickup_at,estimated_fare_cents,status"+extra+" FROM bookings ORDER BY pickup_at DESC LIMIT 200");res.json(r.rows);
 }));
 router.post("/bookings/:id/approve",admin,wrap(async(req,res)=>{
   const client=await pool.connect();

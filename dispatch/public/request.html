@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111111">
+<title>Solicitar viaje de prueba | Pimentel</title>
+<style>*{box-sizing:border-box}body{background:#111;color:#eee;font:16px system-ui;margin:0;padding:20px}main{max-width:650px;margin:auto}h1,h2,a{color:#d4af37}section{background:#202020;border:1px solid #66551e;padding:20px;border-radius:12px;margin:18px 0}label{display:block;margin:14px 0}input,textarea,select{width:100%;padding:12px;font:inherit;border-radius:6px}button{background:#d4af37;border:0;border-radius:7px;padding:14px;font-weight:bold;margin:5px 5px 5px 0}button:disabled{opacity:.5}#message{min-height:26px}</style>
+</head><body><main><h1>Pimentel Transportation</h1><p>Solicitud de prueba · Solo datos ficticios</p>
+<section><h2>Solicitar un viaje</h2><p>La solicitud necesita aprobación de la empresa. Esta prueba no cobra ni envía correos.</p>
+<form id="request">
+<label>Nombre<input name="name" maxlength="100" required></label>
+<label>Correo<input name="email" type="email" maxlength="254" required></label>
+<label>Teléfono<input name="phone" maxlength="40" required></label>
+<label>Recogida<input name="from" maxlength="200" required placeholder="Dirección, ciudad y estado"></label>
+<label>Destino<input name="to" maxlength="200" required placeholder="Dirección, ciudad y estado"></label>
+<label>Fecha en Boston<input name="date" type="date" required></label>
+<label>Hora de Boston<input name="time" type="time" required></label>
+<label>Pasajeros<input name="passengers" type="number" min="1" max="6" value="1" required></label>
+<label>Pago<select name="payment"><option value="coordinate">Coordinar con la empresa</option><option value="later">Pagar después</option></select></label>
+<label>Notas<textarea name="details" maxlength="500" rows="3"></textarea></label>
+<button id="quote" type="button">Calcular tarifa</button><p id="fare" role="status" aria-live="polite"></p>
+<button id="submit" disabled>Enviar solicitud pendiente</button>
+</form></section><p id="message" role="status" aria-live="polite"></p><a href="/despacho">Volver al panel</a></main>
+<script>
+(()=>{'use strict';const el=id=>document.getElementById(id);const form=el('request');let fare=null,route=null,requestId=crypto.randomUUID(),sent=false;
+const say=text=>el('message').textContent=text;
+async function api(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||'No se pudo completar la solicitud.');return data;}
+form.addEventListener('input',e=>{if(sent){sent=false;requestId=crypto.randomUUID();}if(['from','to'].includes(e.target.name)){fare=null;route=null;el('fare').textContent='Vuelve a calcular la tarifa.';el('submit').disabled=true;}});
+el('quote').onclick=async()=>{el('quote').disabled=true;el('submit').disabled=true;say('Calculando…');const from=form.elements.from.value.trim(),to=form.elements.to.value.trim();try{const result=await api('/api/quote',{from,to});if(from!==form.elements.from.value.trim()||to!==form.elements.to.value.trim())throw Error('Las direcciones cambiaron; calcula otra vez.');fare=result.amount;route={from,to};el('fare').textContent='Tarifa estimada: '+new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(fare/100);el('submit').disabled=false;say('Revisa los datos antes de enviar.');}catch(e){fare=null;route=null;say(e.message);}finally{el('quote').disabled=false;}};
+form.onsubmit=async e=>{e.preventDefault();if(sent||fare===null||!route)return;el('submit').disabled=true;const data=Object.fromEntries(new FormData(form));Object.assign(data,{from:route.from,to:route.to,expectedFareCents:fare,tipPercent:0,tipCents:0,requestId});try{const result=await api('/api/booking-request',data);sent=true;say('Solicitud recibida: '+result.reference+'. Pendiente de aprobación; no es una reserva confirmada.');el('fare').textContent='Solicitud enviada. Puedes verla en el panel administrativo.';}catch(e){say(e.message);el('submit').disabled=false;}};
+})();
+</script></body></html>

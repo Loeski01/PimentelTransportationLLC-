@@ -199,6 +199,13 @@ async function sendBookingEmail({to, subject, text, replyTo}) {
 const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+// Isolated booking intake: the public production mail flow below stays unchanged.
+const intakeEnabled=process.env.ENABLE_DISPATCH==="true"&&process.env.ENABLE_DISPATCH_BOOKING_INTAKE==="true";
+if(intakeEnabled){
+  const {createIntakeHandler}=require("./dispatch/booking-intake");
+  app.post("/api/booking-request",createIntakeHandler({pool:require("./dispatch/router").pool,calculateFare}));
+  app.get("/solicitar",(req,res)=>{res.set("Cache-Control","no-store");res.sendFile(require("node:path").join(__dirname,"dispatch/public/request.html"));});
+}
 app.post("/api/booking-request", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (!mailReady) return res.status(503).json({ error: "Las notificaciones automáticas todavía no están activadas. Usa WhatsApp o correo." });
@@ -305,7 +312,9 @@ if (process.env.ENABLE_DISPATCH === "true") {
 }
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, "0.0.0.0", () => {
+async function startServer(){
+  if(intakeEnabled)await require("./dispatch/booking-intake").ensureIntakeSchema(require("./dispatch/router").pool);
+  app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
   console.log("Dispatch test configuration:", JSON.stringify({dispatchFlag: process.env.ENABLE_DISPATCH === "false" ? "disabled" : process.env.ENABLE_DISPATCH === "true" ? "enabled" : "unset_or_invalid", databaseUrlConfigured: Boolean(process.env.DATABASE_URL), databaseNameMatches: (() => { try { return decodeURIComponent(new URL(process.env.DATABASE_URL).pathname.slice(1)) === "pimentel_dispatch_dev"; } catch { return false; } })()}));
   // Read-only PostgreSQL check for the isolated dispatch test service.
@@ -325,4 +334,5 @@ app.listen(PORT, "0.0.0.0", () => {
     });
   }
 });
-
+}
+startServer().catch(error=>{console.error("Server startup failed",error.code||"STARTUP_FAILED");process.exitCode=1;});

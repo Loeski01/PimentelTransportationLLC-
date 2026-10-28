@@ -51,3 +51,7 @@ CREATE TABLE IF NOT EXISTS driver_sessions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS driver_sessions_driver_id_idx ON driver_sessions(driver_id);
+
+
+-- Public intake metadata; additive and safe to re-run in the isolated development DB.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS request_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
