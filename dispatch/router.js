@@ -31,6 +31,14 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.status(201).json(q.rows[0]);
     }catch(e){next(e)}
   });
+  // Admin can cancel a trip that has not yet started; assigned drivers lose access immediately.
+  router.post('/admin/trips/:id/cancel',requireAdmin,async(req,res,next)=>{
+    try {
+      const q=await db.query("UPDATE dispatch_trips SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status IN ('pending','approved','assigned','accepted') RETURNING id,status",[req.params.id]);
+      if(!q.rowCount)return res.status(409).json({error:'Trip cannot be cancelled in current state'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.post('/admin/trips/:id/approve', requireAdmin, async (req,res,next)=>{
     try {
       const q=await db.query("UPDATE dispatch_trips SET status='approved',updated_at=NOW() WHERE id=$1 AND status='pending' RETURNING id,status",[req.params.id]);
