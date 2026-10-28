@@ -4,8 +4,8 @@ Actualizado el 27 de octubre de 2026 (Boston).
 Servicio separado: pimentel-dispatch-test, srv-dbggcu6k1f9s73e81m00.
 Workspace autorizado: My Workspace, tea-dbec85m7bikc73fvfb7g.
 Rama: feature/driver-dispatch-app, despliegues automáticos desactivados.
-Commit desplegado: 029a4553cee618899b5d9a54ffd404ebd0c29e83.
-Deploy dep-dbgkeao8v5cc73fuih1g confirmado live.
+Commit desplegado: faa60519c1253b0eba3c07433d0758373b94cff1.
+Deploy dep-dbgkhq88v5cc73fuubig confirmado live.
 
 PostgreSQL interno pimentel_dispatch_dev: esquema de cinco tablas verificado.
 La base bloquea conexiones externas; no abrir la lista de IP.
@@ -27,3 +27,9 @@ No usar datos reales: base gratuita temporal, expira 26 de noviembre de 2026.
 Antes de producción: almacenamiento persistente con backups, integración de reservas,
 recuperación de contraseñas, revisión operacional y pruebas en teléfonos.
 Consultar ADMIN_ACCESS.md para el uso y las limitaciones.
+
+ENABLE_DISPATCH_BOOKING_INTAKE=true habilita el formulario /solicitar y el guardado
+pendiente en /api/booking-request en este servicio separado. El arranque privado
+verifica current_database() y añade request_metadata si falta. No borra datos.
+El flujo de pruebas no envía correo ni cobra. La producción permanece en main.
+Probado en Render: cotización real, persistencia, metadatos y reenvío sin duplicado.

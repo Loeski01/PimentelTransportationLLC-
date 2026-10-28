@@ -43,9 +43,15 @@ Acceso administrativo con sesión HttpOnly, cuentas/suspensión de conductores,
 creación/aprobación/asignación, rechazo/reasignación, inicio/finalización,
 liberación/cancelación administrativa y auditoría.
 PWA con iconos y pantalla sin conexión, preparada para probar en teléfonos.
-Cinco pruebas locales pasan y el flujo HTTP completo se verificó en Render.
+Siete pruebas locales pasan y el flujo HTTP completo se verificó en Render.
 
 La web y los pagos públicos permanecen separados. La integración automática con
 reservas de producción, almacenamiento permanente, recuperación de contraseña,
 notificaciones y validación en teléfonos siguen pendientes antes de uso real.
 Estado operativo y guía: dispatch/ADMIN_ACCESS.md y dispatch/RENDER_SETUP.md.
+
+Recepción automática de pruebas completada: /solicitar calcula la tarifa y guarda
+una solicitud pendiente visible en el panel. Incluye notas, pasajeros, pago e
+idempotencia. Desplegada y comprobada en Render, sin correos ni cobros.
+La conexión de la página pública y el paso a almacenamiento permanente siguen
+pendientes antes de introducir datos reales.

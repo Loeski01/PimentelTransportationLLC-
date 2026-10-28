@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: 029a4553cee618899b5d9a54ffd404ebd0c29e83.
-Despliegue: dep-dbgkeao8v5cc73fuih1g, confirmado live.
+Commit funcional desplegado: faa60519c1253b0eba3c07433d0758373b94cff1.
+Despliegue: dep-dbgkhq88v5cc73fuubig, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Cinco pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Siete pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
@@ -34,7 +34,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 ## Límites actuales
 - Esta es una versión de pruebas; no introducir datos reales de clientes.
 - La web pública, pagos, correos y solicitudes existentes siguen separados.
-  La importación automática de reservas de producción aún no está conectada.
+  La recepción automática de pruebas ya funciona en /solicitar. La página pública de producción aún no está conectada a este entorno.
 - La base gratuita temporal pimentel-dispatch-dev vence el 26 de noviembre de 2026.
   Antes de producción se requiere almacenamiento persistente con copias de seguridad.
 - Sesiones administrativas y límites de intentos en memoria: una sola instancia;
@@ -49,3 +49,18 @@ DISPATCH_ORIGIN y DATABASE_URL se administran en Render.
 ENABLE_DISPATCH=true y DISPATCH_SECURITY_REVIEWED=true habilitan solo este entorno
 verificado; el código exige la base pimentel_dispatch_dev.
 DISPATCH_ADMIN_TOKEN está vacío y ya no autentica.
+
+## Recepción automática de solicitudes de prueba
+Formulario: https://pimentel-dispatch-test.onrender.com/solicitar
+La tarifa se verifica de nuevo en el servidor; la solicitud se guarda pendiente.
+Pasajeros, notas y pago se guardan en request_metadata; se muestran al administrador.
+Un identificador de solicitud evita duplicados si se reenvía el mismo formulario.
+Las fechas se interpretan en America/New_York. Se rechazan horas inexistentes o
+ambiguas por cambio de horario para evitar desplazar una recogida silenciosamente.
+Este flujo de pruebas no envía correos ni procesa cobros. La producción conserva
+su flujo existente de Stripe/Brevo sin cambios.
+Verificación HTTP real: cotización de Logan a Woburn, recepción, reenvío sin duplicar
+y comprobación de una sola solicitud pendiente con notas en la bandeja privada.
+Quedó una solicitud PRUEBA WEB pendiente para que el propietario pueda inspeccionarla.
+La instalación habilita una columna JSONB de manera aditiva y solo después de
+comprobar el nombre de la base interna pimentel_dispatch_dev. No hay ruta pública de migración.
