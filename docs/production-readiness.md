@@ -1,7 +1,7 @@
 # Paso de pruebas a operación real
 
 Estado al 27 de octubre de 2026 (Boston): beta funcional separada de producción.
-Nueve pruebas locales y verificaciones HTTP en Render aprobadas.
+Trece pruebas locales y verificaciones HTTP en Render aprobadas.
 
 ## Preparado
 - Administrador con cookie HttpOnly, origen, CSRF, límites de login y logout.
@@ -9,6 +9,7 @@ Nueve pruebas locales y verificaciones HTTP en Render aprobadas.
 - Solicitudes pendientes, aprobación, asignación, rechazo, liberación, cancelación,
   inicio y finalización con auditoría y transacciones.
 - Ingesta web con tarifa verificada, metadatos, horario de Boston e idempotencia.
+- Navegación a recogida y destino mediante el mapa elegido, con enlaces sin datos financieros.
 - Portal con actualización automática mientras está abierto, contacto del pasajero
   restringido a asignaciones aceptadas y recursos PWA sin cachear viajes.
 

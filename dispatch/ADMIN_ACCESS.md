@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: 222566d2b49d64fa336c737ce73e7a02099eda3e.
-Despliegue: dep-dbgksdou01pc73advg30, confirmado live.
+Commit funcional desplegado: 67e4e006dbee84f9e0484523e702807cfda87377.
+Despliegue: dep-dbgl20rbc2fs73b0r8b0, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Once pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Trece pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;

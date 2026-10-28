@@ -4,8 +4,8 @@ Actualizado el 27 de octubre de 2026 (Boston).
 Servicio separado: pimentel-dispatch-test, srv-dbggcu6k1f9s73e81m00.
 Workspace autorizado: My Workspace, tea-dbec85m7bikc73fvfb7g.
 Rama: feature/driver-dispatch-app, despliegues automáticos desactivados.
-Commit desplegado: 222566d2b49d64fa336c737ce73e7a02099eda3e.
-Deploy dep-dbgksdou01pc73advg30 confirmado live.
+Commit desplegado: 67e4e006dbee84f9e0484523e702807cfda87377.
+Deploy dep-dbgl20rbc2fs73b0r8b0 confirmado live.
 
 PostgreSQL interno pimentel_dispatch_dev: esquema de cinco tablas verificado.
 La base bloquea conexiones externas; no abrir la lista de IP.
