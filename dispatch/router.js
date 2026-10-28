@@ -38,8 +38,15 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       const date=typeof pickupAt==='string'?new Date(pickupAt):new Date(NaN);
       if(!valid(passengerSurname)||!valid(pickupAddress)||!valid(destinationAddress)||!Number.isFinite(date.getTime()))
         return res.status(400).json({error:'Invalid trip fields'});
-      const q=await db.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,status) VALUES ($1,$2,$3,$4,'pending') RETURNING id,status",
-        [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString()]);
+      const client=await db.connect();
+      let q;
+      try {
+        await client.query('BEGIN');
+        q=await client.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,status) VALUES ($1,$2,$3,$4,'pending') RETURNING id,status",
+          [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString()]);
+        await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'admin',String(req.session?.userId||'admin'),'created']);
+        await client.query('COMMIT');
+      }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       res.status(201).json(q.rows[0]);
     }catch(e){next(e)}
   });
