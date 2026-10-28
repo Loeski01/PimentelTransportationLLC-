@@ -15,6 +15,7 @@ app.use(express.json({limit:'16kb'}));
 app.get('/',(req,res)=>res.redirect('/panel'));
 app.get('/panel',(req,res)=>{res.set('Cache-Control','no-store');res.sendFile(require('node:path').join(__dirname,'private-panel.html'))});
 app.get('/health',(req,res)=>res.status(200).json({service:'pimentel-dispatch',status:'ok'}));
+app.get('/ready',async(req,res)=>{try{await db.query('SELECT 1 FROM dispatch_trips LIMIT 0');await db.query('SELECT 1 FROM dispatch_drivers LIMIT 0');await db.query('SELECT 1 FROM dispatch_audit LIMIT 0');res.set('Cache-Control','no-store').status(200).json({service:'pimentel-dispatch',ready:true})}catch(e){res.set('Cache-Control','no-store').status(503).json({service:'pimentel-dispatch',ready:false})}});
 app.use(session({store:new PgStore({pool:db,createTableIfMissing:true}),secret:process.env.DISPATCH_SESSION_SECRET,resave:false,saveUninitialized:false,name:'dispatch_sid',cookie:{httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',maxAge:28800000}}));
 function checkAdminPassword(password){
  if(typeof password!=='string'||password.length>1024) return false;
