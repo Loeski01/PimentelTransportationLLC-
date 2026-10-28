@@ -33,5 +33,6 @@ Validación local: npm ci y npm run test:dispatch. Pruebas HTTP de credenciales,
 sesión, origen, CSRF, logout, expiración y límites de intentos.
 Flujo de viajes verificado localmente con PostgreSQL embebido PGlite y datos ficticios.
 Pendiente: verificar la conexión y el flujo contra PostgreSQL en Render,
-probar en iPhone/Android y completar recuperación de contraseña y PWA.
+probar instalación y operación en iPhone/Android y completar recuperación de contraseña.
+PWA: manifest, iconos y service worker preparados. Solo se cachean iconos y pantalla sin conexión; nunca respuestas de la API ni viajes. No hay notificaciones push todavía.
 No se ha desplegado ni habilitado este cambio en Render.

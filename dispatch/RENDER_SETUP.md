@@ -51,7 +51,7 @@
 ## Riesgos y pendientes antes de uso real
 - El login tiene un límite básico de intentos por IP en memoria, pero requiere pruebas y endurecimiento antes de uso real; no hay recuperación de contraseña.
 - Existe un prototipo de panel visual en `/despacho`, aún sin probar y no apto para producción.
-- La PWA no tiene iconos ni service worker; no se debe prometer instalación completa.
+- La PWA ahora tiene manifest, iconos, service worker y pantalla sin conexión. Instalación en dispositivos pendiente de prueba tras desplegar.
 - Los estados de viaje, auditoría y reasignación requieren pruebas y más lógica.
 - `/despacho` ahora utiliza sesión HttpOnly; falta configurar y validar la versión en el entorno de pruebas. No utilizar datos reales todavía.
 - Base gratuita temporal: migrar a almacenamiento persistente con copias de seguridad antes de guardar datos de clientes reales.
