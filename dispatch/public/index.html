@@ -4,18 +4,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Pimentel"><link rel="apple-touch-icon" href="/conductores/icon-192.png">
 <title>Conductores | Pimentel Transportation</title>
 <style>
-*{box-sizing:border-box}body{font:16px Arial,sans-serif;background:#111;color:#eee;margin:0;padding:20px}main{max-width:640px;margin:auto}h1,h2{color:#d4af37}section{background:#202020;border:1px solid #66551e;border-radius:12px;padding:20px;margin:20px 0}label{display:block;margin:14px 0}input{width:100%;padding:13px;border-radius:6px;border:1px solid #aaa;font-size:16px}button{padding:12px 16px;background:#d4af37;border:0;border-radius:6px;font-weight:bold;margin:5px;cursor:pointer}button:disabled{opacity:.5}.navigation{border:1px solid #66551e;border-radius:8px;padding:12px;margin:14px 0}.navigation select{width:100%;font:inherit;padding:10px;border-radius:6px}.map-action[hidden]{display:none}.map-action{display:block;background:#d4af37;color:#111;font-weight:bold;text-align:center;text-decoration:none;border-radius:6px;padding:12px;margin-top:10px}article{border-top:1px solid #555;padding:14px 0}small{color:#ccc}#notice{min-height:25px}a{color:#e5c45a}
+*{box-sizing:border-box}body{font:16px Arial,sans-serif;background:#111;color:#eee;margin:0;padding:20px}main{max-width:640px;margin:auto}h1,h2{color:#d4af37}section{background:#202020;border:1px solid #66551e;border-radius:12px;padding:20px;margin:20px 0}label{display:block;margin:14px 0}input{width:100%;padding:13px;border-radius:6px;border:1px solid #aaa;font-size:16px}button{padding:12px 16px;background:#d4af37;border:0;border-radius:6px;font-weight:bold;margin:5px;cursor:pointer}button:disabled{opacity:.5}.navigation{border:1px solid #66551e;border-radius:8px;padding:12px;margin:14px 0}.navigation select{width:100%;font:inherit;padding:10px;border-radius:6px}.map-action[hidden]{display:none}.map-action{display:block;background:#d4af37;color:#111;font-weight:bold;text-align:center;text-decoration:none;border-radius:6px;padding:12px;margin-top:10px}.trip-group{margin-top:24px}h3{color:#d4af37}.new-offers{border-left:4px solid #d4af37;padding:12px;background:#302b18}.new-offers[hidden]{display:none}summary{cursor:pointer;color:#d4af37;padding:16px 0}article{border-top:1px solid #555;padding:14px 0}small{color:#ccc}#notice{min-height:25px}a{color:#e5c45a}
 </style></head><body><main><h1>Pimentel Transportation</h1><p>Portal privado de conductores</p>
 <section><h2>Instalar Pimentel</h2><p id="installHelp">En iPhone: abre esta página en Safari, toca Compartir y selecciona Agregar a pantalla de inicio. En Android: usa Instalar app o Agregar a pantalla de inicio en el menú del navegador.</p><button id="install" hidden>Instalar app</button></section>
 <section id="loginPanel"><h2>Iniciar sesión</h2><form id="loginForm"><label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label><label>PIN de 4 dígitos<input name="password" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="current-password" required></label><button>Entrar</button></form></section>
-<section id="tripsPanel" hidden><h2>Mis viajes asignados</h2><button id="refresh">Actualizar</button><button id="logout">Salir</button><div id="trips"></div></section>
+<section id="tripsPanel" hidden><h2>Mis viajes asignados</h2><p id="tripSummary"></p><p id="newOffers" class="new-offers" role="status" aria-live="polite" hidden></p><p id="connection" role="status"></p><small id="updatedAt"></small><br><button id="refresh">Actualizar</button><button id="logout">Salir</button><p><a href="tel:+16177855657">Llamar a despacho</a></p><div id="trips"></div></section>
 <p id="notice" role="status" aria-live="polite"></p><small>Solo verás los viajes que el administrador te asigne. Las reservas requieren confirmación.</small></main>
 <script src="/conductores/refresh.js"></script>
 <script src="/conductores/navigation.js"></script>
+<script src="/conductores/journey.js"></script>
 <script>
 (()=>{'use strict';
-let token=null,lastOffers=null,loadVersion=0,pendingWrites=0;const $=id=>document.getElementById(id);const notice=msg=>$('notice').textContent=msg;
-async function request(path,options={}){const writing=options.method&&options.method!=='GET';if(writing)pendingWrites++;try{const response=await fetch('/api/dispatch'+path,{...options,headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{}),...(options.headers||{})},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.status===401){token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();}if(!response.ok)throw new Error(data.error||'Error del servidor');return data;}finally{if(writing)pendingWrites--;}}
+let token=null,lastOffers=null,loadVersion=0,pendingWrites=0,pendingAction=false;const $=id=>document.getElementById(id);const notice=msg=>$('notice').textContent=msg;
+async function request(path,options={}){const writing=options.method&&options.method!=='GET';if(writing)pendingWrites++;try{const response=await fetch('/api/dispatch'+path,{...options,headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{}),...(options.headers||{})},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.status===401){token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();}if(!response.ok)throw Object.assign(new Error(data.error||'Error del servidor'),{status:response.status});return data;}finally{if(writing)pendingWrites--;}}
 let mapProvider='google';
 function addNavigation(card,trip){
  if(!PimentelNavigation.tripNavigation(trip,mapProvider))return;
@@ -28,24 +29,68 @@ function addNavigation(card,trip){
  select.onchange=()=>{mapProvider=select.value;update();};update();box.append(pickup,destination,node('small','Revisa la dirección en el mapa antes de iniciar la navegación.'));card.append(box);
 }
 function node(tag,text){const el=document.createElement(tag);el.textContent=text;return el;}
-async function load(background=false){const version=++loadVersion;const rows=await request('/my-assignments');if(version!==loadVersion||!token)return;if(background&&document.activeElement?.matches('.navigation select'))return;const offers=rows.filter(t=>t.status==='offered').map(t=>t.id);if(lastOffers&&offers.some(id=>!lastOffers.includes(id)))notice('Tienes una nueva asignación. Revisa el viaje antes de aceptar.');lastOffers=offers;$('trips').replaceChildren();if(!rows.length){$('trips').append(node('p','No tienes viajes asignados.'));return;}
-for(const trip of rows){const card=node('article','');for(const line of ['Reserva: '+trip.reference,'Recogida: '+trip.pickup,'Destino: '+trip.destination,'Fecha: '+new Date(trip.pickup_at).toLocaleString('es-US',{timeZone:'America/New_York'})+' (Boston)','Estado: '+({in_progress:'En curso',offered:'Pendiente de aceptar',accepted:'Aceptado',rejected:'Rechazado',revoked:'Asignación retirada',completed:'Completado'}[trip.booking_status==='in_progress'?'in_progress':trip.status]||trip.status)])card.append(node('p',line));
-if(trip.customer_name)card.append(node('p','Pasajero: '+trip.customer_name));if(trip.passengers)card.append(node('p','Pasajeros: '+trip.passengers));if(trip.details)card.append(node('p','Notas: '+trip.details));if(trip.customer_phone){const phone=trip.customer_phone.replace(/[^+0-9]/g,'');if(phone){const link=node('a','Llamar al pasajero');link.href='tel:'+phone;card.append(link);}}
-addNavigation(card,trip);
-if(trip.status==='offered'){for(const [status,label] of [['accepted','Aceptar'],['rejected','Rechazar']]){const btn=node('button',label);btn.onclick=async()=>{btn.disabled=true;try{await request('/my-assignments/'+encodeURIComponent(trip.id)+'/respond',{method:'POST',body:JSON.stringify({status})});await load();}catch(e){notice(e.message);btn.disabled=false;}};card.append(btn);}}
-if(trip.status==='accepted'&&trip.booking_status==='assigned'){const btn=node('button','Iniciar viaje');btn.onclick=async()=>{btn.disabled=true;try{await request('/my-assignments/'+encodeURIComponent(trip.id)+'/start',{method:'POST'});notice('Viaje iniciado.');await load();}catch(e){notice(e.message);btn.disabled=false;}};card.append(btn);}
-if(trip.status==='accepted'&&trip.booking_status==='in_progress'){const btn=node('button','Marcar viaje completado');btn.onclick=async()=>{if(!confirm('¿Confirmas que este viaje ha terminado?'))return;btn.disabled=true;try{await request('/my-assignments/'+encodeURIComponent(trip.id)+'/complete',{method:'POST'});notice('Viaje marcado como completado.');await load();}catch(e){notice(e.message);btn.disabled=false;}};card.append(btn);}
-$('trips').append(card);}}
+function updateConnection(){
+ const offline=!navigator.onLine;
+ $('logout').disabled=pendingAction||pendingWrites>0;
+ $('connection').textContent=offline?'Sin conexión. Conéctate para registrar cambios en tus viajes.':'';
+ for(const button of document.querySelectorAll('#refresh, #loginForm button, #trips button[data-trip-action]'))button.disabled=offline||pendingAction||pendingWrites>0;
+}
+async function performAction(card,trip,path,body,label){
+ if(pendingAction)return;
+ if(!navigator.onLine){notice('Sin conexión. Ningún cambio fue enviado.');return;}
+ if(path==='complete'&&!confirm('¿Confirmas que el pasajero llegó y el viaje terminó?'))return;
+ if(body?.status==='rejected'&&!confirm('¿Rechazar esta asignación y devolverla al administrador?'))return;
+ pendingAction=true;updateConnection();
+ try{await request('/my-assignments/'+encodeURIComponent(trip.id)+'/'+path,{method:'POST',...(body?{body:JSON.stringify(body)}:{})});await load();notice(label+' registrado.');}
+ catch(error){if(error.status===409&&token){await load().catch(()=>{});notice('El estado del viaje cambió. Revisa el siguiente paso disponible.');}else notice(error.message+' Actualiza el viaje antes de volver a intentarlo.');}
+ finally{pendingAction=false;updateConnection();}
+}
+function tripCard(trip){
+ const card=node('article','');
+ for(const line of ['Reserva: '+trip.reference,'Recogida: '+trip.pickup,'Destino: '+trip.destination,'Fecha: '+new Date(trip.pickup_at).toLocaleString('es-US',{timeZone:'America/New_York'})+' (Boston)','Estado: '+PimentelJourney.statusLabel(trip)])card.append(node('p',line));
+ if(trip.customer_name)card.append(node('p','Pasajero: '+trip.customer_name));
+ if(trip.passengers)card.append(node('p','Pasajeros: '+trip.passengers));
+ if(trip.details)card.append(node('p','Notas: '+trip.details));
+ if(trip.customer_phone){const phone=trip.customer_phone.replace(/[^+0-9]/g,'');if(phone){const link=node('a','Llamar al pasajero');link.href='tel:'+phone;card.append(link);}}
+ addNavigation(card,trip);
+ if(trip.status==='offered'&&trip.booking_status==='assigned'){
+  for(const [status,label] of [['accepted','Aceptar viaje'],['rejected','Rechazar viaje']]){
+   const button=node('button',label);button.dataset.tripAction='true';button.onclick=()=>performAction(card,trip,'respond',{status},status==='accepted'?'Viaje aceptado':'Rechazo');card.append(button);
+  }
+ }
+ const action=PimentelJourney.nextAction(trip);
+ if(action){const button=node('button',action.label);button.dataset.tripAction='true';button.onclick=()=>performAction(card,trip,action.path,null,action.label);card.append(button);}
+ return card;
+}
+async function load(background=false){
+ if(background&&pendingAction)return;
+ const version=++loadVersion;const rows=await request('/my-assignments');
+ if(version!==loadVersion||!token)return;
+ if(background&&document.activeElement?.matches('.navigation select'))return;
+ const groups=PimentelJourney.groupTrips(rows),offers=groups.offers.map(t=>t.id);
+ if(lastOffers&&offers.some(id=>!lastOffers.includes(id)))notice('Tienes una nueva asignación. Revisa el viaje antes de aceptar.');lastOffers=offers;
+ const historyOpen=$('trips').querySelector('details')?.open||false;
+ $('trips').replaceChildren();
+ $('tripSummary').textContent=groups.offers.length+' nuevos · '+groups.upcoming.length+' próximos · '+groups.active.length+' en servicio';
+ $('newOffers').hidden=!offers.length;$('newOffers').textContent=offers.length===1?'Tienes un viaje pendiente de aceptar.':'Tienes '+offers.length+' viajes pendientes de aceptar.';
+ for(const [key,title] of [['active','En servicio'],['offers','Nuevas asignaciones'],['upcoming','Próximos viajes']]){
+  if(!groups[key].length)continue;
+  const section=node('div','');section.className='trip-group';section.append(node('h3',title));for(const trip of groups[key])section.append(tripCard(trip));$('trips').append(section);
+ }
+ if(groups.history.length){const history=node('details','');history.open=historyOpen;history.append(node('summary','Historial ('+groups.history.length+')'));for(const trip of groups.history)history.append(tripCard(trip));$('trips').append(history);}
+ if(!rows.length)$('trips').append(node('p','No tienes viajes asignados.'));
+ $('updatedAt').textContent='Actualizado: '+new Date().toLocaleTimeString('es-US',{timeZone:'America/New_York'})+' (Boston)';updateConnection();
+}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const data=new FormData(form);const button=form.querySelector('button');button.disabled=true;notice('Iniciando sesión…');try{const result=await request('/login',{method:'POST',body:JSON.stringify({email:data.get('email'),password:data.get('password')})});token=result.token;lastOffers=null;$('loginPanel').hidden=true;$('tripsPanel').hidden=false;form.reset();await load();notice('Sesión iniciada.');}catch(err){notice(err.message);}finally{form.elements.password.value='';button.disabled=false;}});
 $('refresh').onclick=()=>load().catch(e=>notice(e.message));
 $('logout').onclick=async()=>{let revoked=false;try{await request('/logout',{method:'POST'});revoked=true;}catch(e){}finally{token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();notice(revoked?'Sesión cerrada correctamente.':'Se cerró el acceso en este dispositivo, pero no se pudo confirmar la revocación en el servidor. La sesión caduca automáticamente.');}};
-const refresher=PimentelRefresh.createRefresher({refresh:()=>load(true),shouldRefresh:()=>Boolean(token)&&!pendingWrites&&!document.hidden&&navigator.onLine&&!document.activeElement?.matches('.navigation select'),onError:()=>notice('No se pudo actualizar. Revisa tu conexión y vuelve a intentarlo.')});
+const refresher=PimentelRefresh.createRefresher({refresh:()=>load(true),shouldRefresh:()=>Boolean(token)&&!pendingAction&&!pendingWrites&&!document.hidden&&navigator.onLine&&!document.activeElement?.matches('.navigation select'),onError:()=>notice('No se pudo actualizar. Revisa tu conexión y vuelve a intentarlo.')});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresher.refreshNow();});window.addEventListener('online',()=>refresher.refreshNow());
 let installPrompt;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('install').hidden=false;});
 $('install').onclick=async()=>{if(!installPrompt)return;await installPrompt.prompt();installPrompt=null;$('install').hidden=true;};
 window.addEventListener('appinstalled',()=>{$('install').hidden=true;$('installHelp').textContent='Pimentel está instalada en tu dispositivo.';});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/conductores/sw.js',{scope:'/conductores/'}).catch(()=>{});
-window.addEventListener('offline',()=>notice('Sin conexión. Conéctate antes de actualizar o cambiar un viaje.'));
+window.addEventListener('offline',updateConnection);window.addEventListener('online',updateConnection);updateConnection();
 })();
 </script></body></html>

@@ -81,7 +81,8 @@ router.post("/bookings",admin,wrap(async(req,res)=>{
 }));
 router.get("/bookings",admin,wrap(async(req,res)=>{
   const extra=process.env.ENABLE_DISPATCH_BOOKING_INTAKE==="true"?",request_metadata":"";
-  const r=await pool.query("SELECT id,reference,customer_name,customer_email,customer_phone,pickup,destination,pickup_at,estimated_fare_cents,status"+extra+" FROM bookings ORDER BY pickup_at DESC LIMIT 200");res.json(r.rows);
+  const assignmentInfo=",(SELECT CASE WHEN a.status='completed' THEN 'completed' WHEN a.status='accepted' AND bookings.status='in_progress' AND a.trip_stage='not_started' THEN 'on_the_way' ELSE a.trip_stage END FROM assignments a WHERE a.booking_id=bookings.id AND a.status IN ('offered','accepted','completed') ORDER BY a.assigned_at DESC LIMIT 1) AS driver_stage,(SELECT d.name FROM assignments a JOIN drivers d ON d.id=a.driver_id WHERE a.booking_id=bookings.id AND a.status IN ('offered','accepted','completed') ORDER BY a.assigned_at DESC LIMIT 1) AS driver_name";
+  const r=await pool.query("SELECT id,reference,customer_name,customer_email,customer_phone,pickup,destination,pickup_at,estimated_fare_cents,status"+extra+assignmentInfo+" FROM bookings ORDER BY pickup_at DESC LIMIT 200");res.json(r.rows);
 }));
 router.post("/bookings/:id/approve",admin,wrap(async(req,res)=>{
   const client=await pool.connect();
@@ -127,8 +128,13 @@ router.post("/bookings/:id/:action(release|cancel)",admin,wrap(async(req,res)=>{
 async function lockAssignment(client,id,driverId){
   const found=await client.query("SELECT booking_id FROM assignments WHERE id=$1 AND driver_id=$2",[id,driverId]);
   if(!found.rowCount)return {rowCount:0,rows:[]};
-  await client.query("SELECT id FROM bookings WHERE id=$1 FOR UPDATE",[found.rows[0].booking_id]);
-  return client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[id,driverId]);
+  const booking=await client.query("SELECT id,status FROM bookings WHERE id=$1 FOR UPDATE",[found.rows[0].booking_id]);
+  const assignment=await client.query("SELECT id,booking_id,status,trip_stage FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[id,driverId]);
+  const row=assignment.rows[0];
+  if(row?.status==="accepted"&&row.trip_stage==="not_started"&&booking.rows[0]?.status==="in_progress"){
+    await client.query("UPDATE assignments SET trip_stage='on_the_way' WHERE id=$1",[id]);row.trip_stage="on_the_way";
+  }
+  return assignment;
 }
 router.get("/notifications",admin,wrap(async(req,res)=>{
  const result=await pool.query("SELECT n.id,n.kind,n.status,n.attempts,n.last_error_code,n.created_at,b.reference FROM dispatch_notifications n JOIN bookings b ON b.id=n.booking_id ORDER BY n.created_at DESC LIMIT 50");res.json({enabled:process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS==="true",rows:result.rows});
@@ -153,7 +159,7 @@ router.post("/logout",wrap(async(req,res)=>{
 router.get("/my-assignments",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
   const metadata=process.env.ENABLE_DISPATCH_BOOKING_INTAKE==="true"?",CASE WHEN a.status='accepted' THEN b.request_metadata->>'details' END AS details,CASE WHEN a.status='accepted' THEN b.request_metadata->>'passengers' END AS passengers":"";
-  const r=await pool.query("SELECT a.id,a.status,b.status AS booking_status,b.reference,b.pickup,b.destination,b.pickup_at,CASE WHEN a.status='accepted' THEN b.customer_name END AS customer_name,CASE WHEN a.status='accepted' THEN b.customer_phone END AS customer_phone"+metadata+" FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
+  const r=await pool.query("SELECT a.id,a.status,CASE WHEN a.status='completed' THEN 'completed' WHEN a.status='accepted' AND b.status='in_progress' AND a.trip_stage='not_started' THEN 'on_the_way' ELSE a.trip_stage END AS trip_stage,b.status AS booking_status,b.reference,b.pickup,b.destination,b.pickup_at,CASE WHEN a.status='accepted' THEN b.customer_name END AS customer_name,CASE WHEN a.status='accepted' THEN b.customer_phone END AS customer_phone"+metadata+" FROM assignments a JOIN bookings b ON b.id=a.booking_id WHERE a.driver_id=$1 ORDER BY CASE WHEN a.status IN ('offered','accepted') AND b.status IN ('assigned','in_progress') THEN 0 ELSE 1 END,CASE WHEN a.status IN ('offered','accepted') AND b.status IN ('assigned','in_progress') THEN b.pickup_at END ASC,b.pickup_at DESC LIMIT 100",[req.actor.id]);res.json(r.rows);
 }));
 router.post("/my-assignments/:id/respond",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
@@ -181,12 +187,31 @@ router.post("/my-assignments/:id/start",wrap(async(req,res)=>{
   try{
     await client.query("BEGIN");
     const a=await lockAssignment(client,req.params.id,req.actor.id);
-    if(!a.rowCount||a.rows[0].status!=="accepted"){await client.query("ROLLBACK");return fail(res,409,"Primero debes aceptar este viaje");}
+    if(!a.rowCount||a.rows[0].status!=="accepted"||a.rows[0].trip_stage!=="not_started"){await client.query("ROLLBACK");return fail(res,409,"Primero debes aceptar este viaje");}
     const b=await client.query("UPDATE bookings SET status='in_progress' WHERE id=$1 AND status='assigned' RETURNING id",[a.rows[0].booking_id]);
     if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"El viaje ya se inició o no está disponible");}
+    await client.query("UPDATE assignments SET trip_stage='on_the_way' WHERE id=$1",[a.rows[0].id]);
     await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'driver',$2,'started')",[a.rows[0].booking_id,String(req.actor.id)]);
     await client.query("COMMIT");res.json({id:a.rows[0].id,status:"in_progress"});
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
+}));
+// Driver milestones are ordered, scoped to the assignment, and audited atomically.
+router.post("/my-assignments/:id/:milestone(arrive|onboard)",wrap(async(req,res)=>{
+ if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  const a=await lockAssignment(client,req.params.id,req.actor.id);
+  const expected=req.params.milestone==="arrive"?"on_the_way":"arrived";
+  const next=req.params.milestone==="arrive"?"arrived":"passenger_onboard";
+  const booking=a.rowCount?await client.query("SELECT status FROM bookings WHERE id=$1",[a.rows[0].booking_id]):null;
+  if(!a.rowCount||a.rows[0].status!=="accepted"||a.rows[0].trip_stage!==expected||booking?.rows[0]?.status!=="in_progress"){
+   await client.query("ROLLBACK");return fail(res,409,"Actualiza el viaje y completa primero el paso anterior");
+  }
+  await client.query("UPDATE assignments SET trip_stage=$1 WHERE id=$2",[next,a.rows[0].id]);
+  await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'driver',$2,$3)",[a.rows[0].booking_id,String(req.actor.id),next==="arrived"?"driver_arrived":"passenger_onboard"]);
+  await client.query("COMMIT");res.json({id:a.rows[0].id,trip_stage:next});
+ }catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
 }));
 // A driver can finish only a trip they personally accepted.
 router.post("/my-assignments/:id/complete",wrap(async(req,res)=>{
@@ -196,9 +221,10 @@ router.post("/my-assignments/:id/complete",wrap(async(req,res)=>{
     await client.query("BEGIN");
     const a=await lockAssignment(client,req.params.id,req.actor.id);
     if(!a.rowCount||a.rows[0].status!=="accepted"){await client.query("ROLLBACK");return fail(res,409,"Solo puedes completar un viaje aceptado por ti");}
+    if(a.rows[0].trip_stage!=="passenger_onboard"){await client.query("ROLLBACK");return fail(res,409,"Confirma primero que el pasajero está a bordo");}
     const b=await client.query("UPDATE bookings SET status='completed' WHERE id=$1 AND status='in_progress' RETURNING id",[a.rows[0].booking_id]);
     if(!b.rowCount){await client.query("ROLLBACK");return fail(res,409,"Debes iniciar el viaje antes de completarlo");}
-    await client.query("UPDATE assignments SET status='completed' WHERE id=$1",[req.params.id]);
+    await client.query("UPDATE assignments SET status='completed',trip_stage='completed' WHERE id=$1",[req.params.id]);
     await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'driver',$2,'completed')",[a.rows[0].booking_id,String(req.actor.id)]);
     await client.query("COMMIT");
     res.json({id:a.rows[0].id,status:"completed"});

@@ -74,3 +74,5 @@ CREATE TABLE IF NOT EXISTS dispatch_notifications(
  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS dispatch_notification_due ON dispatch_notifications(status,next_attempt_at);
+
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS trip_stage VARCHAR(24) NOT NULL DEFAULT 'not_started' CHECK(trip_stage IN ('not_started','on_the_way','arrived','passenger_onboard','completed'));

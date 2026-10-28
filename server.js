@@ -341,6 +341,7 @@ async function startServer(){
     app.locals.notificationWorker=createNotificationWorker({pool,sendEmail:sendBookingEmail,origin:process.env.DISPATCH_ORIGIN,adminEmail:notificationEmail,enabled});
     if(enabled)app.locals.notificationWorker.runOnce();
   }
+  if(process.env.ENABLE_DISPATCH==="true")await require("./dispatch/journey-schema").ensureJourneySchema(require("./dispatch/router").pool);
   if(intakeEnabled)await require("./dispatch/booking-intake").ensureIntakeSchema(require("./dispatch/router").pool);
   if(process.env.ENABLE_DISPATCH_PAYMENTS==="true"){
     const {API_VERSION,isTestKey}=require("./dispatch/stripe-config");

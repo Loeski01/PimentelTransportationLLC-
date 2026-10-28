@@ -73,13 +73,27 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/my-assignments/"+assignment+"/respond","POST",{status:"accepted"},drivers[1].headers)).status,200);
   privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
   assert.equal(privateTrip.customer_name,"Fictitious Customer");assert.equal(privateTrip.customer_phone,"5550000000");assert.equal(privateTrip.details,"Fictitious flight notes");assert.equal(privateTrip.passengers,"3");
-  const allowed=new Set(['id','status','booking_status','reference','pickup','destination','pickup_at','customer_name','customer_phone','details','passengers']);
+  const allowed=new Set(['id','status','trip_stage','booking_status','reference','pickup','destination','pickup_at','customer_name','customer_phone','details','passengers']);
   assert.ok(Object.keys(privateTrip).every(key=>allowed.has(key)),"Driver API must not disclose pricing, tips or payment metadata");
   assert.equal(privateTrip.estimated_fare_cents,undefined);assert.equal(privateTrip.request_metadata,undefined);
 
 
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
   assert.equal((await request("/my-assignments/"+assignment+"/start","POST",{},drivers[1].headers)).status,200);
+  // An older open client may have started a trip during the deployment transition.
+  await db.query("UPDATE assignments SET trip_stage='not_started' WHERE id=$1",[assignment]);
+  const continued=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
+  assert.equal(continued.trip_stage,"on_the_way");
+
+  assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
+  assert.equal((await request("/my-assignments/"+assignment+"/onboard","POST",{},drivers[1].headers)).status,409);
+  assert.equal((await request("/my-assignments/"+assignment+"/arrive","POST",{},drivers[0].headers)).status,409);
+  assert.equal((await request("/my-assignments/"+assignment+"/arrive","POST",{},drivers[1].headers)).status,200);
+  assert.equal((await request("/my-assignments/"+assignment+"/arrive","POST",{},drivers[1].headers)).status,409);
+  assert.equal((await request("/my-assignments/"+assignment+"/onboard","POST",{},drivers[1].headers)).status,200);
+  const progress=(await request("/bookings","GET",undefined,admin)).body.find(b=>b.id===booking);
+  assert.equal(progress.driver_stage,"passenger_onboard");assert.equal(progress.driver_name,"Test 1");
+
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,200);
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
   privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
@@ -95,7 +109,7 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   delete process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS;
   const rows=(await db.query("SELECT status FROM bookings WHERE id=$1",[booking])).rows;assert.equal(rows[0].status,"completed");
   const audit=(await db.query("SELECT action FROM dispatch_audit ORDER BY id")).rows.map(r=>r.action);
-  assert.deepEqual(audit,["created","approved","assigned","rejected","assigned","assignment_released","assigned","accepted","started","completed","notification_retry"]);
+  assert.deepEqual(audit,["created","approved","assigned","rejected","assigned","assignment_released","assigned","accepted","started","driver_arrived","passenger_onboard","completed","notification_retry"]);
   assert.equal((await request("/bookings/"+booking+"/cancel","POST",{},admin)).status,409);
   r=await request("/bookings","POST",{customerName:"Cancel Test",customerEmail:"cancel@example.com",customerPhone:"5550000000",pickup:"Test pickup",destination:"Test destination",pickupAt:"2026-11-01T12:00:00Z",estimatedFareCents:10000},admin);
   assert.equal(r.status,201);const cancelled=r.body.id;
@@ -118,6 +132,12 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/drivers/"+drivers[0].id+"/password","POST",{password:"0789"},admin)).status,200);
   assert.equal((await request("/login","POST",{email:"driver0@example.com",password:"0789"})).status,200);
 
+  await db.query("WITH seeded AS (INSERT INTO bookings(reference,customer_name,customer_email,customer_phone,pickup,destination,pickup_at,estimated_fare_cents,status) SELECT 'HISTORY-'||g::text,'Fictitious history','history@example.invalid','0000000000','Old pickup','Old destination',now()+(g*interval '100 days'),0,'completed' FROM generate_series(1,120) g RETURNING id) INSERT INTO assignments(booking_id,driver_id,status,trip_stage) SELECT id,$1,'completed','completed' FROM seeded",[drivers[1].id]);
+  r=await request("/bookings","POST",{customerName:"Upcoming priority",customerEmail:"upcoming@example.invalid",customerPhone:"0000000000",pickup:"Next pickup",destination:"Next destination",pickupAt:"2026-11-01T12:00:00Z",estimatedFareCents:10000},admin);
+  const upcoming=r.body.id;await request("/bookings/"+upcoming+"/approve","POST",{},admin);
+  const next=await request("/bookings/"+upcoming+"/assign","POST",{driverId:drivers[1].id},admin);
+  const visible=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body;
+  assert.equal(visible.length,100);assert.equal(visible[0].id,next.body.id);
   assert.equal((await request("/drivers/"+drivers[1].id,"PATCH",{active:false},admin)).status,200);
   assert.equal((await request("/my-assignments","GET",undefined,drivers[1].headers)).status,401);
  }finally{

@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Diecisiete pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Veinte pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
@@ -156,3 +156,12 @@ Stripe está conectado: cuenta PimentelTransportationLLC, actualmente solo acces
 livemode. Falta habilitar el sandbox o modo de prueba en la autorización de Stripe
 antes de realizar pruebas contra la API. La autorización general del usuario no
 cambia por sí sola el entorno o los permisos que devuelve Stripe.
+
+## Portal y recorrido del conductor
+Los viajes se organizan en Nuevas asignaciones, En servicio, Próximos viajes e Historial. Los próximos se ordenan por hora de recogida y los activos tienen prioridad en la lista del servidor para no quedar ocultos por el historial. El aviso de nuevas asignaciones y la hora de actualización permanecen visibles dentro de la app. No son notificaciones push con la app cerrada.
+
+Después de aceptar: Voy a recoger al pasajero, Llegué al punto de recogida, Pasajero a bordo y Finalizar viaje. Los pasos se validan en servidor, se guardan en la misma transacción que su auditoría y no permiten actualizar viajes ajenos ni omitir etapas. El administrador puede ver el nombre del conductor y su progreso. Los estados en pantalla se muestran en horario de Boston; el conductor sigue sin recibir precios ni propinas.
+
+Se registra la etapa en assignments.trip_stage mediante migración privada y aditiva. Los viajes anteriores en curso continúan en En camino y el historial completado se conserva; repetir la migración no restablece etapas ya registradas. También se contempla un cliente anterior que inicie un viaje durante el cambio de versión.
+
+Sin conexión se pueden consultar los datos que ya están en pantalla, pero no se envían cambios ni se simula que quedaron guardados. Solo se ofrece el siguiente paso válido. Una actualización en segundo plano no interrumpe la selección del mapa y las solicitudes no se superponen. El botón Llamar a despacho abre el teléfono del negocio únicamente cuando el conductor lo pulsa.
