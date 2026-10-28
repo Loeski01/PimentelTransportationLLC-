@@ -5,7 +5,7 @@
 - Configuración nueva y límites: consultar ADMIN_ACCESS.md. El token administrativo antiguo ya no autentica.
 - Panel de pruebas permite agregar, suspender/reactivar conductores y gestionar asignaciones.
 - Pruebas locales pasan con PostgreSQL embebido PGlite: aislamiento, rechazo, reasignación, aceptación, inicio, finalización, auditoría y revocación de sesiones al suspender.
-- Esto no confirma un despliegue en Render ni una prueba contra su PostgreSQL.
+- Despliegue confirmado live: dep-dbgkca3l550s73cpf6gg, commit eb2603ad9444221d64b87e7182b64d62fd9307d2, el 27 de octubre de 2026 (Boston). PostgreSQL ready:true, cinco tablas, ninguna faltante; ENABLE_DISPATCH=false. Raíz HTTP 200 y rutas de despacho HTTP 404. Falta configurar credenciales y probar operaciones contra Render; el flujo completo se probó en PGlite.
 - Se retiró nodemailer: el servidor utiliza Brevo HTTPS y no lo importa. Se añadió lockfile y dependencia de desarrollo para las pruebas.
 - Mantener ENABLE_DISPATCH=false hasta completar revisión y configuración del entorno de pruebas.
 

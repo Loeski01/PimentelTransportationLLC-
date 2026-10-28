@@ -35,4 +35,4 @@ Flujo de viajes verificado localmente con PostgreSQL embebido PGlite y datos fic
 Pendiente: verificar la conexión y el flujo contra PostgreSQL en Render,
 probar instalación y operación en iPhone/Android y completar recuperación de contraseña.
 PWA: manifest, iconos y service worker preparados. Solo se cachean iconos y pantalla sin conexión; nunca respuestas de la API ni viajes. No hay notificaciones push todavía.
-No se ha desplegado ni habilitado este cambio en Render.
+Desplegado el 27 de octubre de 2026 (Boston): commit eb2603ad9444221d64b87e7182b64d62fd9307d2, deploy dep-dbgkca3l550s73cpf6gg, estado live. Raíz HTTP 200; rutas de despacho HTTP 404 con ENABLE_DISPATCH=false. PostgreSQL ready:true, cinco tablas, ninguna faltante. Login administrativo en Render pendiente de configuración y validación.

@@ -37,4 +37,16 @@ Aplicación web instalable (PWA) para iPhone y Android, con control exclusivo de
 5. Implementar PWA, notificaciones y pruebas de instalación en iOS y Android.
 6. Validar en entorno de prueba antes de publicar.
 
-Estado: diseño inicial; NO es una aplicación funcional todavía.
+## Estado actualizado el 27 de octubre de 2026 (Boston)
+Código implementado: acceso administrativo con sesión HttpOnly, cuentas y suspensión
+de conductores, login, creación/aprobación/asignación, rechazo y reasignación,
+aceptación/inicio/finalización con auditoría. PWA con iconos y pantalla offline.
+Cinco pruebas locales pasan, incluyendo flujo SQL en PGlite. Audit sin alertas.
+
+Despliegue de pruebas live: eb2603ad9444221d64b87e7182b64d62fd9307d2.
+PostgreSQL Render conectado y esquema listo; despacho desactivado.
+No está lista para uso real: faltan credenciales administrativas, pruebas en Render
+y teléfonos, integración de reservas de la web, recuperación de contraseñas,
+cancelación/reasignación administrativa y notificaciones.
+Consultar dispatch/ADMIN_ACCESS.md y dispatch/RENDER_SETUP.md.
+
