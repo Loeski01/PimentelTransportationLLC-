@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: 67e4e006dbee84f9e0484523e702807cfda87377.
-Despliegue: dep-dbgl20rbc2fs73b0r8b0, confirmado live.
+Commit funcional desplegado: 908e06917a58d5d583e339a24c647e38f31782a9.
+Despliegue: dep-dbglck6c6qcc73c0lvag, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
@@ -23,7 +23,7 @@ fuera del repositorio. No guardar contraseñas ni hashes en GitHub.
 8. Suspender una cuenta revoca las sesiones; sus viajes deben revisarse manualmente.
 
 ## Verificado
-- Dieciséis pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
+- Diecisiete pruebas automatizadas locales pasan, con PostgreSQL embebido PGlite.
 - En Render: login de administrador y conductores; bloqueo anónimo;
   aislamiento entre conductores; rechazo/reasignación/aceptación/inicio/finalización;
   bloqueo de doble finalización; liberación/cancelación; revocación al suspender;
@@ -139,3 +139,20 @@ API de Stripe ni cobros. Falta una prueba real en el sandbox de Stripe y configu
 su endpoint de eventos. El checkout anterior de la web pública sigue separado y
 no se alteró su configuración. Los pagos rápidos de la calculadora y las propinas
 conservan el flujo previo; deben revisarse antes de conectar la web a producción.
+
+### Configuración independiente de Stripe para el nuevo flujo
+La integración nueva usa stripe-dispatch (alias de Stripe SDK 23.0.1) y API
+2026-09-30.endive, versión estable comprobada con Stripe CLI 1.55.3 en
+/api/versioning. La dependencia stripe 20.4.1 y el cliente que utiliza la web
+existente se mantienen separados. No se cambia la versión predeterminada de la
+cuenta Stripe ni sus endpoints de producción.
+
+STRIPE_DISPATCH_TEST_KEY permite una clave restringida rk_test_ (recomendada) o
+sk_test_ guardada privadamente en Render. El entorno rechaza claves de modo real.
+La etiqueta de integración es estable, para que reintentar una sesión no cambie
+los parámetros de la clave de idempotencia. No almacenar claves en GitHub ni chat.
+
+Stripe está conectado: cuenta PimentelTransportationLLC, actualmente solo acceso
+livemode. Falta habilitar el sandbox o modo de prueba en la autorización de Stripe
+antes de realizar pruebas contra la API. La autorización general del usuario no
+cambia por sí sola el entorno o los permisos que devuelve Stripe.

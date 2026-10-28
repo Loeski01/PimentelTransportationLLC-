@@ -1,5 +1,6 @@
 "use strict";
 const {createIntakeHandler}=require("./booking-intake");
+const {INTEGRATION_IDENTIFIER}=require("./stripe-config");
 function dueAmount(booking){
  const meta=booking.request_metadata||{};
  const tip=meta.tipPercent?Math.round(booking.estimated_fare_cents*meta.tipPercent/100):Number(meta.tipCents||0);
@@ -18,7 +19,7 @@ function createDispatchCheckout({pool,stripe,calculateFare,origin,now=Date.now})
   const items=[{price_data:{currency:"usd",unit_amount:amounts.fare,product_data:{name:"Pimentel Transportation · Traslado privado"}},quantity:1}];
   if(amounts.tip>0)items.push({price_data:{currency:"usd",unit_amount:amounts.tip,product_data:{name:"Optional gratuity / Propina voluntaria"}},quantity:1});
   const session=await stripe.checkout.sessions.create({
-   mode:"payment",line_items:items,customer_email:booking.customer_email,expires_at:Math.floor(now()/1000)+31*60,
+   mode:"payment",integration_identifier:INTEGRATION_IDENTIFIER,line_items:items,customer_email:booking.customer_email,expires_at:Math.floor(now()/1000)+31*60,
    automatic_tax:{enabled:false},allow_promotion_codes:false,
    metadata:{purpose:"pimentel_dispatch",bookingId:id,reference},
    success_url:origin+"/solicitar?payment=returned",cancel_url:origin+"/solicitar?payment=cancelled"

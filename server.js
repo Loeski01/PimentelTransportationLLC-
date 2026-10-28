@@ -343,11 +343,15 @@ async function startServer(){
   }
   if(intakeEnabled)await require("./dispatch/booking-intake").ensureIntakeSchema(require("./dispatch/router").pool);
   if(process.env.ENABLE_DISPATCH_PAYMENTS==="true"){
-    if(!intakeEnabled||!stripe||!stripeKey.startsWith("sk_test_")||!process.env.STRIPE_DISPATCH_WEBHOOK_SECRET?.startsWith("whsec_"))throw Error("Dispatch test payments require test Stripe credentials and a webhook secret");
+    const {API_VERSION,isTestKey}=require("./dispatch/stripe-config");
+    const testKey=process.env.STRIPE_DISPATCH_TEST_KEY||stripeKey;
+    if(!intakeEnabled||!isTestKey(testKey)||!process.env.STRIPE_DISPATCH_WEBHOOK_SECRET?.startsWith("whsec_"))throw Error("Dispatch test payments require restricted test Stripe credentials and a webhook secret");
+    const StripeDispatch=require("stripe-dispatch");
+    const dispatchStripe=new StripeDispatch(testKey,{apiVersion:API_VERSION,timeout:12000,maxNetworkRetries:0});
     const {createDispatchCheckout,createDispatchWebhook}=require("./dispatch/payments");
     const pool=require("./dispatch/router").pool;
-    dispatchCheckout=createDispatchCheckout({pool,stripe,calculateFare,origin:process.env.DISPATCH_ORIGIN});
-    dispatchWebhook=createDispatchWebhook({pool,stripe,webhookSecret:process.env.STRIPE_DISPATCH_WEBHOOK_SECRET,testOnly:true});
+    dispatchCheckout=createDispatchCheckout({pool,stripe:dispatchStripe,calculateFare,origin:process.env.DISPATCH_ORIGIN});
+    dispatchWebhook=createDispatchWebhook({pool,stripe:dispatchStripe,webhookSecret:process.env.STRIPE_DISPATCH_WEBHOOK_SECRET,testOnly:true});
   }
   app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);

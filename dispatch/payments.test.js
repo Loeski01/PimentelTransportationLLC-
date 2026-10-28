@@ -4,15 +4,16 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const crypto=require("node:crypto");
 const express=require("express");
-const Stripe=require("stripe");
+const Stripe=require("stripe-dispatch");
 const {PGlite}=require("@electric-sql/pglite");
 const {createDispatchCheckout,createDispatchWebhook}=require("./payments");
+const {API_VERSION,isTestKey}=require("./stripe-config");
 test("checkout links one durable request to Stripe and only signed matching events confirm payment",async()=>{
  const db=new PGlite();
  const query=async(sql,args)=>{const r=await db.query(sql,args);return {...r,rowCount:r.affectedRows||r.rows.length};};
  const pool={query,connect:async()=>({query,release(){}})};
  await db.exec(fs.readFileSync(__dirname+"/schema.sql","utf8"));
- const sdk=new Stripe("sk_test_unit_only_no_network");
+ const sdk=new Stripe("sk_test_unit_only_no_network",{apiVersion:API_VERSION});
  const webhookSecret="whsec_unit_only_not_a_live_secret";
  const sessions=new Map(),created=[];let failNext=false;
  const stripe={webhooks:sdk.webhooks,checkout:{sessions:{create:async(data,options)=>{
@@ -37,6 +38,7 @@ test("checkout links one durable request to Stripe and only signed matching even
  try{
   const first=await checkout(body);assert.equal(first.status,200);assert.equal(first.body.received,true);
   const duplicate=await checkout(body);assert.equal(duplicate.status,200);assert.equal(duplicate.body.reference,first.body.reference);
+  assert.match(created[0].data.integration_identifier,/^pimentel_dispatch_[a-z]{8}$/);
   assert.equal(sessions.size,1);assert.equal(created[0].options.idempotencyKey,created[1].options.idempotencyKey);
   assert.equal(created[0].data.line_items[0].price_data.unit_amount,10000);
   assert.equal(created[0].data.line_items[1].price_data.unit_amount,1500);
@@ -61,4 +63,12 @@ test("checkout links one durable request to Stripe and only signed matching even
   assert.equal((await checkout(retry)).status,200);
   assert.equal((await query("SELECT * FROM bookings")).rows.length,2);assert.equal(sessions.size,2);
  }finally{await new Promise(resolve=>server.close(resolve));await db.close();}
+});
+
+test("the isolated payment integration accepts restricted sandbox keys and rejects live keys",()=>{
+ assert.equal(isTestKey("rk_test_unit_only"),true);
+ assert.equal(isTestKey("sk_test_unit_only"),true);
+ assert.equal(isTestKey("rk_live_unit_only"),false);
+ assert.equal(isTestKey("sk_live_unit_only"),false);
+ assert.equal(isTestKey(undefined),false);
 });

@@ -4,8 +4,8 @@ Actualizado el 27 de octubre de 2026 (Boston).
 Servicio separado: pimentel-dispatch-test, srv-dbggcu6k1f9s73e81m00.
 Workspace autorizado: My Workspace, tea-dbec85m7bikc73fvfb7g.
 Rama: feature/driver-dispatch-app, despliegues automáticos desactivados.
-Commit desplegado: 67e4e006dbee84f9e0484523e702807cfda87377.
-Deploy dep-dbgl20rbc2fs73b0r8b0 confirmado live.
+Commit desplegado: 908e06917a58d5d583e339a24c647e38f31782a9.
+Deploy dep-dbglck6c6qcc73c0lvag confirmado live.
 
 PostgreSQL interno pimentel_dispatch_dev: esquema de cinco tablas verificado.
 La base bloquea conexiones externas; no abrir la lista de IP.
@@ -41,3 +41,11 @@ Los conductores usan PIN de cuatro dígitos y bloqueo temporal persistente por c
 El arranque privado agrega pin_configured, failed_pin_attempts y pin_locked_until a
 drivers y revoca sesiones de cuentas antiguas sin PIN. Sus PIN los asigna el propietario.
 No se realizaron contrataciones ni cambios a planes de pago en esta actualización.
+
+Última preparación de avisos y pagos: los registros de notificación se guardan en dispatch_notifications. Los envíos reales están desactivados mediante ENABLE_DISPATCH_EMAIL_NOTIFICATIONS=false. Los avisos quedan registrados como suppressed en las pruebas.
+
+La conexión checkout-viaje y el webhook firmado están disponibles detrás de ENABLE_DISPATCH_PAYMENTS=false; no se habilitaron cobros. Para probarla, configurar Stripe de pruebas y STRIPE_DISPATCH_WEBHOOK_SECRET por un canal privado, y configurar el endpoint /api/dispatch/stripe/webhook. No se aceptan claves sk_live en el entorno de desarrollo.
+
+Se requieren conexión autorizada de Stripe y una prueba de sandbox antes de activar esta parte. Los pagos de la web pública permanecen separados. No se crearon planes de pago ni se modificó la base de producción.
+
+Despliegue de preparación de pagos confirmado live: 908e06917a58d5d583e339a24c647e38f31782a9, dep-dbglck6c6qcc73c0lvag. Dieciséis pruebas automatizadas aprobadas. Avisos en Render: solicitud guardada una sola vez, dos avisos persistidos como desactivados y endpoint privado bloqueado sin login. Stripe ya está instalado y conectado a PimentelTransportationLLC; la lista de cuentas solo devuelve livemode=true. Falta acceso al entorno de prueba. No pedir claves por chat.
