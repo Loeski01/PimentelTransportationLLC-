@@ -22,7 +22,9 @@ function checkAdminPassword(password){
  return crypto.timingSafeEqual(crypto.scryptSync(password,salt,64),Buffer.from(hash,'hex'));
 }
 const rotateSession=req=>new Promise((resolve,reject)=>req.session.regenerate(e=>e?reject(e):resolve()));
-app.use('/auth',rateLimit({windowMs:900000,limit:5,standardHeaders:'draft-7',legacyHeaders:false}),createLoginRouter({db,checkAdminPassword,rotateSession}));
+const loginLimiter=rateLimit({windowMs:900000,limit:5,standardHeaders:'draft-7',legacyHeaders:false});
+app.use('/auth/login',loginLimiter);
+app.use('/auth',createLoginRouter({db,checkAdminPassword,rotateSession}));
 const role=expected=>(req,res,next)=>{if(!req.session?.userId||req.session.role!==expected)return res.sendStatus(403);if(expected==='driver')req.driver={id:req.session.userId};next();};
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
