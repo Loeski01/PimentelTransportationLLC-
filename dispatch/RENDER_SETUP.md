@@ -51,3 +51,15 @@ Se requieren conexión autorizada de Stripe y una prueba de sandbox antes de act
 Despliegue de preparación de pagos confirmado live: 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f, dep-dbglj1egekts73899660. Dieciséis pruebas automatizadas aprobadas. Avisos en Render: solicitud guardada una sola vez, dos avisos persistidos como desactivados y endpoint privado bloqueado sin login. Stripe ya está instalado y conectado a PimentelTransportationLLC; la lista de cuentas solo devuelve livemode=true. Falta acceso al entorno de prueba. No pedir claves por chat.
 
 La versión de preparación aislada con Stripe SDK 23.0.1 quedó live en dep-dbglj1egekts73899660 (commit 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f). Diecisiete pruebas aprobadas; npm audit de dependencias de producción sin vulnerabilidades. Se confirmó en Stripe una sola cuenta: PimentelTransportationLLC, livemode=true. Se entregó enlace de gestión de permisos para habilitar un entorno de prueba; no se cambió el modo de la cuenta ni se ejecutaron cobros. No crear sesiones reales para probar. Esperar confirmación de que el usuario terminó los cambios de permisos antes de volver a sincronizar la lista de cuentas.
+
+## Último enfoque: configuración de conductores
+Commit funcional: ab28edb373186a249401ea920e994e23502bcacc.
+Deploy dep-dbglrsec6qcc73c24mag confirmado live.
+Veinte pruebas automatizadas aprobadas: agrupación de viajes, orden y autorización
+de etapas, compatibilidad con viajes previos y prioridad de activos frente al historial.
+La migración privada agrega assignments.trip_stage y conserva los estados existentes.
+El portal guía por en camino, llegada, pasajero a bordo y finalización; el administrador
+ve el nombre del conductor y su etapa. Los precios y propinas no se agregan al API
+del conductor. No se realizaron operaciones en Stripe durante esta fase.
+
+Verificación HTTP real del recorrido: aceptar, en camino, llegada, pasajero a bordo y finalizar. Se rechazaron intentos de omitir pasos. El administrador vio la etapa y el nombre del conductor. El API del conductor no expuso importes ni propinas. La cuenta ficticia usada quedó suspendida. Portal y módulo journey.js coinciden con la versión preparada.

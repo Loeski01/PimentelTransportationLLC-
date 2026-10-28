@@ -2,8 +2,8 @@
 
 Estado: habilitada y verificada en Render el 27 de octubre de 2026 (Boston).
 Servicio: pimentel-dispatch-test. Rama: feature/driver-dispatch-app.
-Commit funcional desplegado: 04fdc1ba0d838b9433bd353c9b3c2da28b15b91f.
-Despliegue: dep-dbglj1egekts73899660, confirmado live.
+Commit funcional desplegado: ab28edb373186a249401ea920e994e23502bcacc.
+Despliegue: dep-dbglrsec6qcc73c24mag, confirmado live.
 
 Panel administrador: https://pimentel-dispatch-test.onrender.com/despacho
 Portal conductores: https://pimentel-dispatch-test.onrender.com/conductores/
@@ -165,3 +165,5 @@ Después de aceptar: Voy a recoger al pasajero, Llegué al punto de recogida, Pa
 Se registra la etapa en assignments.trip_stage mediante migración privada y aditiva. Los viajes anteriores en curso continúan en En camino y el historial completado se conserva; repetir la migración no restablece etapas ya registradas. También se contempla un cliente anterior que inicie un viaje durante el cambio de versión.
 
 Sin conexión se pueden consultar los datos que ya están en pantalla, pero no se envían cambios ni se simula que quedaron guardados. Solo se ofrece el siguiente paso válido. Una actualización en segundo plano no interrumpe la selección del mapa y las solicitudes no se superponen. El botón Llamar a despacho abre el teléfono del negocio únicamente cuando el conductor lo pulsa.
+
+El recorrido por etapas también se comprobó en Render con un conductor y viaje ficticios. La cuenta de prueba quedó suspendida al terminar. La prueba cubrió bloqueo de pasos omitidos y visibilidad del progreso en el panel administrativo. La apertura nativa de los mapas y la instalación en un teléfono físico siguen pendientes de comprobación por el propietario.
