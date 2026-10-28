@@ -16,7 +16,7 @@
 <script>
 (()=>{'use strict';
 let token=null,lastOffers=null,loadVersion=0,pendingWrites=0,pendingAction=false;const $=id=>document.getElementById(id);const notice=msg=>$('notice').textContent=msg;
-async function request(path,options={}){const writing=options.method&&options.method!=='GET';if(writing)pendingWrites++;try{const response=await fetch('/api/dispatch'+path,{...options,headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{}),...(options.headers||{})},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.status===401){token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();}if(!response.ok)throw Object.assign(new Error(data.error||'Error del servidor'),{status:response.status});return data;}finally{if(writing)pendingWrites--;}}
+async function request(path,options={}){const writing=options.method&&options.method!=='GET';if(writing)pendingWrites++;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{const response=await fetch('/api/dispatch'+path,{...options,signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{}),...(options.headers||{})},cache:'no-store'});const data=await response.json().catch(()=>({}));if(response.status===401){token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;clearTripDisplay();}if(!response.ok)throw Object.assign(new Error(data.error||'Error del servidor'),{status:response.status});return data;}catch(error){if(error.name==='AbortError')throw Error('La respuesta tardó demasiado. Verifica el estado antes de repetir.');throw error;}finally{clearTimeout(timer);if(writing)pendingWrites--;}}
 let mapProvider='google';
 function addNavigation(card,trip){
  if(!PimentelNavigation.tripNavigation(trip,mapProvider))return;
@@ -28,6 +28,7 @@ function addNavigation(card,trip){
  function update(){const links=PimentelNavigation.tripNavigation(trip,select.value);for(const [link,url] of [[pickup,links?.pickup],[destination,links?.destination]]){link.hidden=!url;if(url)link.href=url;else link.removeAttribute('href');}}
  select.onchange=()=>{mapProvider=select.value;update();};update();box.append(pickup,destination,node('small','Revisa la dirección en el mapa antes de iniciar la navegación.'));card.append(box);
 }
+function clearTripDisplay(){$('trips').replaceChildren();$('tripSummary').textContent='';$('newOffers').hidden=true;$('newOffers').textContent='';$('updatedAt').textContent='';}
 function node(tag,text){const el=document.createElement(tag);el.textContent=text;return el;}
 function updateConnection(){
  const offline=!navigator.onLine;
@@ -83,7 +84,7 @@ async function load(background=false){
 }
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;const data=new FormData(form);const button=form.querySelector('button');button.disabled=true;notice('Iniciando sesión…');try{const result=await request('/login',{method:'POST',body:JSON.stringify({email:data.get('email'),password:data.get('password')})});token=result.token;lastOffers=null;$('loginPanel').hidden=true;$('tripsPanel').hidden=false;form.reset();await load();notice('Sesión iniciada.');}catch(err){notice(err.message);}finally{form.elements.password.value='';button.disabled=false;}});
 $('refresh').onclick=()=>load().catch(e=>notice(e.message));
-$('logout').onclick=async()=>{let revoked=false;try{await request('/logout',{method:'POST'});revoked=true;}catch(e){}finally{token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;$('trips').replaceChildren();notice(revoked?'Sesión cerrada correctamente.':'Se cerró el acceso en este dispositivo, pero no se pudo confirmar la revocación en el servidor. La sesión caduca automáticamente.');}};
+$('logout').onclick=async()=>{let revoked=false;try{await request('/logout',{method:'POST'});revoked=true;}catch(e){}finally{token=null;lastOffers=null;loadVersion++;$('tripsPanel').hidden=true;$('loginPanel').hidden=false;clearTripDisplay();notice(revoked?'Sesión cerrada correctamente.':'Se cerró el acceso en este dispositivo, pero no se pudo confirmar la revocación en el servidor. La sesión caduca automáticamente.');}};
 const refresher=PimentelRefresh.createRefresher({refresh:()=>load(true),shouldRefresh:()=>Boolean(token)&&!pendingAction&&!pendingWrites&&!document.hidden&&navigator.onLine&&!document.activeElement?.matches('.navigation select'),onError:()=>notice('No se pudo actualizar. Revisa tu conexión y vuelve a intentarlo.')});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresher.refreshNow();});window.addEventListener('online',()=>refresher.refreshNow());
 let installPrompt;
