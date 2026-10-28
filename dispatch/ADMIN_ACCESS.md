@@ -108,3 +108,12 @@ Verificación real en Render: administrador puede entrar, formulario de clave pr
 Después de aceptar un viaje activo aparecen Ir a recoger al pasajero e Ir al destino, con selección de Google Maps, Apple Maps o Waze. Los enlaces se abren solo al pulsarlos y llevan únicamente la dirección de esa etapa; no incluyen precio, propina, referencia ni datos del pasajero. No se solicita geolocalización desde Pimentel: el mapa elegido maneja la ubicación y los permisos. Se ocultan en asignaciones rechazadas, retiradas, canceladas o completadas. La actualización automática no interrumpe la selección de mapa.
 
 Pruebas: enlaces codificados para las dos etapas y los tres proveedores, estados sin navegación y lista cerrada de campos del API de conductores sin datos financieros. La apertura nativa de cada aplicación requiere prueba física en el teléfono del propietario.
+
+## Avisos duraderos por correo
+La solicitud web y sus avisos al administrador/cliente se guardan en la misma transacción; la asignación guarda su aviso al chofer en su propia transacción. Cada aviso tiene una clave única para no crearlo dos veces. El panel incluye estado y reintento administrativo con auditoría.
+
+En esta beta ENABLE_DISPATCH_EMAIL_NOTIFICATIONS=false: se registran como desactivados, no se envían correos y los reintentos están bloqueados. Antes de activar envíos reales se requieren configuración privada de Brevo y prueba de entrega autorizada. La confirmación del proveedor no equivale a entrega en la bandeja del destinatario.
+
+El proceso retoma avisos pendientes tras reiniciar y reintenta rechazos temporales. Una aceptación incierta, un fallo de guardado después de aceptar el proveedor o una interrupción antigua requieren revisar el registro de Brevo antes de reenviar. Los avisos de asignaciones retiradas, aceptadas o canceladas se omiten. El correo al chofer solo anuncia la asignación y enlaza al portal: no contiene ruta, datos del pasajero, precio ni propina.
+
+La retención de la clave de idempotencia de Brevo es limitada; no se promete entrega exactamente una vez. Los errores no se registran con datos personales ni credenciales. En servidor gratuito, los reintentos pueden demorarse si el servicio se suspende por inactividad.

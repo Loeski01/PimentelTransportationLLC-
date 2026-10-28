@@ -4,6 +4,7 @@
 const express = require("express");
 const crypto = require("node:crypto");
 const {validPin,driverLimiter}=require("./driver-pin-policy");
+const {enqueueNotification}=require("./notifications");
 const { Pool } = require("pg");
 const router = express.Router();
 // Never cache authenticated driver or administrator API responses.
@@ -103,6 +104,7 @@ router.post("/bookings/:id/assign",admin,wrap(async(req,res)=>{
     const a=await client.query("INSERT INTO assignments(booking_id,driver_id) VALUES($1,$2) RETURNING id,status",[req.params.id,req.body.driverId]);
     await client.query("UPDATE bookings SET status='assigned' WHERE id=$1",[req.params.id]);
     await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'admin','admin','assigned')",[req.params.id]);
+    await enqueueNotification(client,{bookingId:req.params.id,assignmentId:a.rows[0].id,kind:"driver_offer",enabled:process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS==="true"});
     await client.query("COMMIT");res.status(201).json(a.rows[0]);
   }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
 }));
@@ -127,6 +129,20 @@ async function lockAssignment(client,id,driverId){
   await client.query("SELECT id FROM bookings WHERE id=$1 FOR UPDATE",[found.rows[0].booking_id]);
   return client.query("SELECT id,booking_id,status FROM assignments WHERE id=$1 AND driver_id=$2 FOR UPDATE",[id,driverId]);
 }
+router.get("/notifications",admin,wrap(async(req,res)=>{
+ const result=await pool.query("SELECT n.id,n.kind,n.status,n.attempts,n.last_error_code,n.created_at,b.reference FROM dispatch_notifications n JOIN bookings b ON b.id=n.booking_id ORDER BY n.created_at DESC LIMIT 50");res.json({enabled:process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS==="true",rows:result.rows});
+}));
+router.post("/notifications/:id/retry",admin,wrap(async(req,res)=>{
+ if(process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS!=="true")return fail(res,409,"Los avisos por correo están desactivados en pruebas");
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  const result=await client.query("UPDATE dispatch_notifications SET status='pending',attempts=0,next_attempt_at=now(),last_error_code=NULL WHERE id=$1 AND status='failed' AND (last_error_code<>'DELIVERY_UNKNOWN' OR $2=true) RETURNING id,booking_id",[req.params.id,req.body?.confirmDeliveryReview===true]);
+  if(!result.rowCount){await client.query("ROLLBACK");return fail(res,409,"Revisa si el proveedor ya envió el aviso antes de reintentarlo");}
+  await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'admin','admin','notification_retry')",[result.rows[0].booking_id]);
+  await client.query("COMMIT");res.json({ok:true});
+ }catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
+}));
 router.post("/logout",wrap(async(req,res)=>{
   if(req.actor.role!=="driver")return fail(res,403,"Acceso de conductor");
   const token=/^Bearer (.+)$/i.exec(req.get("authorization")||"")?.[1];

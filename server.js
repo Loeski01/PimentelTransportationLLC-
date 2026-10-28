@@ -170,7 +170,7 @@ const brevoApiKey = process.env.BREVO_API_KEY;
 const senderEmail = process.env.BREVO_SENDER_EMAIL;
 const senderName = "Pimentel Transportation LLC";
 const mailReady = Boolean(brevoApiKey && senderEmail);
-async function sendBookingEmail({to, subject, text, replyTo}) {
+async function sendBookingEmail({to, subject, text, replyTo, idempotencyKey}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
@@ -181,6 +181,7 @@ async function sendBookingEmail({to, subject, text, replyTo}) {
       textContent: text
     };
     if (replyTo) payload.replyTo = { email: replyTo };
+    if(idempotencyKey)payload.headers={idempotencyKey};
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json", "api-key": brevoApiKey },
@@ -188,10 +189,17 @@ async function sendBookingEmail({to, subject, text, replyTo}) {
       signal: controller.signal
     });
     if (!response.ok) {
+      const rejection=await response.json().catch(()=>({}));
+      if(idempotencyKey&&rejection.code==="duplicate_parameter")return {acceptedPreviously:true};
       console.error("Brevo email request rejected; HTTP status:", response.status);
-      throw new Error("Email provider rejected the request");
+      const error=new Error("Email provider rejected the request");
+      error.permanent=response.status>=400&&response.status<500&&response.status!==429;
+      error.deliveryUncertain=response.status>=500;throw error;
     }
-    return response.json();
+    return await response.json();
+  } catch(error){
+    if(idempotencyKey&&error.permanent===undefined&&error.deliveryUncertain===undefined)error.deliveryUncertain=true;
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -318,6 +326,15 @@ const PORT = process.env.PORT || 10000;
 async function startServer(){
   if(app.locals.adminCredentialStore)await app.locals.adminCredentialStore.initialize(process.env.DISPATCH_ADMIN_PASSWORD_HASH);
   if(process.env.ENABLE_DISPATCH==="true")await require("./dispatch/driver-pin-policy").ensureDriverPinSchema(require("./dispatch/router").pool);
+  if(process.env.ENABLE_DISPATCH==="true"){
+    const {ensureNotificationSchema,createNotificationWorker}=require("./dispatch/notifications");
+    const pool=require("./dispatch/router").pool;
+    await ensureNotificationSchema(pool);
+    const enabled=process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS==="true";
+    if(enabled&&!mailReady)throw Error("Dispatch email configuration missing");
+    app.locals.notificationWorker=createNotificationWorker({pool,sendEmail:sendBookingEmail,origin:process.env.DISPATCH_ORIGIN,adminEmail:notificationEmail,enabled});
+    if(enabled)app.locals.notificationWorker.runOnce();
+  }
   if(intakeEnabled)await require("./dispatch/booking-intake").ensureIntakeSchema(require("./dispatch/router").pool);
   app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);

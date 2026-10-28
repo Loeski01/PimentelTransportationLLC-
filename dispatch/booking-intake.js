@@ -1,6 +1,7 @@
 "use strict";
 const crypto = require("node:crypto");
 const {bostonDateTime}=require("./public/time");
+const {enqueueNotification}=require("./notifications");
 async function ensureIntakeSchema(pool,expectedDatabase="pimentel_dispatch_dev") {
   const result=await pool.query("SELECT current_database() AS name");
   if(result.rows[0]?.name!==expectedDatabase)throw new Error("Unexpected intake database");
@@ -35,7 +36,7 @@ function createIntakeHandler({pool,calculateFare,now=Date.now}) {
     const reference="WEB-"+b.requestId.toUpperCase();
     function response(row){
       if(row.request_metadata?.requestHash!==metadata.requestHash)return fail(res,409,"Esta solicitud ya se envió con otros datos. Inicia una solicitud nueva.");
-      return res.json({reference,received:true,customerNoticeSent:false,pendingApproval:row.status==="pending"});
+      return res.json({reference,received:true,customerNoticeSent:false,notificationStatus:process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS==="true"?"queued":"disabled",pendingApproval:row.status==="pending"});
     }
     try{
       const previous=await pool.query("SELECT status,request_metadata FROM bookings WHERE reference=$1",[reference]);
@@ -48,6 +49,7 @@ function createIntakeHandler({pool,calculateFare,now=Date.now}) {
         const saved=await client.query("INSERT INTO bookings(reference,customer_name,customer_email,customer_phone,pickup,destination,pickup_at,estimated_fare_cents,request_metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT(reference) DO NOTHING RETURNING id,status,request_metadata",[reference,...values,JSON.stringify(metadata)]);
         if(saved.rows[0]){
           await client.query("INSERT INTO dispatch_audit(booking_id,actor_role,actor_id,action) VALUES($1,'customer','web','requested')",[saved.rows[0].id]);
+          for(const kind of ["admin_request","customer_request"])await enqueueNotification(client,{bookingId:saved.rows[0].id,kind,enabled:process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS==="true"});
           await client.query("COMMIT");
           return response(saved.rows[0]);
         }

@@ -1,7 +1,7 @@
 # Paso de pruebas a operación real
 
 Estado al 27 de octubre de 2026 (Boston): beta funcional separada de producción.
-Trece pruebas locales y verificaciones HTTP en Render aprobadas.
+Quince pruebas locales y verificaciones HTTP en Render aprobadas.
 
 ## Preparado
 - Administrador con cookie HttpOnly, origen, CSRF, límites de login y logout.
@@ -32,7 +32,7 @@ o cargos variables no quedan incluidos en la propuesta de presupuesto de la base
 ## Antes de conectar la página pública
 - Crear/configurar la base permanente con acceso externo bloqueado y verificar backups.
 - Preparar configuración y esquema de producción separados; no mover clientes a la base de prueba.
-- Completar notificaciones por correo sin perder solicitudes si el proveedor falla.
+- Cola de correo y reintentos implementados y probados con proveedor simulado. Falta activar configuración de Brevo y comprobar entrega autorizada; los envíos reales siguen desactivados en pruebas.
 - Verificar la compatibilidad del flujo Stripe existente y las reservas pagadas antes
   de cambiar su destino; el flujo de pruebas no realiza cobros.
 - Probar con el propietario instalación y operación en iPhone/Android.

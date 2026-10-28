@@ -57,3 +57,20 @@ CREATE INDEX IF NOT EXISTS driver_sessions_driver_id_idx ON driver_sessions(driv
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS request_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS pin_configured BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS failed_pin_attempts INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMPTZ;
+
+-- Durable notification records; sending remains disabled in the beta.
+CREATE TABLE IF NOT EXISTS dispatch_notifications(
+ id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ booking_id UUID NOT NULL REFERENCES bookings(id),
+ assignment_id UUID REFERENCES assignments(id),
+ kind VARCHAR(24) NOT NULL CHECK(kind IN ('admin_request','customer_request','driver_offer')),
+ dedupe_key VARCHAR(120) NOT NULL UNIQUE,
+ status VARCHAR(20) NOT NULL CHECK(status IN ('pending','sending','sent','failed','suppressed','obsolete')),
+ attempts INTEGER NOT NULL DEFAULT 0,
+ next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ lease_until TIMESTAMPTZ,
+ last_error_code VARCHAR(40),
+ sent_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS dispatch_notification_due ON dispatch_notifications(status,next_attempt_at);

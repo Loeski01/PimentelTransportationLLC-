@@ -258,7 +258,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
       data=await response.json();
     }finally{clearTimeout(timer);}
     if(!response.ok)throw new Error(data.error||'No se pudo enviar la reserva.');
-    el('bookingStatus').textContent='Solicitud recibida: '+data.reference+'. Pendiente de confirmación. '+(data.customerNoticeSent?'Enviamos un correo al cliente.':'No se pudo enviar el correo al cliente; contacta a la compañía.');
+    el('bookingStatus').textContent='Solicitud recibida: '+data.reference+'. Pendiente de confirmación. '+(data.customerNoticeSent?'Enviamos un correo al cliente.':data.notificationStatus==='queued'?'Aviso por correo pendiente de envío.':data.notificationStatus==='disabled'?'Esta prueba no envía correos.':'No se pudo enviar el correo al cliente; contacta a la compañía.');
     el('envios').style.display='none';return;
   }catch(e){
     el('bookingStatus').textContent=e.name==='AbortError'?'No se pudo confirmar la entrega. Revisa tu correo antes de reintentar.':'Envío automático no disponible: '+e.message+' Puedes usar WhatsApp o correo debajo.';

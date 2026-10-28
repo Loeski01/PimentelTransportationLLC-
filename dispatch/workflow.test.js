@@ -44,6 +44,7 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   }
   assert.equal((await request("/bookings")).status,401);
   assert.equal((await request("/drivers","GET",undefined,drivers[0].headers)).status,403);
+  assert.equal((await request("/notifications","GET",undefined,drivers[0].headers)).status,403);
   let r=await request("/bookings","POST",{customerName:"Fictitious Customer",customerEmail:"customer@example.com",customerPhone:"5550000000",pickup:"Test pickup",destination:"Test destination",pickupAt:"2026-11-01T12:00:00Z",estimatedFareCents:10000},admin);
   assert.equal(r.status,201);const booking=r.body.id;
   await db.query("UPDATE bookings SET request_metadata=$1::jsonb WHERE id=$2",[JSON.stringify({details:"Fictitious flight notes",passengers:3}),booking]);
@@ -80,9 +81,18 @@ test("PostgreSQL workflow and isolation between drivers",async()=>{
   assert.equal((await request("/my-assignments/"+assignment+"/complete","POST",{},drivers[1].headers)).status,409);
   privateTrip=(await request("/my-assignments","GET",undefined,drivers[1].headers)).body.find(t=>t.id===assignment);
   assert.equal(privateTrip.customer_name,null);assert.equal(privateTrip.customer_phone,null);
+  const noticeList=await request("/notifications","GET",undefined,admin);assert.equal(noticeList.status,200);assert.equal(noticeList.body.enabled,false);assert.ok(noticeList.body.rows.every(row=>row.status==="suppressed"));
+  const notificationId=noticeList.body.rows[0].id;
+  assert.equal((await request('/notifications/'+notificationId+'/retry','POST',{},drivers[1].headers)).status,403);
+  assert.equal((await request('/notifications/'+notificationId+'/retry','POST',{},admin)).status,409);
+  await db.query("UPDATE dispatch_notifications SET status='failed',last_error_code='DELIVERY_UNKNOWN' WHERE id=$1",[notificationId]);
+  process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS='true';
+  assert.equal((await request('/notifications/'+notificationId+'/retry','POST',{},admin)).status,409);
+  assert.equal((await request('/notifications/'+notificationId+'/retry','POST',{confirmDeliveryReview:true},admin)).status,200);
+  delete process.env.ENABLE_DISPATCH_EMAIL_NOTIFICATIONS;
   const rows=(await db.query("SELECT status FROM bookings WHERE id=$1",[booking])).rows;assert.equal(rows[0].status,"completed");
   const audit=(await db.query("SELECT action FROM dispatch_audit ORDER BY id")).rows.map(r=>r.action);
-  assert.deepEqual(audit,["created","approved","assigned","rejected","assigned","assignment_released","assigned","accepted","started","completed"]);
+  assert.deepEqual(audit,["created","approved","assigned","rejected","assigned","assignment_released","assigned","accepted","started","completed","notification_retry"]);
   assert.equal((await request("/bookings/"+booking+"/cancel","POST",{},admin)).status,409);
   r=await request("/bookings","POST",{customerName:"Cancel Test",customerEmail:"cancel@example.com",customerPhone:"5550000000",pickup:"Test pickup",destination:"Test destination",pickupAt:"2026-11-01T12:00:00Z",estimatedFareCents:10000},admin);
   assert.equal(r.status,201);const cancelled=r.body.id;
