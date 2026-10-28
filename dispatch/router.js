@@ -25,6 +25,17 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows);
     } catch(e){next(e)}
   });
+  // Admin-only driver enrollment; only a salted hash of the four-digit PIN is stored.
+  router.post('/admin/drivers',requireAdmin,async(req,res,next)=>{
+    try {
+      const {displayName,pin}=req.body||{};
+      if(typeof displayName!=='string'||!displayName.trim()||displayName.trim().length>100||typeof pin!=='string'||!/^[0-9]{4}$/.test(pin))
+        return res.status(400).json({error:'Driver name and four-digit PIN required'});
+      const {hashPin}=require('./auth-utils');
+      const q=await db.query('INSERT INTO dispatch_drivers(display_name,pin_hash) VALUES($1,$2) RETURNING id,display_name,active',[displayName.trim(),hashPin(pin)]);
+      res.status(201).json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.get('/admin/drivers',requireAdmin,async(req,res,next)=>{
     try {
       const q=await db.query("SELECT id,display_name,active FROM dispatch_drivers ORDER BY display_name");
