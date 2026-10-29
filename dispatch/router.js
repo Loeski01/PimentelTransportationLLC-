@@ -44,6 +44,9 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       let q;
       try{
         await client.query('BEGIN');
+        // Prevent an in-progress trip becoming inaccessible when its driver is disabled.
+        const activeTrip=await client.query("SELECT id FROM dispatch_trips WHERE driver_id=$1 AND status='started' LIMIT 1 FOR UPDATE",[req.params.id]);
+        if(activeTrip.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'Driver has an in-progress trip; complete it before deactivation'});}
         q=await client.query('UPDATE dispatch_drivers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id,display_name,active',[req.params.id]);
         if(q.rowCount){
           // Unstarted assignments return to the administrator queue for reassignment.
