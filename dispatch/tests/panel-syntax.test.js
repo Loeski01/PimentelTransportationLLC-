@@ -10,3 +10,8 @@ test('private driver panel inline scripts parse as JavaScript',()=>{
  assert.ok(scripts.length>0,'expected at least one inline script');
  for(const script of scripts) assert.doesNotThrow(()=>new vm.Script(script,{filename:'private-panel.html'}));
 });
+
+test('driver panel does not display fare or payment fields',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.doesNotMatch(html,/fare_cents|payment_intent|card_number/i);
+});
