@@ -126,9 +126,11 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.post('/driver/trips/:id/status',requireDriver,async(req,res,next)=>{
     try {
-      const nextStatus={assigned:['accepted','rejected'],accepted:['started'],started:['completed']};
-      const {status}=req.body||{};
-      if(!['accepted','rejected','started','completed'].includes(status)) return res.status(400).json({error:'Invalid status'});
+      const nextStatus={assigned:['accepted','rejected'],accepted:['started','no_show'],started:['completed']};
+      const {status,confirmAtPickup}=req.body||{};
+      // A no-show must be a deliberate assertion by the assigned driver at the pickup location.
+      if(status==='no_show'&&confirmAtPickup!==true)return res.status(400).json({error:'Pickup arrival confirmation required'});
+      if(!['accepted','rejected','started','completed','no_show'].includes(status)) return res.status(400).json({error:'Invalid status'});
       const allowedFrom=Object.keys(nextStatus).filter(k=>nextStatus[k].includes(status));
       const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
       if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
