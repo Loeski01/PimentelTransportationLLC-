@@ -120,7 +120,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.get('/driver/trips',requireDriver,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
+      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started','no_show') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
       res.json(q.rows); // Intentionally NEVER return fare or payment data.
     } catch(e){next(e)}
   });
