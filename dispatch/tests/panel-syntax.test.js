@@ -15,3 +15,13 @@ test('driver panel does not display fare or payment fields',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
  assert.doesNotMatch(html,/fare_cents|payment_intent|card_number/i);
 });
+
+test('dispatch driver API excludes fare and payment columns',()=>{
+ const router=fs.readFileSync(path.join(__dirname,'..','router.js'),'utf8');
+ const start=router.indexOf("router.get('/driver/trips'");
+ const end=router.indexOf("router.post('/driver/trips/:id/arrive'",start);
+ assert.ok(start>=0&&end>start,'driver trips endpoint must exist');
+ const endpoint=router.slice(start,end);
+ assert.match(endpoint,/SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips/);
+ assert.doesNotMatch(endpoint,/fare_cents|payment_intent|SELECT \*/i);
+});
