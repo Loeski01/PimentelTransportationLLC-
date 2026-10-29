@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS dispatch_trips (
  pickup_address TEXT NOT NULL,
  destination_address TEXT NOT NULL,
  pickup_at TIMESTAMPTZ NOT NULL,
+ arrived_at TIMESTAMPTZ,
  fare_cents INTEGER CHECK (fare_cents IS NULL OR fare_cents >= 0),
  driver_id BIGINT REFERENCES dispatch_drivers(id),
  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','assigned','accepted','rejected','started','completed','cancelled','no_show')),
