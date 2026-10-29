@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS dispatch_trips (
  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS dispatch_trips_driver_idx ON dispatch_trips(driver_id,pickup_at);
-CREATE TABLE IF NOT EXISTS dispatch_audit (
+CREATE TABLE IF NOT EXISTS dispatch_trip_audit (
  id BIGSERIAL PRIMARY KEY,
  trip_id BIGINT REFERENCES dispatch_trips(id),
  actor_role TEXT NOT NULL,
