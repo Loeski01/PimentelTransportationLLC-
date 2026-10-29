@@ -12,7 +12,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
     try {
       await client.query('BEGIN');
       const q=await client.query(sql,params);
-      if(q.rowCount)await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,actorRole,String(actorId),action]);
+      if(q.rowCount)await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,actorRole,String(actorId),action]);
       await client.query('COMMIT');
       return q;
     }catch(e){await client.query('ROLLBACK');throw e}
@@ -51,7 +51,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
         if(q.rowCount){
           // Unstarted assignments return to the administrator queue for reassignment.
           const affected=await client.query("UPDATE dispatch_trips SET status='approved',driver_id=NULL,arrived_at=NULL,updated_at=NOW() WHERE driver_id=$1 AND status IN ('assigned','accepted') RETURNING id",[req.params.id]);
-          for(const trip of affected.rows)await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[trip.id,'admin',String(req.session?.userId||'admin'),'driver_deactivated_unassigned']);
+          for(const trip of affected.rows)await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[trip.id,'admin',String(req.session?.userId||'admin'),'driver_deactivated_unassigned']);
         }
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
@@ -78,7 +78,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
         await client.query('BEGIN');
         q=await client.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,status) VALUES ($1,$2,$3,$4,'pending') RETURNING id,status",
           [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString()]);
-        await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'admin',String(req.session?.userId||'admin'),'created']);
+        await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'admin',String(req.session?.userId||'admin'),'created']);
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       res.status(201).json(q.rows[0]);
@@ -94,7 +94,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.get('/admin/trips/:id/history',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query('SELECT actor_role,actor_id,action,created_at FROM dispatch_audit WHERE trip_id=$1 ORDER BY created_at DESC LIMIT 100',[req.params.id]);
+      const q=await db.query('SELECT actor_role,actor_id,action,created_at FROM dispatch_trip_audit WHERE trip_id=$1 ORDER BY created_at DESC LIMIT 100',[req.params.id]);
       res.json(q.rows);
     }catch(e){next(e)}
   });
