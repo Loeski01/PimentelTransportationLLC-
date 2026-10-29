@@ -7,6 +7,12 @@ on:
       - 'dispatch/**'
       - '.github/workflows/dispatch-staging-checks.yml'
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dispatch/**'
+      - '.github/workflows/dispatch-staging-checks.yml'
 jobs:
   verify:
     runs-on: ubuntu-latest
