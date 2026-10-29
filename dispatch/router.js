@@ -120,9 +120,16 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.get('/driver/trips',requireDriver,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
+      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
       res.json(q.rows); // Intentionally NEVER return fare or payment data.
     } catch(e){next(e)}
+  });
+  router.post('/driver/trips/:id/arrive',requireDriver,async(req,res,next)=>{
+    try {
+      const q=await updateAndAudit("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at",[req.params.id,req.driver.id],'driver',req.driver.id,'arrived_at_pickup');
+      if(!q.rowCount)return res.status(409).json({error:'Arrival already recorded or trip not eligible'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
   });
   router.post('/driver/trips/:id/status',requireDriver,async(req,res,next)=>{
     try {
@@ -132,7 +139,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       if(status==='no_show'&&confirmAtPickup!==true)return res.status(400).json({error:'Pickup arrival confirmation required'});
       if(!['accepted','rejected','started','completed','no_show'].includes(status)) return res.status(400).json({error:'Invalid status'});
       const allowedFrom=Object.keys(nextStatus).filter(k=>nextStatus[k].includes(status));
-      const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
       if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
