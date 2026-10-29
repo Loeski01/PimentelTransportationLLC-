@@ -25,3 +25,13 @@ test('dispatch driver API excludes fare and payment columns',()=>{
  assert.match(endpoint,/SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips/);
  assert.doesNotMatch(endpoint,/fare_cents|payment_intent|SELECT \*/i);
 });
+
+test('driver trip query remains restricted to logged-in driver',()=>{
+ const router=fs.readFileSync(path.join(__dirname,'..','router.js'),'utf8');
+ const start=router.indexOf("router.get('/driver/trips'");
+ const end=router.indexOf("router.post('/driver/trips/:id/arrive'",start);
+ const endpoint=router.slice(start,end);
+ assert.match(endpoint,/requireDriver/);
+ assert.match(endpoint,/WHERE driver_id=\$1/);
+ assert.match(endpoint,/\[req\.driver\.id\]/);
+});
