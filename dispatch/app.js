@@ -15,7 +15,11 @@ app.use(express.json({limit:'16kb'}));
 app.use((req,res,next)=>{
  if(!['POST','PUT','PATCH','DELETE'].includes(req.method))return next();
  const origin=req.get('origin');
- if(!origin)return next(); // Non-browser clients may omit Origin.
+ if(!origin){
+  const fetchSite=req.get('sec-fetch-site');
+  if(fetchSite==='cross-site')return res.sendStatus(403);
+  return next(); // Non-browser clients may omit Origin.
+ }
  try{const u=new URL(origin);const host=req.get('host');if(u.host!==host||!['https:','http:'].includes(u.protocol))return res.sendStatus(403)}catch{return res.sendStatus(403)}
  next();
 });
