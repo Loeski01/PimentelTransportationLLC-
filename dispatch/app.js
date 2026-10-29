@@ -11,6 +11,14 @@ const db=new Pool({connectionString:process.env.DISPATCH_DATABASE_URL});
 const app=express();
 app.set('trust proxy',1);
 app.use(express.json({limit:'16kb'}));
+// Reject cross-site browser writes even when cookies are present.
+app.use((req,res,next)=>{
+ if(!['POST','PUT','PATCH','DELETE'].includes(req.method))return next();
+ const origin=req.get('origin');
+ if(!origin)return next(); // Non-browser clients may omit Origin.
+ try{const u=new URL(origin);const host=req.get('host');if(u.host!==host||!['https:','http:'].includes(u.protocol))return res.sendStatus(403)}catch{return res.sendStatus(403)}
+ next();
+});
 // Private browser panel served only by the standalone dispatch service.
 app.get('/',(req,res)=>res.redirect('/panel'));
 app.get('/panel',(req,res)=>{res.set('Cache-Control','no-store');res.set('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'");res.set('X-Content-Type-Options','nosniff');res.set('Referrer-Policy','no-referrer');res.sendFile(require('node:path').join(__dirname,'private-panel.html'))});
