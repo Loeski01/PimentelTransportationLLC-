@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS dispatch_trips (
  pickup_at TIMESTAMPTZ NOT NULL,
  fare_cents INTEGER CHECK (fare_cents IS NULL OR fare_cents >= 0),
  driver_id BIGINT REFERENCES dispatch_drivers(id),
- status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','assigned','accepted','rejected','started','completed','cancelled')),
+ status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','assigned','accepted','rejected','started','completed','cancelled','no_show')),
  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS dispatch_trips_driver_idx ON dispatch_trips(driver_id,pickup_at);
