@@ -58,3 +58,9 @@ No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producció
 - Deploy dep-dbic8k0u01pc73991gtg del commit 7e8f046450cceae171fa0230f4d5012d4ab23c9c: LIVE, terminado el 2026-10-30 a las 16:23:18 UTC.
 - Logs confirmados: 23 pruebas aprobadas, 0 fallos, compilación exitosa y servicio live.
 - No se ha realizado todavía prueba completa con base de datos ni instalación en iPhone. No promover a producción sin esas comprobaciones.
+
+## Versión staging verificada: 24 pruebas
+- Deploy dep-dbicc3ifngtc73ctjokg, commit 9854047b662aeb690eada5a391d9ac641abcb8b9, LIVE (2026-10-30 16:30:55 UTC).
+- Build exitoso: 24 pruebas aprobadas, cero fallos.
+- Panel instalado consulta viajes al recuperar visibilidad y al volver la conexión, sin cambiar el backend de reservas/pagos.
+- Falta probar iPhone real, permisos con dos conductores y flujo completo con base de datos. No desplegar a producción todavía.
