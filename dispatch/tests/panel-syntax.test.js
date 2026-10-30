@@ -92,3 +92,10 @@ test('installed app restores only server-validated sessions',()=>{
  assert.match(login,/active=TRUE/);
  assert.match(login,/authenticated:false/);
 });
+
+
+test('logout destroys server session and clears browser session cookie',()=>{
+ const login=fs.readFileSync(path.join(__dirname,'..','login.js'),'utf8');
+ assert.match(login,/req\.session\.destroy/);
+ assert.match(login,/res\.clearCookie\('dispatch_sid',\{path:'\/'\}\)/);
+});
