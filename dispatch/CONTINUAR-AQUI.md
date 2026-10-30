@@ -70,3 +70,9 @@ No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producció
 - Render: 25 pruebas aprobadas, 0 fallos, build successful.
 - Se añadió prueba de regresión para impedir asignar viajes cuando no hay conductores activos.
 - Pendientes: verificación HTTP /ready y pruebas reales de base de datos, aislamiento de conductores, aceptación iPhone. La consulta externa de PostgreSQL está bloqueada por la lista de IP; no reducir seguridad para facilitarla.
+
+## Seguridad del router: 30/30 pruebas
+- Deploy staging dep-dbid1qtg1s2s73eldlhg, commit 8cc4b7d5bb2ac1a32f6d56de4e27a25d164ffece, LIVE 2026-10-30 17:16:52 UTC.
+- Render confirma 30 tests, 30 pass, 0 fail, build successful.
+- Cinco pruebas HTTP: acceso admin prohibido a conductor, PIN inválido, aislamiento consulta viajes y sin tarifas, no-show requiere confirmación, asignación prohibida al conductor.
+- Pendiente: prueba real PostgreSQL/ready, flujos E2E e iPhone; pruebas mock no sustituyen integración real.
