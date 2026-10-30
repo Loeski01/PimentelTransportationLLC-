@@ -80,3 +80,15 @@ test('installable driver app includes manifest and iPhone home-screen metadata',
  assert.match(app,/app\.get\('\/manifest\.webmanifest'/);
  assert.match(app,/app\.get\('\/app-icon\.svg'/);
 });
+
+
+test('installed app restores only server-validated sessions',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ const login=fs.readFileSync(path.join(__dirname,'..','login.js'),'utf8');
+ assert.match(html,/api\('\/auth\/session'\)/);
+ assert.match(html,/restoreSession\(\)/);
+ assert.match(login,/router\.get\('\/session'/);
+ assert.match(login,/req\.session\.role==='driver'/);
+ assert.match(login,/active=TRUE/);
+ assert.match(login,/authenticated:false/);
+});
