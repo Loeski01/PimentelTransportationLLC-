@@ -42,3 +42,9 @@ No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producció
 - Despliegue nuevo solicitado en Render staging: dep-dbic5g6tlv9c739euj6g. **Pendiente confirmar estado final y resultado de pruebas**.
 - La PWA no es todavía una aplicación App Store ni archivo IPA. No afirmar aptitud para viajes reales sin validación funcional y seguridad finales.
 - Mantener intactos producción, Stripe y las reservas existentes.
+
+## Verificación de publicación de sesión segura
+- Render staging: dep-dbic5g6tlv9c739euj6g, commit da752fc2ca6d9ee41c51dc626ce476bf4d1ae383, estado **live**, finalizado 2026-10-30 16:16:45 UTC.
+- Logs de compilación: **22 pruebas aprobadas, 0 fallidas**. Incluye prueba de destruir sesión y eliminar cookie al cerrar sesión.
+- Este registro de documentación es posterior al commit publicado; no es un cambio funcional de la aplicación.
+- Pendiente: pruebas de extremo a extremo con base de datos, instalación PWA en iPhone y revisión de permisos/errores 500 de registro de conductores.
