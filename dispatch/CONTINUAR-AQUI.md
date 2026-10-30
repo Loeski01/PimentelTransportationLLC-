@@ -33,3 +33,12 @@ Administrador asigna personalmente cada viaje, sin asignación automática. Cond
 
 ## Seguridad
 No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producción; no activar cobros de prueba reales. No prometer trabajo continuo en segundo plano.
+
+## Avances verificados el 2026-10-30 (continuación)
+- Render staging publicó el commit 06fad73d6fd38e8f6f966021269d0ecb313e000f y aprobó 21/21 pruebas automáticas; no repetir las pruebas manuales del usuario.
+- PWA instalable en iPhone: `manifest.webmanifest`, `app-icon.svg`, metadatos Apple y enlaces de instalación. Pendiente comprobar instalación en dispositivo real.
+- Se implementó recuperación de sesión validada por servidor, incluyendo verificación de que el conductor siga activo.
+- Corrección de cierre de sesión: destruir sesión y borrar cookie `dispatch_sid`, con prueba automática; GitHub Actions reportó éxito para commit da752fc2ca6d9ee41c51dc626ce476bf4d1ae383.
+- Despliegue nuevo solicitado en Render staging: dep-dbic5g6tlv9c739euj6g. **Pendiente confirmar estado final y resultado de pruebas**.
+- La PWA no es todavía una aplicación App Store ni archivo IPA. No afirmar aptitud para viajes reales sin validación funcional y seguridad finales.
+- Mantener intactos producción, Stripe y las reservas existentes.
