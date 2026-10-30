@@ -107,3 +107,12 @@ test('expired no-show countdown does not cause an endless refresh loop',()=>{
  assert.match(html,/if\(remaining\)wasWaiting=true/);
  assert.match(html,/if\(wasWaiting\)loadDriver\(\)/);
 });
+
+
+test('installed driver app refreshes assignments when returning to foreground or reconnecting',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.match(html,/addEventListener\('visibilitychange'/);
+ assert.match(html,/document\.visibilityState!=='visible'/);
+ assert.match(html,/addEventListener\('online'/);
+ assert.match(html,/el\('admin'\)\.hidden\?loadDriver:loadAdmin/);
+});
