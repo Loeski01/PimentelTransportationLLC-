@@ -38,7 +38,7 @@ test('driver trip query remains restricted to logged-in driver',()=>{
 
 test('no-show countdown refreshes driver actions automatically at zero',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
- assert.match(html,/if\(!remaining\)\{clearInterval\(interval\);loadDriver\(\)\.catch\(e=>msg\(e\.message\)\)\}/);
+ assert.match(html,/if\(!remaining\)\{clearInterval\(interval\);if\(wasWaiting\)loadDriver\(\)\.catch\(e=>msg\(e\.message\)\)\}/);
 });
 
 
@@ -98,4 +98,12 @@ test('logout destroys server session and clears browser session cookie',()=>{
  const login=fs.readFileSync(path.join(__dirname,'..','login.js'),'utf8');
  assert.match(login,/req\.session\.destroy/);
  assert.match(login,/res\.clearCookie\('dispatch_sid',\{path:'\/'\}\)/);
+});
+
+
+test('expired no-show countdown does not cause an endless refresh loop',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.match(html,/let wasWaiting=false/);
+ assert.match(html,/if\(remaining\)wasWaiting=true/);
+ assert.match(html,/if\(wasWaiting\)loadDriver\(\)/);
 });
