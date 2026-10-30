@@ -35,3 +35,8 @@ test('driver trip query remains restricted to logged-in driver',()=>{
  assert.match(endpoint,/WHERE driver_id=\$1/);
  assert.match(endpoint,/\[req\.driver\.id\]/);
 });
+
+test('no-show countdown refreshes driver actions automatically at zero',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.match(html,/if\(!remaining\)\{clearInterval\(interval\);loadDriver\(\)\.catch\(e=>msg\(e\.message\)\)\}/);
+});
