@@ -40,3 +40,28 @@ test('no-show countdown refreshes driver actions automatically at zero',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
  assert.match(html,/if\(!remaining\)\{clearInterval\(interval\);loadDriver\(\)\.catch\(e=>msg\(e\.message\)\)\}/);
 });
+
+
+test('welcome sign uses passenger surname and company branding',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.match(html,/Cartel de bienvenida/);
+ assert.match(html,/background:black;color:white/);
+ assert.match(html,/PIMENTEL TRANSPORTATION/);
+ assert.match(html,/t\.passenger_surname\.toUpperCase\(\)/);
+ assert.match(html,/style\.color='#edc652'/);
+});
+
+test('driver offers explicit start and finish trip actions',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.match(html,/started:\['completed'\]/);
+ assert.match(html,/accepted:\['started','no_show'\]/);
+ assert.match(html,/started:'Iniciar viaje'/);
+ assert.match(html,/completed:'Finalizar viaje'/);
+});
+
+test('driver navigation includes Google Maps, Apple Maps and Waze',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ assert.match(html,/google\.com\/maps\/dir/);
+ assert.match(html,/maps\.apple\.com/);
+ assert.match(html,/waze\.com\/ul/);
+});
