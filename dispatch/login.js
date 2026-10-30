@@ -35,7 +35,7 @@ function createLoginRouter({db, checkAdminPassword, rotateSession}) {
   });
   router.post('/logout',(req,res,next) => {
     if (!req.session) return res.sendStatus(204);
-    req.session.destroy(err => err ? next(err) : res.sendStatus(204));
+    req.session.destroy(err => {if(err)return next(err);res.clearCookie('dispatch_sid',{path:'/'});res.sendStatus(204)});
   });
   return router;
 }
