@@ -5,7 +5,15 @@ const PgStore=require('connect-pg-simple')(session);
 const {rateLimit}=require('express-rate-limit');
 const {createLoginRouter}=require('./login');
 const {createDispatchRouter}=require('./router');
-for(const k of ['DISPATCH_DATABASE_URL','DISPATCH_SESSION_SECRET','DISPATCH_ADMIN_PASSWORD_HASH']) if(!process.env[k]) throw Error('Missing '+k);
+for(const k of ['DISPATCH_DATABASE_URL','DISPATCH_SESSION_SECRET']) if(!process.env[k]) throw Error('Missing '+k);
+if(!process.env.DISPATCH_ADMIN_PASSWORD_HASH && !process.env.DISPATCH_ADMIN_PASSWORD) throw Error('Missing admin password configuration');
+if(!process.env.DISPATCH_ADMIN_PASSWORD_HASH && process.env.DISPATCH_ADMIN_PASSWORD.length<16) throw Error('Admin password too short');
+// Allow a Render secret as an iPhone-friendly alternative to an offline scrypt generator.
+// Derive an in-memory hash at startup; never log or persist the plaintext password.
+const adminPasswordHash=process.env.DISPATCH_ADMIN_PASSWORD_HASH || (()=>{
+ const salt=crypto.randomBytes(16).toString('hex');
+ return salt+':'+crypto.scryptSync(process.env.DISPATCH_ADMIN_PASSWORD,salt,64).toString('hex');
+})();
 if(process.env.DISPATCH_SESSION_SECRET.length<32) throw Error('Session secret too short');
 const db=new Pool({connectionString:process.env.DISPATCH_DATABASE_URL});
 const app=express();
@@ -31,7 +39,7 @@ app.get('/ready',async(req,res)=>{try{await db.query('SELECT arrived_at FROM dis
 app.use(session({store:new PgStore({pool:db,createTableIfMissing:true}),secret:process.env.DISPATCH_SESSION_SECRET,resave:false,saveUninitialized:false,name:'dispatch_sid',cookie:{httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',maxAge:28800000}}));
 function checkAdminPassword(password){
  if(typeof password!=='string'||password.length>1024) return false;
- const [salt,hash]=process.env.DISPATCH_ADMIN_PASSWORD_HASH.split(':');
+ const [salt,hash]=adminPasswordHash.split(':');
  if(!/^[a-f0-9]{32}$/i.test(salt||'')||!/^[a-f0-9]{128}$/i.test(hash||'')) return false;
  return crypto.timingSafeEqual(crypto.scryptSync(password,salt,64),Buffer.from(hash,'hex'));
 }
