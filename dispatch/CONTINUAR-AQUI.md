@@ -53,3 +53,8 @@ No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producció
 - Despliegue dep-dbic6vom7kps73cg1qe0: estado LIVE confirmado en Render, commit 8ce49f2e5cce3caef4f2c1b167d07ebdafe2dc61, 23 pruebas aprobadas y 0 fallidas. Incluye corrección del ciclo de actualización de NO-SHOW.
 - Se solicitó nuevo despliegue staging dep-dbic8k0u01pc73991gtg para commit 7e8f046450cceae171fa0230f4d5012d4ab23c9c (cabecera no-store en /health). Pendiente confirmar compilación y estado LIVE.
 - No se modificó producción. Quedan pendientes aceptación real en iPhone, base de datos y permisos.
+
+## Última comprobación de Render
+- Deploy dep-dbic8k0u01pc73991gtg del commit 7e8f046450cceae171fa0230f4d5012d4ab23c9c: LIVE, terminado el 2026-10-30 a las 16:23:18 UTC.
+- Logs confirmados: 23 pruebas aprobadas, 0 fallos, compilación exitosa y servicio live.
+- No se ha realizado todavía prueba completa con base de datos ni instalación en iPhone. No promover a producción sin esas comprobaciones.
