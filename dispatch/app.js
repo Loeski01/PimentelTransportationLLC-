@@ -50,5 +50,18 @@ app.use('/auth',createLoginRouter({db,checkAdminPassword,rotateSession}));
 const role=expected=>async(req,res,next)=>{try{if(!req.session?.userId||req.session.role!==expected)return res.sendStatus(403);if(expected==='driver'){const q=await db.query('SELECT id FROM dispatch_drivers WHERE id=$1 AND active=TRUE',[req.session.userId]);if(!q.rowCount)return res.sendStatus(403);req.driver={id:req.session.userId}}next()}catch(e){next(e)}};
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
-if(require.main===module)app.listen(Number(process.env.PORT)||3100);
+async function startDispatch(){
+ const fs=require('node:fs');
+ const path=require('node:path');
+ const schema=fs.readFileSync(path.join(__dirname,'schema.sql'),'utf8');
+ const client=await db.connect();
+ try{
+  await client.query('BEGIN');
+  await client.query(schema);
+  await client.query('COMMIT');
+ }catch(err){await client.query('ROLLBACK');throw err}
+ finally{client.release()}
+ app.listen(Number(process.env.PORT)||3100);
+}
+if(require.main===module)startDispatch().catch(err=>{console.error('Dispatch database initialization failed:',err.code||err.name);process.exit(1)});
 module.exports={app};
