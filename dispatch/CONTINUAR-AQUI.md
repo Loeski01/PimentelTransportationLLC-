@@ -64,3 +64,9 @@ No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producció
 - Build exitoso: 24 pruebas aprobadas, cero fallos.
 - Panel instalado consulta viajes al recuperar visibilidad y al volver la conexión, sin cambiar el backend de reservas/pagos.
 - Falta probar iPhone real, permisos con dos conductores y flujo completo con base de datos. No desplegar a producción todavía.
+
+## Staging verificado: 25 pruebas
+- Deploy dep-dbict7vf3r2c73cmk0k0 del commit 81b7c0b3e0b66fe95b394d1e9ddf68775013dfb1: LIVE, finalizado 2026-10-30 17:07:19 UTC.
+- Render: 25 pruebas aprobadas, 0 fallos, build successful.
+- Se añadió prueba de regresión para impedir asignar viajes cuando no hay conductores activos.
+- Pendientes: verificación HTTP /ready y pruebas reales de base de datos, aislamiento de conductores, aceptación iPhone. La consulta externa de PostgreSQL está bloqueada por la lista de IP; no reducir seguridad para facilitarla.
