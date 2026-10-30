@@ -23,6 +23,16 @@ function createLoginRouter({db, checkAdminPassword, rotateSession}) {
       res.json({role});
     } catch (err) { next(err); }
   });
+  router.get('/session',async(req,res,next)=>{
+    try{
+      if(!req.session?.userId||!['admin','driver'].includes(req.session.role))return res.status(401).json({authenticated:false});
+      if(req.session.role==='driver'){
+        const q=await db.query('SELECT id FROM dispatch_drivers WHERE id=$1 AND active=TRUE',[req.session.userId]);
+        if(!q.rowCount)return res.status(401).json({authenticated:false});
+      }
+      res.set('Cache-Control','no-store').json({authenticated:true,role:req.session.role});
+    }catch(err){next(err)}
+  });
   router.post('/logout',(req,res,next) => {
     if (!req.session) return res.sendStatus(204);
     req.session.destroy(err => err ? next(err) : res.sendStatus(204));
