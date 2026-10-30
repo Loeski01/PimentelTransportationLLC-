@@ -65,3 +65,18 @@ test('driver navigation includes Google Maps, Apple Maps and Waze',()=>{
  assert.match(html,/maps\.apple\.com/);
  assert.match(html,/waze\.com\/ul/);
 });
+
+
+test('installable driver app includes manifest and iPhone home-screen metadata',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
+ const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'..','manifest.webmanifest'),'utf8'));
+ const icon=fs.readFileSync(path.join(__dirname,'..','app-icon.svg'),'utf8');
+ const app=fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
+ assert.match(html,/rel="manifest" href="\/manifest\.webmanifest"/);
+ assert.match(html,/apple-mobile-web-app-capable/);
+ assert.equal(manifest.start_url,'/panel');
+ assert.equal(manifest.display,'standalone');
+ assert.match(icon,/<svg /);
+ assert.match(app,/app\.get\('\/manifest\.webmanifest'/);
+ assert.match(app,/app\.get\('\/app-icon\.svg'/);
+});
