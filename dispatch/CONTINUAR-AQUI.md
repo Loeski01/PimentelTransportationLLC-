@@ -76,3 +76,9 @@ No exponer contraseñas, PIN ni secretos; no borrar tablas ni alterar producció
 - Render confirma 30 tests, 30 pass, 0 fail, build successful.
 - Cinco pruebas HTTP: acceso admin prohibido a conductor, PIN inválido, aislamiento consulta viajes y sin tarifas, no-show requiere confirmación, asignación prohibida al conductor.
 - Pendiente: prueba real PostgreSQL/ready, flujos E2E e iPhone; pruebas mock no sustituyen integración real.
+
+## Pausa solicitada 2026-10-30: retomar prueba desde iPhone
+- Usuario abrió https://pimentel-dispatch-oregon-staging.onrender.com/panel en iPhone y reportó ver la app de Driver y la opción de asignar viajes, pero no la selección Administrador/Conductor. Puede tratarse de sesión administrativa persistente; NO se ha confirmado.
+- Al retomar, preguntar si ve «Cerrar sesión» y comprobar login de administrador y conductor sin solicitar contraseñas/PIN por chat.
+- Después, verificar flujo real con datos ficticios: registrar conductor, crear viaje, aprobar, asignar, acceder como conductor y verificar que no ve tarifas. Validar PostgreSQL/ready y experiencia iPhone.
+- No modificar producción de reservas/pagos ni fusionar PR #6 sin aprobación.
