@@ -15,3 +15,12 @@ test('milestones enforce sequence and reject duplicates',()=>{
  assert.equal(canRecordMilestone({status:'completed',completed:ORDER},'trip_completed'),false);
  assert.equal(canRecordMilestone({status:'accepted',completed:[]},'unknown'),false);
 });
+
+test('rejects forged, skipped, duplicate and future milestones',()=>{
+ assert.equal(canRecordMilestone({status:'accepted',completed:['arrived_at_pickup']},'passenger_on_board'),false);
+ assert.equal(canRecordMilestone({status:'accepted',completed:['on_my_way','on_my_way']},'passenger_on_board'),false);
+ assert.equal(canRecordMilestone({status:'accepted',completed:['on_my_way','arrived_at_pickup']},'on_my_way'),false);
+ assert.equal(canRecordMilestone({status:'started',completed:['on_my_way','arrived_at_pickup']},'trip_completed'),false);
+ assert.equal(canRecordMilestone({status:'accepted',completed:'on_my_way'},'arrived_at_pickup'),false);
+ assert.equal(canRecordMilestone({status:'cancelled',completed:[]},'on_my_way'),false);
+});
