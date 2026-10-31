@@ -127,6 +127,25 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows); // Intentionally NEVER return fare or payment data.
     } catch(e){next(e)}
   });
+  // Record departure for pickup exactly once; transaction includes the administrator inbox.
+  // Requires migration 003 on the isolated dispatch database before deployment.
+  router.post('/driver/trips/:id/on-my-way',requireDriver,async(req,res,next)=>{
+    try {
+      const client=await db.connect();
+      let q;
+      try {
+        await client.query('BEGIN');
+        q=await client.query("UPDATE dispatch_trips SET on_my_way_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND on_my_way_at IS NULL AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,on_my_way_at",[req.params.id,req.driver.id]);
+        if(q.rowCount){
+          await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'driver',String(req.driver.id),'on_my_way']);
+          await client.query("INSERT INTO dispatch_admin_notifications(trip_id,driver_id,event_type) VALUES($1,$2,'on_my_way')",[q.rows[0].id,req.driver.id]);
+        }
+        await client.query('COMMIT');
+      }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+      if(!q.rowCount)return res.status(409).json({error:'Departure already recorded or trip not eligible'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.post('/driver/trips/:id/arrive',requireDriver,async(req,res,next)=>{
     try {
       const q=await updateAndAudit("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at",[req.params.id,req.driver.id],'driver',req.driver.id,'arrived_at_pickup');
