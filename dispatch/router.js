@@ -191,7 +191,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
           await client.query('COMMIT');
         }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       }else{
-        q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND ($1 <> 'started' OR (on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL)) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
+        q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND ($1 <> 'started' OR (on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL)) AND ($1 <> 'no_show' OR on_my_way_at IS NOT NULL) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
       }
       if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
       res.json(q.rows[0]);
