@@ -9,16 +9,12 @@ const MILESTONES=Object.freeze({
 });
 const ORDER=Object.freeze(['on_my_way','arrived_at_pickup','passenger_on_board','trip_completed']);
 function canRecordMilestone({status,completed=[]},milestone){
-  if(!Object.hasOwn(MILESTONES,milestone))return false;
-  if(!['accepted','started'].includes(status))return false;
+  if(!Object.hasOwn(MILESTONES,milestone)||!Array.isArray(completed))return false;
   const index=ORDER.indexOf(milestone);
-  if(completed.includes(milestone))return false;
-  if(index>0&&!completed.includes(ORDER[index-1]))return false;
-  if(index===0&&status!=='accepted')return false;
-  if(index===1&&status!=='accepted')return false;
-  if(index===2&&status!=='accepted')return false;
-  if(index===3&&status!=='started')return false;
-  return true;
+  // Every preceding milestone must exist exactly once, in the required order.
+  // Reject corrupted or forged histories containing skipped, duplicate or future events.
+  if(completed.length!==index||completed.some((event,i)=>event!==ORDER[i]))return false;
+  return status===(index===ORDER.length-1?'started':'accepted');
 }
 function adminNotificationFor(milestone){
   const item=MILESTONES[milestone];
