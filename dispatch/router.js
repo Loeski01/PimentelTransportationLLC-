@@ -148,9 +148,16 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.post('/driver/trips/:id/arrive',requireDriver,async(req,res,next)=>{
     try {
-      const q=await updateAndAudit("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at",[req.params.id,req.driver.id],'driver',req.driver.id,'arrived_at_pickup');
+      const q=await updateAndAudit("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND on_my_way_at IS NOT NULL AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at",[req.params.id,req.driver.id],'driver',req.driver.id,'arrived_at_pickup');
       if(!q.rowCount)return res.status(409).json({error:'Arrival already recorded or trip not eligible'});
       res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
+  // Administrator-only inbox. Never exposed through driver endpoints.
+  router.get('/admin/notifications',requireAdmin,async(req,res,next)=>{
+    try {
+      const q=await db.query("SELECT n.id,n.trip_id,n.driver_id,n.event_type,n.created_at,n.read_at,t.passenger_surname,d.display_name AS driver_name FROM dispatch_admin_notifications n JOIN dispatch_trips t ON t.id=n.trip_id JOIN dispatch_drivers d ON d.id=n.driver_id ORDER BY n.created_at DESC,n.id DESC LIMIT 100");
+      res.set('Cache-Control','no-store').json(q.rows);
     }catch(e){next(e)}
   });
   router.post('/driver/trips/:id/status',requireDriver,async(req,res,next)=>{
