@@ -22,7 +22,7 @@ test('dispatch driver API excludes fare and payment columns',()=>{
  const end=router.indexOf("router.post('/driver/trips/:id/arrive'",start);
  assert.ok(start>=0&&end>start,'driver trips endpoint must exist');
  const endpoint=router.slice(start,end);
- assert.match(endpoint,/SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips/);
+ assert.match(endpoint,/SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status FROM dispatch_trips/);
  assert.doesNotMatch(endpoint,/fare_cents|payment_intent|SELECT \*/i);
 });
 
@@ -54,7 +54,7 @@ test('welcome sign uses passenger surname and company branding',()=>{
 test('driver offers explicit start and finish trip actions',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','private-panel.html'),'utf8');
  assert.match(html,/started:\['completed'\]/);
- assert.match(html,/accepted:\['started','no_show'\]/);
+ assert.match(html,/accepted:\(t\.on_my_way_at&&t\.arrived_at\?\['started','no_show'\]:\[\]\)/);
  assert.match(html,/started:'Iniciar viaje'/);
  assert.match(html,/completed:'Finalizar viaje'/);
 });
