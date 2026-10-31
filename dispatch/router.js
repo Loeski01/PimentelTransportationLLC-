@@ -50,7 +50,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
         q=await client.query('UPDATE dispatch_drivers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id,display_name,active',[req.params.id]);
         if(q.rowCount){
           // Unstarted assignments return to the administrator queue for reassignment.
-          const affected=await client.query("UPDATE dispatch_trips SET status='approved',driver_id=NULL,arrived_at=NULL,updated_at=NOW() WHERE driver_id=$1 AND status IN ('assigned','accepted') RETURNING id",[req.params.id]);
+          const affected=await client.query("UPDATE dispatch_trips SET status='approved',driver_id=NULL,on_my_way_at=NULL,arrived_at=NULL,updated_at=NOW() WHERE driver_id=$1 AND status IN ('assigned','accepted') RETURNING id",[req.params.id]);
           for(const trip of affected.rows)await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[trip.id,'admin',String(req.session?.userId||'admin'),'driver_deactivated_unassigned']);
         }
         await client.query('COMMIT');
