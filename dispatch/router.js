@@ -21,7 +21,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
       res.json(q.rows);
     } catch(e){next(e)}
   });
