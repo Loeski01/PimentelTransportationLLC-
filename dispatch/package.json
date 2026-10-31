@@ -6,7 +6,8 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "check": "node --check app.js && node --check router.js && node --check login.js && node --check auth-utils.js"
+    "check": "node --check app.js && node --check router.js && node --check login.js && node --check auth-utils.js && node --check no-show-policy.js && npm test",
+    "test": "node --test tests/*.test.js"
   },
   "engines": {
     "node": ">=20"

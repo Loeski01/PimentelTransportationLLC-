@@ -12,7 +12,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
     try {
       await client.query('BEGIN');
       const q=await client.query(sql,params);
-      if(q.rowCount)await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,actorRole,String(actorId),action]);
+      if(q.rowCount)await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,actorRole,String(actorId),action]);
       await client.query('COMMIT');
       return q;
     }catch(e){await client.query('ROLLBACK');throw e}
@@ -21,7 +21,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
       res.json(q.rows);
     } catch(e){next(e)}
   });
@@ -44,11 +44,14 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       let q;
       try{
         await client.query('BEGIN');
+        // Prevent an in-progress trip becoming inaccessible when its driver is disabled.
+        const activeTrip=await client.query("SELECT id FROM dispatch_trips WHERE driver_id=$1 AND status='started' LIMIT 1 FOR UPDATE",[req.params.id]);
+        if(activeTrip.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'Driver has an in-progress trip; complete it before deactivation'});}
         q=await client.query('UPDATE dispatch_drivers SET active=FALSE WHERE id=$1 AND active=TRUE RETURNING id,display_name,active',[req.params.id]);
         if(q.rowCount){
           // Unstarted assignments return to the administrator queue for reassignment.
-          const affected=await client.query("UPDATE dispatch_trips SET status='approved',driver_id=NULL,updated_at=NOW() WHERE driver_id=$1 AND status IN ('assigned','accepted') RETURNING id",[req.params.id]);
-          for(const trip of affected.rows)await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[trip.id,'admin',String(req.session?.userId||'admin'),'driver_deactivated_unassigned']);
+          const affected=await client.query("UPDATE dispatch_trips SET status='approved',driver_id=NULL,arrived_at=NULL,updated_at=NOW() WHERE driver_id=$1 AND status IN ('assigned','accepted') RETURNING id",[req.params.id]);
+          for(const trip of affected.rows)await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[trip.id,'admin',String(req.session?.userId||'admin'),'driver_deactivated_unassigned']);
         }
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
@@ -75,7 +78,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
         await client.query('BEGIN');
         q=await client.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,status) VALUES ($1,$2,$3,$4,'pending') RETURNING id,status",
           [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString()]);
-        await client.query('INSERT INTO dispatch_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'admin',String(req.session?.userId||'admin'),'created']);
+        await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'admin',String(req.session?.userId||'admin'),'created']);
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       res.status(201).json(q.rows[0]);
@@ -91,7 +94,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.get('/admin/trips/:id/history',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query('SELECT actor_role,actor_id,action,created_at FROM dispatch_audit WHERE trip_id=$1 ORDER BY created_at DESC LIMIT 100',[req.params.id]);
+      const q=await db.query('SELECT actor_role,actor_id,action,created_at FROM dispatch_trip_audit WHERE trip_id=$1 ORDER BY created_at DESC LIMIT 100',[req.params.id]);
       res.json(q.rows);
     }catch(e){next(e)}
   });
@@ -120,17 +123,26 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.get('/driver/trips',requireDriver,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
+      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started','no_show') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
       res.json(q.rows); // Intentionally NEVER return fare or payment data.
     } catch(e){next(e)}
   });
+  router.post('/driver/trips/:id/arrive',requireDriver,async(req,res,next)=>{
+    try {
+      const q=await updateAndAudit("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at",[req.params.id,req.driver.id],'driver',req.driver.id,'arrived_at_pickup');
+      if(!q.rowCount)return res.status(409).json({error:'Arrival already recorded or trip not eligible'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.post('/driver/trips/:id/status',requireDriver,async(req,res,next)=>{
     try {
-      const nextStatus={assigned:['accepted','rejected'],accepted:['started'],started:['completed']};
-      const {status}=req.body||{};
-      if(!['accepted','rejected','started','completed'].includes(status)) return res.status(400).json({error:'Invalid status'});
+      const nextStatus={assigned:['accepted','rejected'],accepted:['started','no_show'],started:['completed']};
+      const {status,confirmAtPickup}=req.body||{};
+      // A no-show must be a deliberate assertion by the assigned driver at the pickup location.
+      if(status==='no_show'&&confirmAtPickup!==true)return res.status(400).json({error:'Pickup arrival confirmation required'});
+      if(!['accepted','rejected','started','completed','no_show'].includes(status)) return res.status(400).json({error:'Invalid status'});
       const allowedFrom=Object.keys(nextStatus).filter(k=>nextStatus[k].includes(status));
-      const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
+      const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
       if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
