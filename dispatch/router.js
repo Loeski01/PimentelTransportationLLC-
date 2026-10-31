@@ -178,7 +178,21 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       if(status==='no_show'&&confirmAtPickup!==true)return res.status(400).json({error:'Pickup arrival confirmation required'});
       if(!['accepted','rejected','started','completed','no_show'].includes(status)) return res.status(400).json({error:'Invalid status'});
       const allowedFrom=Object.keys(nextStatus).filter(k=>nextStatus[k].includes(status));
-      const q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND ($1 <> 'started' OR (on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL)) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
+      let q;
+      if(status==='completed'){
+        const client=await db.connect();
+        try {
+          await client.query('BEGIN');
+          q=await client.query("UPDATE dispatch_trips SET status='completed',updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='started' AND on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,status",[req.params.id,req.driver.id]);
+          if(q.rowCount){
+            await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'driver',String(req.driver.id),'driver:completed']);
+            await client.query("INSERT INTO dispatch_admin_notifications(trip_id,driver_id,event_type) VALUES($1,$2,'trip_completed')",[q.rows[0].id,req.driver.id]);
+          }
+          await client.query('COMMIT');
+        }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+      }else{
+        q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND ($1 <> 'started' OR (on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL)) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
+      }
       if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
       res.json(q.rows[0]);
     } catch(e){next(e)}
