@@ -27,3 +27,11 @@ El backend actual ya ofrece `POST /dispatch/driver/trips/:id/arrive` para regist
 - Bloqueo de eventos repetidos, fuera de orden, sin sesión y de otros conductores.
 - Regresión de NO-SHOW, panel y ausencia de tarifas.
 - Prueba de base de datos y teléfono iPhone antes de publicar.
+
+## Avance de preparación — 31 de octubre (revisión posterior)
+
+- Se añadió `migrations/003-trip-milestones-notifications.sql` con `on_my_way_at` y una bandeja interna `dispatch_admin_notifications` para exactamente tres eventos, con restricción de unicidad por viaje/evento.
+- Se actualizó `schema.sql` para nuevas instalaciones aisladas de despacho. La migración 003 **no ha sido aplicada** a PostgreSQL; la tabla creada por `CREATE TABLE IF NOT EXISTS` no actualiza automáticamente las bases existentes.
+- Se endureció `canRecordMilestone` para rechazar historiales incompletos, duplicados o desordenados; se agregaron pruebas de regresión y de consistencia de esquema.
+- **Todavía no se conectaron** los botones, las rutas HTTP, la escritura transaccional de avisos ni la bandeja del administrador. No hay notificaciones push activas.
+- No se ha comprobado el despliegue ni la migración en Render para estos commits. No publicar ni fusionar hasta pruebas de integración y autorización del entorno de Render.
