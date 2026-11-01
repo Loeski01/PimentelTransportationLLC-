@@ -15,7 +15,7 @@ const adminPasswordHash=process.env.DISPATCH_ADMIN_PASSWORD_HASH || (()=>{
  return salt+':'+crypto.scryptSync(process.env.DISPATCH_ADMIN_PASSWORD,salt,64).toString('hex');
 })();
 if(process.env.DISPATCH_SESSION_SECRET.length<32) throw Error('Session secret too short');
-const db=new Pool({connectionString:process.env.DISPATCH_DATABASE_URL});
+const db=new Pool({connectionString:process.env.DISPATCH_DATABASE_URL,connectionTimeoutMillis:15000});
 const app=express();
 app.set('trust proxy',1);
 app.use(express.json({limit:'16kb'}));
@@ -56,14 +56,17 @@ async function startDispatch(){
  const fs=require('node:fs');
  const path=require('node:path');
  const schema=fs.readFileSync(path.join(__dirname,'schema.sql'),'utf8');
+ console.info('Dispatch startup: connecting to PostgreSQL');
  const client=await db.connect();
+ console.info('Dispatch startup: PostgreSQL connected; initializing schema');
  try{
   await client.query('BEGIN');
   await client.query(schema);
   await client.query('COMMIT');
+  console.info('Dispatch startup: schema initialization complete');
  }catch(err){await client.query('ROLLBACK');throw err}
  finally{client.release()}
- app.listen(Number(process.env.PORT)||3100);
+ app.listen(Number(process.env.PORT)||3100,()=>console.info('Dispatch startup: HTTP listener ready'));
 }
 if(require.main===module)startDispatch().catch(err=>{console.error('Dispatch database initialization failed:',err.code||err.name);process.exit(1)});
 module.exports={app};
