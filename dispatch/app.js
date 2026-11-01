@@ -62,6 +62,8 @@ async function startDispatch(){
  try{
   await client.query('BEGIN');
   await client.query(schema);
+  // Existing staging databases need this idempotent schema upgrade: CREATE TABLE IF NOT EXISTS does not add columns.
+  await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS on_my_way_at TIMESTAMPTZ');
   await client.query('COMMIT');
   console.info('Dispatch startup: schema initialization complete');
  }catch(err){await client.query('ROLLBACK');throw err}
