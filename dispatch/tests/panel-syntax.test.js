@@ -48,7 +48,8 @@ test('welcome sign uses passenger surname and company branding',()=>{
  assert.match(html,/background:black;color:white/);
  assert.match(html,/PIMENTEL TRANSPORTATION/);
  assert.match(html,/t\.passenger_surname\.toUpperCase\(\)/);
- assert.match(html,/style\.color='#edc652'/);
+ assert.match(html,/brand\.style\.cssText='color:#edc652;font-size:clamp\(32px,7vw,90px\)/);
+ assert.match(html,/close\.onclick=\(\)=>w\.close\(\)/);
 });
 
 test('driver offers explicit start and finish trip actions',()=>{
