@@ -166,7 +166,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Administrator-only inbox. Never exposed through driver endpoints.
   router.get('/admin/notifications',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT notices.id,notices.trip_id,notices.driver_id,notices.event_type,notices.created_at,notices.read_at,t.passenger_surname,d.display_name AS driver_name FROM (SELECT n.id,n.trip_id,n.driver_id,n.event_type,n.created_at,n.read_at FROM dispatch_admin_notifications n UNION ALL SELECT -a.id AS id,a.trip_id,a.actor_id::bigint AS driver_id,'no_show' AS event_type,a.created_at,NULL::timestamptz AS read_at FROM dispatch_trip_audit a WHERE a.actor_role='driver' AND a.action='driver:no_show' AND a.actor_id ~ '^[0-9]+
+      const q=await db.query("SELECT notices.id,notices.trip_id,notices.driver_id,notices.event_type,notices.created_at,notices.read_at,t.passenger_surname,d.display_name AS driver_name FROM (SELECT n.id,n.trip_id,n.driver_id::text AS driver_id,n.event_type,n.created_at,n.read_at FROM dispatch_admin_notifications n UNION ALL SELECT -a.id AS id,a.trip_id,a.actor_id AS driver_id,'no_show' AS event_type,a.created_at,NULL::timestamptz AS read_at FROM dispatch_trip_audit a WHERE a.actor_role='driver' AND a.action='driver:no_show') notices JOIN dispatch_trips t ON t.id=notices.trip_id JOIN dispatch_drivers d ON d.id::text=notices.driver_id ORDER BY notices.created_at DESC,notices.id DESC LIMIT 100");
       res.set('Cache-Control','no-store').json(q.rows);
     }catch(e){next(e)}
   });
