@@ -37,7 +37,7 @@ app.get('/panel',(req,res)=>{res.set('Cache-Control','no-store');res.set('Conten
 app.get('/manifest.webmanifest',(req,res)=>{res.type('application/manifest+json');res.set('Cache-Control','public, max-age=3600');res.sendFile(require('node:path').join(__dirname,'manifest.webmanifest'))});
 app.get('/app-icon.svg',(req,res)=>{res.type('image/svg+xml');res.set('Cache-Control','public, max-age=86400');res.sendFile(require('node:path').join(__dirname,'app-icon.svg'))});
 app.get('/health',(req,res)=>{res.set('Cache-Control','no-store').status(200).json({service:'pimentel-dispatch',status:'ok'})});
-app.get('/ready',async(req,res)=>{try{await db.query('SELECT on_my_way_at,arrived_at FROM dispatch_trips LIMIT 0');await db.query('SELECT 1 FROM dispatch_drivers LIMIT 0');await db.query('SELECT 1 FROM dispatch_trip_audit LIMIT 0');await db.query('SELECT trip_id,driver_id,event_type,created_at,read_at FROM dispatch_admin_notifications LIMIT 0');res.set('Cache-Control','no-store').status(200).json({service:'pimentel-dispatch',ready:true})}catch(e){res.set('Cache-Control','no-store').status(503).json({service:'pimentel-dispatch',ready:false})}});
+app.get('/ready',async(req,res)=>{try{await db.query('SELECT on_my_way_at,arrived_at,passenger_phone FROM dispatch_trips LIMIT 0');await db.query('SELECT 1 FROM dispatch_drivers LIMIT 0');await db.query('SELECT 1 FROM dispatch_trip_audit LIMIT 0');await db.query('SELECT trip_id,driver_id,event_type,created_at,read_at FROM dispatch_admin_notifications LIMIT 0');res.set('Cache-Control','no-store').status(200).json({service:'pimentel-dispatch',ready:true})}catch(e){res.set('Cache-Control','no-store').status(503).json({service:'pimentel-dispatch',ready:false})}});
 app.use(session({store:new PgStore({pool:db,createTableIfMissing:true}),secret:process.env.DISPATCH_SESSION_SECRET,resave:false,saveUninitialized:false,name:'dispatch_sid',cookie:{httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',maxAge:28800000}}));
 function checkAdminPassword(password){
  if(typeof password!=='string'||password.length>1024) return false;
@@ -64,6 +64,7 @@ async function startDispatch(){
   await client.query(schema);
   // Existing staging databases need this idempotent schema upgrade: CREATE TABLE IF NOT EXISTS does not add columns.
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS on_my_way_at TIMESTAMPTZ');
+  await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS passenger_phone TEXT');
   await client.query('COMMIT');
   console.info('Dispatch startup: schema initialization complete');
  }catch(err){await client.query('ROLLBACK');throw err}
