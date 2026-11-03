@@ -22,7 +22,7 @@ test('dispatch driver API excludes fare and payment columns',()=>{
  const end=router.indexOf("router.post('/driver/trips/:id/arrive'",start);
  assert.ok(start>=0&&end>start,'driver trips endpoint must exist');
  const endpoint=router.slice(start,end);
- assert.match(endpoint,/SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status FROM dispatch_trips/);
+ assert.match(endpoint,/SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status FROM dispatch_trips/);
  assert.doesNotMatch(endpoint,/fare_cents|payment_intent|SELECT \*/i);
 });
 
