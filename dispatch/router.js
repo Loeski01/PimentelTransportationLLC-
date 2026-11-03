@@ -21,7 +21,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
       res.json(q.rows);
     } catch(e){next(e)}
   });
@@ -67,7 +67,9 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.post('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const {passengerSurname,pickupAddress,destinationAddress,pickupAt}=req.body||{};
+      const {passengerSurname,pickupAddress,destinationAddress,pickupAt,passengerPhone}=req.body||{};
+      const phone=typeof passengerPhone==='string'?passengerPhone.trim():'';
+      if(phone&&!/^\+[1-9][0-9]{7,14}$/.test(phone))return res.status(400).json({error:'Use international passenger phone format, e.g. +16175550123'});
       const valid=s=>typeof s==='string'&&s.trim().length>0&&s.trim().length<=250;
       const date=typeof pickupAt==='string'?new Date(pickupAt):new Date(NaN);
       if(!valid(passengerSurname)||!valid(pickupAddress)||!valid(destinationAddress)||!Number.isFinite(date.getTime()))
@@ -76,8 +78,8 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       let q;
       try {
         await client.query('BEGIN');
-        q=await client.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,status) VALUES ($1,$2,$3,$4,'pending') RETURNING id,status",
-          [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString()]);
+        q=await client.query("INSERT INTO dispatch_trips(passenger_surname,pickup_address,destination_address,pickup_at,passenger_phone,status) VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id,status",
+          [passengerSurname.trim(),pickupAddress.trim(),destinationAddress.trim(),date.toISOString(),phone||null]);
         await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'admin',String(req.session?.userId||'admin'),'created']);
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
