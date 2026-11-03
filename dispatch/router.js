@@ -166,7 +166,41 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Administrator-only inbox. Never exposed through driver endpoints.
   router.get('/admin/notifications',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT n.id,n.trip_id,n.driver_id,n.event_type,n.created_at,n.read_at,t.passenger_surname,d.display_name AS driver_name FROM dispatch_admin_notifications n JOIN dispatch_trips t ON t.id=n.trip_id JOIN dispatch_drivers d ON d.id=n.driver_id ORDER BY n.created_at DESC,n.id DESC LIMIT 100");
+      const q=await db.query("SELECT notices.id,notices.trip_id,notices.driver_id,notices.event_type,notices.created_at,notices.read_at,t.passenger_surname,d.display_name AS driver_name FROM (SELECT n.id,n.trip_id,n.driver_id,n.event_type,n.created_at,n.read_at FROM dispatch_admin_notifications n UNION ALL SELECT -a.id AS id,a.trip_id,a.actor_id::bigint AS driver_id,'no_show' AS event_type,a.created_at,NULL::timestamptz AS read_at FROM dispatch_trip_audit a WHERE a.actor_role='driver' AND a.action='driver:no_show' AND a.actor_id ~ '^[0-9]+
+      res.set('Cache-Control','no-store').json(q.rows);
+    }catch(e){next(e)}
+  });
+  router.post('/driver/trips/:id/status',requireDriver,async(req,res,next)=>{
+    try {
+      const nextStatus={assigned:['accepted','rejected'],accepted:['started','no_show'],started:['completed']};
+      const {status,confirmAtPickup}=req.body||{};
+      // A no-show must be a deliberate assertion by the assigned driver at the pickup location.
+      if(status==='no_show'&&confirmAtPickup!==true)return res.status(400).json({error:'Pickup arrival confirmation required'});
+      if(!['accepted','rejected','started','completed','no_show'].includes(status)) return res.status(400).json({error:'Invalid status'});
+      const allowedFrom=Object.keys(nextStatus).filter(k=>nextStatus[k].includes(status));
+      let q;
+      if(status==='completed'){
+        const client=await db.connect();
+        try {
+          await client.query('BEGIN');
+          q=await client.query("UPDATE dispatch_trips SET status='completed',updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='started' AND on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,status",[req.params.id,req.driver.id]);
+          if(q.rowCount){
+            await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'driver',String(req.driver.id),'driver:completed']);
+            await client.query("INSERT INTO dispatch_admin_notifications(trip_id,driver_id,event_type) VALUES($1,$2,'trip_completed')",[q.rows[0].id,req.driver.id]);
+          }
+          await client.query('COMMIT');
+        }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+      }else{
+        q=await updateAndAudit("UPDATE dispatch_trips SET status=$1,updated_at=NOW() WHERE id=$2 AND driver_id=$3 AND status=ANY($4::text[]) AND ($1 <> 'no_show' OR (arrived_at IS NOT NULL AND arrived_at <= NOW() - INTERVAL '15 minutes')) AND ($1 <> 'started' OR (on_my_way_at IS NOT NULL AND arrived_at IS NOT NULL)) AND ($1 <> 'no_show' OR on_my_way_at IS NOT NULL) AND ($1 <> 'started' OR on_my_way_at <= arrived_at) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$3 AND active=TRUE) RETURNING id,status",[status,req.params.id,req.driver.id,allowedFrom], 'driver', req.driver.id, 'driver:'+status);
+      }
+      if(!q.rowCount) return res.status(404).json({error:'Trip not found or transition invalid'});
+      res.json(q.rows[0]);
+    } catch(e){next(e)}
+  });
+  return router;
+}
+module.exports={createDispatchRouter};
+) notices JOIN dispatch_trips t ON t.id=notices.trip_id JOIN dispatch_drivers d ON d.id=notices.driver_id ORDER BY notices.created_at DESC,notices.id DESC LIMIT 100");
       res.set('Cache-Control','no-store').json(q.rows);
     }catch(e){next(e)}
   });
