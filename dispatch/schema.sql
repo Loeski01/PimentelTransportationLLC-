@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS dispatch_drivers (
 CREATE TABLE IF NOT EXISTS dispatch_trips (
  id BIGSERIAL PRIMARY KEY,
  passenger_surname TEXT NOT NULL,
+ passenger_phone TEXT,
  pickup_address TEXT NOT NULL,
  destination_address TEXT NOT NULL,
  pickup_at TIMESTAMPTZ NOT NULL,
