@@ -12,3 +12,6 @@ Verified 2026-10-28: an existing Render test service `pimentel-dispatch-test` po
 6. Confirm that the existing commercial Render service `PimentelTransportationLLC-` and its payment/booking endpoints remain untouched.
 
 **Current status:** the existing test service was observed live on its older branch, which does **not** confirm that the new dispatch app has been deployed. The separate dispatch backend is not yet production-ready.
+
+## Revisión de configuración (2026-10-29)
+La consulta actual al servicio Render confirma que `pimentel-dispatch-test` todavía apunta a `feature/driver-dispatch-app`, tiene root `/`, build `npm install`, start `node server.js` y autoDeploy desactivado. Por tanto, **no** está ejecutando este backend aislado de `dispatch/` ni las últimas funciones NO-SHOW. No activar deploy hasta configurar rama, directorio, migraciones y secretos, y validar la compilación.
