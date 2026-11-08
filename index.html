@@ -214,9 +214,9 @@ el('unifiedForm').addEventListener('input',()=>{el('envios').style.display='none
 el('calcular').addEventListener('click',async()=>{
  const from=el('origen').value.trim(),to=el('destino').value.trim();
  if(!from||!to){el('quoteStatus').textContent='Escribe recogida y destino, con ciudad y estado. / Enter pickup and destination, including city and state.';return;}
- const btn=el('calcular');btn.disabled=true;el('quoteStatus').textContent='Calculando tarifa; puedes seguir completando tus datos. / Calculating fare; you can keep filling in your details.';
+ const btn=el('calcular');btn.disabled=true;el('quoteStatus').textContent='Calculando tarifa; puedes seguir completando tus datos. La primera consulta puede tardar hasta 75 segundos. / Calculating fare; keep filling in your details. The first request may take up to 75 seconds.';
  quote=null;el('quoteResult').hidden=true;updateTotals();
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),14000);
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),75000);
  try{
   const response=await fetch(API+'/api/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from,to}),signal:controller.signal});
   const data=await response.json();
@@ -396,15 +396,22 @@ el('unifiedForm').addEventListener('submit',async event=>{
  function queueQuote(){
   clearTimeout(timer);
   if(type.value!=='transfer'||!el('origen').value.trim()||!el('destino').value.trim())return;
-  timer=setTimeout(function(){
-   if(type.value==='transfer'&&!el('calcular').disabled)el('calcular').click();
-  },800);
+  timer=setTimeout(function attemptQuote(){
+   if(type.value!=='transfer')return;
+   if(el('calcular').disabled){timer=setTimeout(attemptQuote,400);return;}
+   const from=el('origen').value.trim(),to=el('destino').value.trim();
+   if(!from||!to)return;
+   if(quote&&quote.from===from&&quote.to===to)return;
+   el('calcular').click();
+  },1000);
  }
  for(const id of ['origen','destino']){
+  el(id).addEventListener('input',queueQuote);
   el(id).addEventListener('change',queueQuote);
   el(id).addEventListener('blur',queueQuote);
  }
  type.addEventListener('change',queueQuote);
+ queueQuote();
  window.sendUnpricedRequest=function(){
   const v=id=>el(id).value.trim();
   const tip=el('tip').value==='custom'?v('tipAmount')+' USD':el('tip').value+'%';
