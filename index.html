@@ -42,6 +42,47 @@ a.contacto{color:#d4af37}
 .final-total-label{display:block;font-size:17px;color:#fff;font-weight:700}
 .final-total-amount{display:block;font-size:clamp(38px,10vw,50px);font-weight:800;color:#e8c969;line-height:1.2;margin-top:10px;overflow-wrap:anywhere}
 .final-total-detail{display:block;font-size:15px;color:#ddd;margin-bottom:10px}
+/* Luxury presentation: visual styling only; booking behavior remains unchanged. */
+body{background:#0b0c0e;color:#f4f1eb;font-family:Arial,Helvetica,sans-serif}
+header{padding:22px 18px 34px;background:#0c0d0f;border-bottom:1px solid #66501f}
+header>p{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#d6c6a4}
+h1,h2{color:#e6c477}
+.brand-heading{margin:12px auto 24px}
+.brand-heading h1{font-size:clamp(23px,3.4vw,42px);letter-spacing:3px;line-height:1.18}
+.boton{background:linear-gradient(135deg,#f1d693,#bc9140);color:#16130d;border-radius:5px;box-shadow:0 4px 22px #0004;transition:transform .2s,filter .2s}
+.boton:hover{transform:translateY(-2px);filter:brightness(1.08)}
+section{padding:64px 18px}
+section>h2{font-size:clamp(25px,3vw,37px);letter-spacing:1px;margin:0 0 14px}
+section>p{max-width:790px;margin:12px auto 28px;color:#cfc9be}
+.luxury-hero{min-height:520px;display:flex;align-items:center;text-align:left;background:linear-gradient(90deg,#07090de8 0%,#07090dbe 34%,#07090d16 78%),url('assets/hero-boston.webp') center 52%/cover no-repeat;border-bottom:1px solid #655026}
+.hero-content{max-width:1120px;width:100%;margin:auto}
+.hero-eyebrow{color:#f2cf84;font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:bold}
+.luxury-hero h2{font-size:clamp(34px,5.2vw,68px);line-height:1.08;max-width:650px;color:#fff;margin:12px 0 20px;font-family:Georgia,serif;font-weight:normal}
+.luxury-hero p{max-width:540px;color:#e7e3da;font-size:18px}
+.luxury-hero .boton{margin:16px 0}
+.services-intro{font-size:15px;letter-spacing:2px;text-transform:uppercase;color:#b89957}
+.servicios{max-width:1160px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.servicio{padding:0;text-align:left;border:1px solid #564826;background:#18191b;overflow:hidden;border-radius:10px}
+.servicio img{display:block;width:100%;height:210px;object-fit:cover}
+.servicio-copy{padding:24px}
+.servicio h3{color:#f0d18d;margin:0 0 10px;font-size:19px}
+.servicio p{color:#d3d0c9;margin:0;font-size:15px}
+.service-note{max-width:850px;margin:22px auto 0;color:#aaa69e;font-size:14px}
+#fleet{background:#121315}
+.galeria{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:1100px}
+.galeria figure{margin:0;position:relative;overflow:hidden;border-radius:10px;border:1px solid #736038;background:#1b1d20}
+.galeria img{width:100%;height:290px;border:0;border-radius:0;display:block;transition:transform .3s;object-fit:cover}
+.galeria figure:hover img{transform:scale(1.035)}
+.galeria figcaption{padding:12px 14px;font-size:14px;color:#e7d09b;text-align:left}
+#cotizar{background:linear-gradient(#0b0c0e,#181714)}
+#cotizar form{background:#1a1b1e;border:1px solid #62502b;box-shadow:0 20px 60px #0008;border-radius:12px;padding:clamp(20px,4vw,38px)}
+input,select,textarea{background:#f8f6f1;color:#171717;border:1px solid #c8b78f}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #cba657;outline-offset:1px}
+#cotizar label{font-weight:bold;color:#e9e1ce}
+.booking-steps{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;max-width:760px;margin:0 auto 30px;color:#e6d4ad;font-size:14px}
+.booking-steps span{border:1px solid #685732;border-radius:50px;padding:9px 16px;background:#24211a}
+@media(max-width:760px){.luxury-hero{min-height:480px;background:linear-gradient(90deg,#07090de0,#07090d80),url('assets/hero-boston.webp') 61% center/cover no-repeat}.servicios{grid-template-columns:1fr}.servicio img{height:230px}.galeria{grid-template-columns:repeat(2,minmax(0,1fr))}.galeria img{height:220px}.brand-heading h1{letter-spacing:1px}}
+@media(max-width:460px){.galeria{grid-template-columns:1fr}.galeria img{height:260px}.luxury-hero{min-height:435px}.luxury-hero p{font-size:16px}.booking-steps{font-size:12px}}
 </style>
 </head>
 <body>
@@ -85,52 +126,61 @@ a.contacto{color:#d4af37}
 </header>
 
 
-<section>
-<h2>Your Journey, Our Priority / Tu viaje, nuestra prioridad</h2>
-<p>Professional luxury transportation with comfort, safety and reliability. / Transporte de lujo con comodidad, seguridad y confianza.</p>
-<p>Servicio privado de transporte ejecutivo, aeropuertos y viajes especiales.</p>
+<section class="luxury-hero" aria-label="Luxury chauffeur transportation in Boston">
+<div class="hero-content">
+<div class="hero-eyebrow">Boston · Private Black SUV Service</div>
+<h2>Every journey deserves an exceptional arrival.</h2>
+<p>Transporte ejecutivo y privado con atención personalizada. Airport transfers, corporate travel and private chauffeur service in Boston.</p>
+<a class="boton" href="#cotizar">RESERVAR MI VIAJE / REQUEST YOUR RIDE</a>
+</div>
 </section>
 
 <section>
 <h2>OUR SERVICES / NUESTROS SERVICIOS</h2>
+<p class="services-intro">Professional care · Elegant travel · Boston &amp; beyond</p>
 <div class="servicios">
 <div class="servicio">
+<img src="assets/airport-transfer.webp" alt="Imagen ilustrativa de transporte privado en SUV negro frente a terminal aeroportuaria" loading="lazy">
+<div class="servicio-copy">
 <h3>Airport Transfers / Traslados al aeropuerto</h3>
 <p>Boston Logan Airport pickups and drop-offs. / Recogidas y traslados al aeropuerto Boston Logan.</p>
 </div>
+</div>
 <div class="servicio">
+<img src="assets/executive-chauffeur.webp" alt="Imagen ilustrativa de servicio de chofer ejecutivo con SUV negro" loading="lazy">
+<div class="servicio-copy">
 <h3>Executive Transportation / Transporte ejecutivo</h3>
 <p>Professional business and corporate travel. / Viajes de negocios y transporte corporativo.</p>
 </div>
+</div>
 <div class="servicio">
+<img src="IMG_2745.jpeg" alt="Chevrolet Suburban negra de Pimentel Transportation" loading="lazy">
+<div class="servicio-copy">
 <h3>Private Chauffeur / Chofer privado</h3>
 <p>Comfortable and personalized private rides. / Viajes privados cómodos y personalizados.</p>
 </div>
-<div class="servicio">
-<h3>Hospital Transfers / Traslados al hospital</h3>
-<p>Private transportation to medical appointments. / Transporte privado a citas médicas.</p>
 </div>
 </div>
+<p class="service-note">También ofrecemos traslados privados a hospitales y citas médicas. / Private transportation for hospital visits and medical appointments is also available. Las imágenes de ambiente son ilustrativas; las fotos en la sección de vehículos muestran unidades reales.</p>
 </section>
 
 <section id="fleet">
 <h2>OUR LUXURY FLEET / NUESTROS VEHÍCULOS</h2>
-<p>Our Vehicles / Nuestros Vehículos</p>
+<p>Conoce nuestra presentación de vehículos reales. / See our actual vehicle photographs.</p>
 <div class="galeria">
-<img src="IMG_2745.jpeg" alt="Luxury SUV" loading="lazy">
-<img src="73521a3c-cb3d-4204-88a5-a03cd45baf12.jpeg" alt="Executive vehicle" loading="lazy">
-<img src="82ce12d4-f4a1-44d3-83c9-a72664cf7c52.jpeg" alt="Luxury transportation" loading="lazy">
-<img src="23091f22-a2d0-4827-96c2-08f2a1066295.jpeg" alt="Luxury vehicle" loading="lazy">
-<img src="41CBDCA2-C787-4C22-8BBA-FDFD83E8558B.png" alt="Luxury fleet" loading="lazy">
-<img src="5977c908-3edd-4176-9f24-9a398c19176c.jpeg" alt="Executive transportation" loading="lazy">
-<img src="7E8DB19E-5B85-4E31-A427-B9782EDD890A.jpeg" alt="Luxury SUV service" loading="lazy">
-<img src="8dbbbc91-213e-4b97-ae1e-993bc0a7c99a.jpeg" alt="Private chauffeur" loading="lazy">
+<figure><img src="IMG_2745.jpeg" alt="Chevrolet Suburban negra, vista frontal" loading="lazy"><figcaption>Black SUV · Front view</figcaption></figure>
+<figure><img src="23091f22-a2d0-4827-96c2-08f2a1066295.jpeg" alt="Chevrolet Suburban negra, vista posterior" loading="lazy"><figcaption>Private SUV · Rear view</figcaption></figure>
+<figure><img src="5977c908-3edd-4176-9f24-9a398c19176c.jpeg" alt="Chevrolet Suburban negra, detalle frontal" loading="lazy"><figcaption>Executive SUV · Exterior detail</figcaption></figure>
+<figure><img src="7E8DB19E-5B85-4E31-A427-B9782EDD890A.jpeg" alt="Suburban negra en la ciudad" loading="lazy"><figcaption>City transportation · Boston</figcaption></figure>
+<figure><img src="8dbbbc91-213e-4b97-ae1e-993bc0a7c99a.jpeg" alt="Suburban negra, vista lateral" loading="lazy"><figcaption>Comfortable private transfer</figcaption></figure>
+<figure><img src="73521a3c-cb3d-4204-88a5-a03cd45baf12.jpeg" alt="Detalle lateral de vehículo ejecutivo" loading="lazy"><figcaption>Vehicle details</figcaption></figure>
 </div>
 </section>
 
 <section id="cotizar" aria-labelledby="booking-title">
 <h2 id="booking-title">SOLICITA TU RESERVA / REQUEST A BOOKING</h2>
 <p>Completa tu solicitud; la tarifa se calcula automáticamente al terminar las direcciones. / Complete your request; the fare is calculated automatically after entering the addresses. La reserva requiere aprobación / Booking requires approval.</p>
+<div class="booking-steps" aria-label="Booking process"><span>1 · Ruta / Route</span><span>2 · Tarifa / Estimate</span><span>3 · Solicitud / Request</span><span>4 · Aprobación / Approval</span></div>
 <form id="unifiedForm" style="max-width:650px">
 <label for="nombre">Full name / Nombre completo *</label><input id="nombre" required maxlength="100" autocomplete="name">
 <label for="telefono">Phone / Teléfono *</label><input id="telefono" type="tel" required maxlength="40" autocomplete="tel">
