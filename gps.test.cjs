@@ -17,6 +17,15 @@ test('quote computes cents, caches repeated requests and rejects invalid input',
  assert.equal((await quote({from:'Boston',to:'Woburn'})).data.amount,8000);assert.equal(calls,3);
  assert.equal((await quote({from:'',to:'Woburn'})).status,400);
 });
+test('Comfort and Luxury tiers quote independently and reject unknown categories',async()=>{
+ const service=()=>{let calls=0;return backend(async()=>({ok:true,json:async()=>++calls<=2?[place]:{code:'Ok',routes:[{distance:16093.44,duration:1200}]}}));};
+ const luxury=await service()({from:'Boston',to:'Woburn',tier:'luxury'});
+ const comfort=await service()({from:'Boston',to:'Woburn',tier:'comfort'});
+ assert.equal(luxury.status,200);assert.equal(luxury.data.amount,8000);
+ assert.equal(comfort.status,200);assert.equal(comfort.data.amount,6450);
+ assert.equal(comfort.data.tier,'comfort');
+ assert.equal((await service()({from:'Boston',to:'Woburn',tier:'unknown'})).status,400);
+});
 test('missing address, provider failure, timeout, no route, malformed route are explicit errors',async()=>{
  for(const [fetch,status,code] of [
  [async()=>({ok:true,json:async()=>[]}),422,'ADDRESS_NOT_FOUND'],
@@ -56,17 +65,15 @@ test('pay-later link preserves addresses and selects the booking preference',asy
  assert.equal(url.searchParams.get('from'),'Boston');
  assert.equal(url.hash,'#reserva');
 });
-test('booking prefill and WhatsApp/email requests carry pay-later preference without collecting payment',()=>{
- const elements={};const element=id=>elements[id]??={value:'',style:{},addEventListener(event,fn){this[event]=fn;},scrollIntoView(){},setCustomValidity(){},reportValidity(){}};
- const context=vm.createContext({document:{getElementById:element},window:{location:{search:'?from=Boston&to=Woburn&customerName=Cesar&phone=6175551234&payment=after_trip'}},URLSearchParams,encodeURIComponent});
- vm.runInContext(fs.readFileSync('index.html','utf8').split('<script>')[1].split('</script>')[0],context);
- assert.equal(element('pago').value,'after_trip');assert.equal(element('nombre').value,'Cesar');
- element('bookingForm').submit({preventDefault(){}});
- for(const id of ['whatsapp','correo']){
-  const message=decodeURIComponent(element(id).href);
-  assert.match(message,/Pay at the end of the trip/);assert.match(message,/Not collected/);
- }
- element('bookingForm').input();assert.equal(element('envios').style.display,'none');
+test('unified booking has selectable tiers, separate contact links and payment options',()=>{
+ const html=fs.readFileSync('index.html','utf8');
+ assert.match(html,/name="tier" value="luxury" checked/);
+ assert.match(html,/name="tier" value="comfort"/);
+ assert.match(html,/id="unifiedForm"/);
+ assert.match(html,/tier:selectedTier\(\)/);
+ assert.match(html,/value="later">Pagar al finalizar/);
+ assert.match(html,/href="tel:\+16175188281"/);
+ assert.match(html,/href="sms:\+16177855657"/);
 });
 
 const sampleQuote={miles:10,minutes:20,base:35,mileage:35,time:10,airportFee:0,amount:8000};

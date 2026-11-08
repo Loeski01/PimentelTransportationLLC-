@@ -68,8 +68,15 @@ function airportPickup(address, location) {
   return /\b(logan|airport|aeropuerto|bos international|boston logan|manchester.boston regional|boston airport|tf green|t\. ?f\. ?green|bradley international|pvd airport)\b/i.test(value);
 }
 
-async function calculateFare(from, to) {
-  const key = JSON.stringify([from, to]);
+const SERVICE_RATES = Object.freeze({
+  luxury: {base:35, mile:3.5, minute:0.5, minimum:65, hourly:95},
+  comfort: {base:30, mile:2.75, minute:0.35, minimum:55, hourly:75}
+});
+const validTier = tier => Object.prototype.hasOwnProperty.call(SERVICE_RATES, tier);
+async function calculateFare(from, to, tier = 'luxury') {
+  if (!validTier(tier)) throw new QuoteError(400, 'INVALID_TIER', 'Selecciona una categoría de servicio válida.');
+  const rates = SERVICE_RATES[tier];
+  const key = JSON.stringify([from, to, tier]);
   const cached = quoteCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.value;
   const signal = AbortSignal.timeout(10000); // One deadline for the complete map operation.
@@ -85,16 +92,16 @@ async function calculateFare(from, to) {
   const miles = route.distance / 1609.344;
   const minutes = route.duration / 60;
   const airportFee = airportPickup(from, a) ? 10 : 0;
-  const quote = { miles, minutes, base: 35, mileage: miles * 3.5, time: minutes * 0.5, airportFee,
-    amount: Math.round(Math.max(65, 35 + miles * 3.5 + minutes * 0.5 + airportFee) * 100), currency: "usd" };
+  const quote = { tier, miles, minutes, base: rates.base, mileage: miles * rates.mile, time: minutes * rates.minute, airportFee,
+    amount: Math.round(Math.max(rates.minimum, rates.base + miles * rates.mile + minutes * rates.minute + airportFee) * 100), currency: "usd" };
   if (quoteCache.size >= 500) quoteCache.delete(quoteCache.keys().next().value);
   quoteCache.set(key, { value: quote, expires: Date.now() + 300000 });
   return quote;
 }
 app.post("/api/quote", async (req, res) => {
-  const { from, to } = req.body || {};
+  const { from, to, tier = 'luxury' } = req.body || {};
   if (!validAddresses(from, to)) return res.status(400).json({ code: "INVALID_ADDRESS", error: "Escribe las dos direcciones (máximo 200 caracteres cada una)." });
-  try { res.setHeader("Cache-Control", "no-store"); res.json(await calculateFare(from.trim(), to.trim())); }
+  try { res.setHeader("Cache-Control", "no-store"); res.json(await calculateFare(from.trim(), to.trim(), tier)); }
   catch (error) { sendError(res, error); }
 });
 
@@ -103,7 +110,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
     return res.status(503).json({ error: "Stripe is not configured" });
   }
 
-  const { from, to, customerName, phone, tipPercent = 0, tipCents = 0, expectedFareCents, paymentKind = "ride" } = req.body || {};
+  const { from, to, customerName, phone, tipPercent = 0, tipCents = 0, expectedFareCents, paymentKind = "ride", tier = 'luxury' } = req.body || {};
 
   if (
     typeof from !== "string" ||
@@ -120,16 +127,16 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
   if (![0, 10, 15, 20].includes(tipPercent) || !Number.isSafeInteger(tipCents) || tipCents < 0 || tipCents > 100000 ||
       (tipPercent !== 0 && tipCents !== 0) || !["ride", "tip_only"].includes(paymentKind) ||
-      !Number.isSafeInteger(expectedFareCents) || expectedFareCents < 0) {
+      !Number.isSafeInteger(expectedFareCents) || expectedFareCents < 0 || !validTier(tier)) {
     return res.status(400).json({ error: "Propina o datos de pago inválidos." });
   }
   try {
-    const { amount } = await calculateFare(from.trim(), to.trim());
+    const { amount } = await calculateFare(from.trim(), to.trim(), tier);
     if (amount !== expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Vuelve a calcular y revisa el total antes de pagar." });
     const gratuity = tipPercent ? Math.round(amount * tipPercent / 100) : tipCents;
     if (paymentKind === "tip_only" && gratuity < 50) return res.status(400).json({ error: "Para pagar solo la propina, elige al menos $0.50." });
     const lineItems = [];
-    if (paymentKind === "ride") lineItems.push({price_data:{currency:"usd",unit_amount:amount,product_data:{name:"Pimentel Transportation - Private Transfer"}},quantity:1});
+    if (paymentKind === "ride") lineItems.push({price_data:{currency:"usd",unit_amount:amount,product_data:{name:"Pimentel Transportation - "+(tier==='comfort'?'Comfort Private Ride':'Executive Black SUV')}},quantity:1});
     if (gratuity > 0) lineItems.push({price_data:{currency:"usd",unit_amount:gratuity,product_data:{name:"Optional driver gratuity / Propina voluntaria"}},quantity:1});
 
     const session = await stripe.checkout.sessions.create({
@@ -147,6 +154,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         to: to.trim(),
         customerName: customerName.trim(),
         phone: phone.trim(),
+        tier,
         paymentKind,
         tipCents: String(gratuity)
       },
@@ -212,18 +220,19 @@ app.post("/api/booking-request", async (req, res) => {
   const date = clean(body.date, 10), time = clean(body.time, 5);
   const passengers = clean(body.passengers, 20), details = clean(body.details, 500);
   const payment = clean(body.payment, 30);
+  const tier = clean(body.tier || 'luxury', 20);
   const tipPercent = Number(body.tipPercent), tipCents = Number(body.tipCents);
   if (!name || !phone || !emailPattern.test(email) || !validAddresses(from, to) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
       !Number.isSafeInteger(body.expectedFareCents) || body.expectedFareCents < 0 ||
       ![0, 10, 15, 20].includes(tipPercent) || !Number.isSafeInteger(tipCents) ||
       tipCents < 0 || tipCents > 100000 || (tipPercent > 0 && tipCents > 0) ||
-      !["later", "coordinate"].includes(payment)) {
+      !["later", "coordinate"].includes(payment) || !validTier(tier)) {
     return res.status(400).json({ error: "Revisa los datos de la reserva." });
   }
   bookingThrottle.set(ip, Date.now());
   try {
-    const fare = await calculateFare(from, to);
+    const fare = await calculateFare(from, to, tier);
     if (fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
     const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
     const dollars = cents => "$" + (cents / 100).toFixed(2);
@@ -231,6 +240,7 @@ app.post("/api/booking-request", async (req, res) => {
     const summary = [
       "Solicitud: " + reference, "Nombre: " + name, "Correo: " + email,
       "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
+      "Categoría: " + (tier==='comfort'?'Comfort Private Ride':'Executive Black SUV'),
       "Recogida: " + from, "Destino: " + to, "Pasajeros: " + passengers,
       "Tarifa estimada: " + dollars(fare.amount), "Propina opcional: " + dollars(tip),
       "Total estimado: " + dollars(fare.amount + tip),

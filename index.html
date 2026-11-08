@@ -83,6 +83,21 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .booking-steps span{border:1px solid #685732;border-radius:50px;padding:9px 16px;background:#24211a}
 @media(max-width:760px){.luxury-hero{min-height:480px;background:linear-gradient(90deg,#07090de0,#07090d80),url('assets/hero-boston.webp') 61% center/cover no-repeat}.servicios{grid-template-columns:1fr}.servicio img{height:230px}.galeria{grid-template-columns:repeat(2,minmax(0,1fr))}.galeria img{height:175px}.brand-heading h1{letter-spacing:1px}}
 @media(max-width:460px){#fleet{padding:42px 12px}.galeria{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.galeria img{height:140px}.galeria figcaption{font-size:11px;padding:8px}.luxury-hero{min-height:435px}.luxury-hero p{font-size:16px}.booking-steps{font-size:12px}}
+.vehicle-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;max-width:1020px;margin:28px auto 12px;text-align:left}
+.vehicle-option{display:block;cursor:pointer;background:#191a1c;border:2px solid #53472e;border-radius:12px;overflow:hidden;transition:border-color .2s,transform .2s;position:relative}
+.vehicle-option:has(input:checked){border-color:#edc777;box-shadow:0 0 0 2px #edc77735}
+.vehicle-option:focus-within{outline:2px solid #fff;outline-offset:3px}
+.vehicle-option>img{width:100%;height:225px;object-fit:cover;display:block}
+.vehicle-photo-pair{display:grid;grid-template-columns:1fr 1fr;height:225px;gap:3px;background:#141414}
+.vehicle-photo-pair img{width:100%;height:100%;min-width:0;object-fit:cover}
+.vehicle-option .vehicle-content{padding:18px 20px}
+.vehicle-option .vehicle-title{color:#f0d18d;font-size:23px;font-family:Georgia,serif;display:block;margin:6px 0}
+.vehicle-option .vehicle-price{font-weight:bold;font-size:17px;color:#fff;display:block;margin:12px 0}
+.vehicle-option .vehicle-select{display:block;background:#d6b36b;color:#15110b;border-radius:5px;padding:9px 12px;text-align:center;font-weight:bold}
+.vehicle-option input{width:auto;margin:0 7px 0 0;accent-color:#d4af37}
+.vehicle-option p{font-size:14px;color:#d8d2c5;margin:8px 0;min-height:44px}
+.vehicle-notice{max-width:930px;margin:12px auto 30px;color:#c8c0ae;font-size:13px}
+@media(max-width:620px){.vehicle-choices{gap:10px}.vehicle-option>img,.vehicle-photo-pair{height:135px}.vehicle-option .vehicle-content{padding:12px}.vehicle-option .vehicle-title{font-size:17px}.vehicle-option .vehicle-price{font-size:13px}.vehicle-option p{font-size:12px;min-height:68px}.vehicle-option .vehicle-select{font-size:12px}}
 </style>
 </head>
 <body>
@@ -178,8 +193,22 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 </div>
 </section>
 
+<section id="choose-service" aria-labelledby="choose-title">
+<h2 id="choose-title">CHOOSE YOUR RIDE / ELIGE TU SERVICIO</h2>
+<p>Dos categorías, una misma dedicación al buen servicio. / Two service options, one commitment to professional care.</p>
+<div class="vehicle-choices" role="radiogroup" aria-label="Categoría de transporte / Transportation category">
+<label class="vehicle-option"><img src="IMG_2745.jpeg" loading="lazy" alt="Chevrolet Suburban negra real de Pimentel Transportation"><span class="vehicle-content"><span><input type="radio" name="tier" value="luxury" checked> SERVICIO PREMIUM</span><strong class="vehicle-title">Executive Black SUV</strong><p>Transporte ejecutivo con presentación de lujo. / Premium executive service.</p><span class="vehicle-price">Desde / From $65 · $95/h</span><span class="vehicle-select">ELEGIR LUJO / SELECT LUXURY</span></span></label>
+<label class="vehicle-option"><span class="vehicle-photo-pair"><img src="assets/comfort-example.webp" loading="lazy" alt="SUV compacto ilustrativo para futuro servicio económico"><img src="assets/comfort-sedan-example.webp" loading="lazy" alt="Sedán compacto ilustrativo para futuro servicio económico"></span><span class="vehicle-content"><span><input type="radio" name="tier" value="comfort"> SERVICIO ECONÓMICO</span><strong class="vehicle-title">Comfort Private Ride</strong><p>Traslados privados con precio accesible, sujetos a disponibilidad. / Value-oriented private rides.</p><span class="vehicle-price">Desde / From $55 · $75/h</span><span class="vehicle-select">ELEGIR COMFORT / SELECT COMFORT</span></span></label>
+</div>
+<div class="rate-table" style="max-width:760px;margin:20px auto 0;overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;text-align:left;font-size:14px"><caption style="color:#e6c477;padding:8px">TARIFARIO / RATE GUIDE</caption><thead><tr><th style="padding:10px;border-bottom:1px solid #63502a">Concepto / Rate</th><th style="padding:10px;border-bottom:1px solid #63502a">Executive Black SUV</th><th style="padding:10px;border-bottom:1px solid #63502a">Comfort</th></tr></thead><tbody><tr><td style="padding:10px">Base</td><td>$35</td><td>$30</td></tr><tr><td style="padding:10px">Milla / Mile</td><td>$3.50</td><td>$2.75</td></tr><tr><td style="padding:10px">Minuto / Minute</td><td>$0.50</td><td>$0.35</td></tr><tr><td style="padding:10px">Mínimo / Minimum</td><td>$65</td><td>$55</td></tr><tr><td style="padding:10px">Por hora / Hourly</td><td>$95</td><td>$75</td></tr><tr><td style="padding:10px">Mínimo por horas</td><td>3 horas</td><td>3 horas</td></tr></tbody></table>
+</div>
+<p class="vehicle-notice">Actualmente ambas categorías pueden prestarse en nuestra Suburban negra, según disponibilidad y aprobación. La imagen Comfort muestra un ejemplo de vehículos que podríamos incorporar en el futuro. / Both options may currently use our black Suburban. The Comfort picture illustrates a possible future fleet vehicle. Tarifas estimadas; pueden aplicarse peajes, estacionamiento, espera y cargos de aeropuerto. / Estimates exclude possible additional charges.</p>
+</section>
+
 <section id="cotizar" aria-labelledby="booking-title">
 <h2 id="booking-title">SOLICITA TU RESERVA / REQUEST A BOOKING</h2>
+<p id="selectedTierLabel" aria-live="polite">Categoría seleccionada / Selected service: Executive Black SUV</p>
 <p>Completa tu solicitud; la tarifa se calcula automáticamente al terminar las direcciones. / Complete your request; the fare is calculated automatically after entering the addresses. La reserva requiere aprobación / Booking requires approval.</p>
 <div class="booking-steps" aria-label="Booking process"><span>1 · Ruta / Route</span><span>2 · Tarifa / Estimate</span><span>3 · Solicitud / Request</span><span>4 · Aprobación / Approval</span></div>
 <form id="unifiedForm" style="max-width:650px">
@@ -187,7 +216,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <label for="telefono">Phone / Teléfono *</label><input id="telefono" type="tel" required maxlength="40" autocomplete="tel">
 <label for="email">Email / Correo electrónico *</label><input id="email" type="email" required maxlength="254" autocomplete="email" placeholder="cliente@example.com">
 <label for="serviceType">Service / Tipo de servicio</label><select id="serviceType"><option value="transfer">Traslado / Point-to-point transfer</option><option value="hourly">Por horas / Hourly chauffeur</option></select>
-<div id="hourlyFields" hidden><label for="hours">Hours / Horas (mínimo 3)</label><input id="hours" type="number" min="3" step="any" value="3"><p>$95 por hora / per hour · Mínimo / Minimum $285. Sin máximo de horas / No maximum hours. Sujeto a aprobación / Subject to approval.</p><p>Envía la solicitud por WhatsApp o correo. El pago se coordina después de la aprobación. / Send your request by WhatsApp or email. Payment is arranged after approval.</p></div>
+<div id="hourlyFields" hidden><label for="hours">Hours / Horas (mínimo 3)</label><input id="hours" type="number" min="3" step="any" value="3"><p id="hourlyRateText">$95 por hora / per hour · Mínimo / Minimum $285. Sin máximo de horas / No maximum hours. Sujeto a aprobación / Subject to approval.</p><p>Envía la solicitud por WhatsApp o correo. El pago se coordina después de la aprobación. / Send your request by WhatsApp or email. Payment is arranged after approval.</p></div>
 <label for="origen">Pickup / Dirección de recogida *</label><input id="origen" required maxlength="200" autocomplete="street-address" placeholder="Boston Logan Airport, MA">
 <label for="destino">Drop-off / Destino *</label><input id="destino" required maxlength="200" placeholder="Woburn, MA">
 <button type="button" id="calcular" class="boton" hidden>CALCULAR TARIFA GPS / GET FARE</button>
@@ -238,6 +267,14 @@ const API='https://pimenteltransportationllc.onrender.com';
 const el=id=>document.getElementById(id);
 const money=cents=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
 let quote=null;
+const selectedTier=()=>document.querySelector('input[name="tier"]:checked').value;
+const tierName=()=>selectedTier()==='comfort'?'Comfort Private Ride':'Executive Black SUV';
+for(const radio of document.querySelectorAll('input[name="tier"]'))radio.addEventListener('change',()=>{
+ el('selectedTierLabel').textContent='Categoría seleccionada / Selected service: '+tierName();
+ quote=null;el('quoteResult').hidden=true;el('quoteStatus').textContent='Actualizando tarifa de '+tierName()+' / Updating selected rate.';
+ updateTotals();el('serviceType').dispatchEvent(new Event('change'));
+ el('cotizar').scrollIntoView({behavior:'smooth'});
+});
 const params=new URLSearchParams(location.search);
 for(const [key,id] of [['from','origen'],['to','destino'],['customerName','nombre'],['phone','telefono']]){
  const value=params.get(key);if(value)el(id).value=value.slice(0,200);
@@ -275,12 +312,13 @@ el('calcular').addEventListener('click',async()=>{
  quote=null;el('quoteResult').hidden=true;updateTotals();
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),75000);
  try{
-  const response=await fetch(API+'/api/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from,to}),signal:controller.signal});
+  const tier=selectedTier();
+  const response=await fetch(API+'/api/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from,to,tier}),signal:controller.signal});
   const data=await response.json();
   if(!response.ok)throw new Error((data.error ? data.error+' / Unable to calculate the fare; you can request a quote.' : 'No se pudo calcular la tarifa. / Unable to calculate the fare.'));
   if(!Number.isSafeInteger(data.amount)||data.amount<0||!Number.isFinite(data.miles)||!Number.isFinite(data.minutes))throw new Error('No se pudo verificar la tarifa. / Unable to verify the fare.');
-  if(el('serviceType').value==='hourly'||el('origen').value.trim()!==from||el('destino').value.trim()!==to)throw new Error('Actualizando tarifa para las nuevas direcciones. / Updating fare for the new addresses.');
-  quote={from,to,amount:data.amount};
+  if(el('serviceType').value==='hourly'||selectedTier()!==tier||el('origen').value.trim()!==from||el('destino').value.trim()!==to)throw new Error('Actualizando tarifa para las nuevas direcciones. / Updating fare for the new addresses.');
+  quote={from,to,tier,amount:data.amount};
   el('quoteTotal').textContent=money(data.amount);
   el('quoteDetails').textContent=data.miles.toFixed(1)+' millas · '+Math.round(data.minutes)+' minutos · Aeropuerto: $'+Number(data.airportFee||0).toFixed(2);
   el('quoteResult').hidden=false;el('quoteStatus').textContent='Tarifa calculada. Completa tu solicitud. / Fare calculated. Complete your request.';
@@ -292,12 +330,13 @@ el('unifiedForm').addEventListener('submit',async event=>{
  event.preventDefault();
  const val=id=>el(id).value.trim();
  if(el('serviceType').value==='hourly'){sendHourlyRequest();return;}
- if(!quote||quote.from!==val('origen')||quote.to!==val('destino')){sendUnpricedRequest();return;}
+ if(!quote||quote.tier!==selectedTier()||quote.from!==val('origen')||quote.to!==val('destino')){sendUnpricedRequest();return;}
  let tip;
  try{tip=tipData();}catch(e){el('bookingStatus').textContent=e.message;return;}
  const tipCents=tip.tipPercent?Math.round(quote.amount*tip.tipPercent/100):tip.tipCents;
  const total=quote.amount+tipCents;
  const message='RESERVATION REQUEST - Pimentel Transportation LLC\n'
+ +'Service: '+tierName()+'\n'
  +'Name: '+val('nombre')+'\nPhone: '+val('telefono')
  +'\nDate: '+val('fecha')+'\nTime: '+val('hora')
  +'\nPickup: '+quote.from+'\nDestination: '+quote.to
@@ -312,7 +351,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);
     let response,data;
     try{
-      response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({name:val('nombre'),email:val('email'),phone:val('telefono'),from:quote.from,to:quote.to,date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:val('pago'),expectedFareCents:quote.amount,...tip})});
+      response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({name:val('nombre'),email:val('email'),phone:val('telefono'),from:quote.from,to:quote.to,date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:val('pago'),tier:selectedTier(),expectedFareCents:quote.amount,...tip})});
       data=await response.json();
     }finally{clearTimeout(timer);}
     if(!response.ok)throw new Error(data.error||'No se pudo enviar la solicitud. / Unable to send the request.');
@@ -326,7 +365,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
   const btn=el('submitBooking');btn.disabled=true;el('bookingStatus').textContent='Abriendo pago / Opening payment...';
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
   try{
-   const response=await fetch(API+'/api/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({from:quote.from,to:quote.to,customerName:val('nombre'),phone:val('telefono'),expectedFareCents:quote.amount,paymentKind:'ride',...tip})});
+   const response=await fetch(API+'/api/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({from:quote.from,to:quote.to,customerName:val('nombre'),phone:val('telefono'),tier:selectedTier(),expectedFareCents:quote.amount,paymentKind:'ride',...tip})});
    const data=await response.json();if(!response.ok)throw new Error(data.error||'No se pudo abrir el pago. / Unable to open payment.');
    const url=new URL(data.url);if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')throw new Error('Enlace de pago no válido. / Invalid payment link.');
    location.assign(url.href);
@@ -396,8 +435,9 @@ el('unifiedForm').addEventListener('submit',async event=>{
  const paymentNotice=el('pago').nextElementSibling;
  function hourlyAmount(){
   const h=Number(hours.value);
-  if(!hours.value.trim()||!Number.isFinite(h)||h<3||!Number.isSafeInteger(Math.round(h*9500)))throw new Error('Reserva al menos 3 horas / Book at least 3 hours.');
-  return Math.round(h*9500);
+  const rate=selectedTier()==='comfort'?7500:9500;
+  if(!hours.value.trim()||!Number.isFinite(h)||h<3||!Number.isSafeInteger(Math.round(h*rate)))throw new Error('Reserva al menos 3 horas / Book at least 3 hours.');
+  return Math.round(h*rate);
  }
  function refreshHourly(){
   if(type.value!=='hourly')return;
@@ -410,6 +450,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
  }
  function changeService(){
   const hourly=type.value==='hourly';
+  el('hourlyRateText').textContent=selectedTier()==='comfort'?'$75 por hora / per hour · Mínimo / Minimum $225 · Sujeto a aprobación / Subject to approval.':'$95 por hora / per hour · Mínimo / Minimum $285 · Sujeto a aprobación / Subject to approval.';
   el('hourlyFields').hidden=!hourly;el('hourlyTotal').hidden=!hourly;hours.required=hourly;hours.disabled=!hourly;
   el('destino').required=!hourly;
   destinationLabel.textContent=hourly?'Itinerary / Destino o itinerario (opcional)':'Drop-off / Destino *';
@@ -427,7 +468,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
    const message=['HOURLY SERVICE REQUEST / SOLICITUD POR HORAS - Pimentel Transportation LLC',
     'Name / Nombre: '+v('nombre'),'Email / Correo: '+v('email'),'Phone / Teléfono: '+v('telefono'),
     'Date / Fecha: '+v('fecha'),'Time / Hora: '+v('hora'),'Pickup / Recogida: '+v('origen'),
-    'Itinerary / Itinerario: '+v('destino'),'Hours / Horas: '+v('hours'),'Rate / Tarifa: $95/hour',
+    'Itinerary / Itinerario: '+v('destino'),'Category / Categoría: '+tierName(),'Hours / Horas: '+v('hours'),'Rate / Tarifa: $'+(selectedTier()==='comfort'?75:95)+'/hour',
     'Service / Servicio: '+money(amount),'Optional tip / Propina: '+money(gratuity),'Estimated total / Total estimado: '+money(amount+gratuity),
     'Passengers / Pasajeros: '+v('pasajeros'),'Details / Detalles: '+v('detalles'),
     'Payment arranged after approval / Pago a coordinar después de aprobación',
@@ -473,7 +514,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
   const v=id=>el(id).value.trim();
   const tip=el('tip').value==='custom'?v('tipAmount')+' USD':el('tip').value+'%';
   const message=['RESERVATION REQUEST / SOLICITUD DE RESERVA',
-   'Name / Nombre: '+v('nombre'),'Email / Correo: '+v('email'),'Phone / Teléfono: '+v('telefono'),
+   'Category / Categoría: '+tierName(),'Name / Nombre: '+v('nombre'),'Email / Correo: '+v('email'),'Phone / Teléfono: '+v('telefono'),
    'Date / Fecha: '+v('fecha'),'Time / Hora: '+v('hora'),'Pickup / Recogida: '+v('origen'),
    'Destination / Destino: '+v('destino'),'Passengers / Pasajeros: '+v('pasajeros'),
    'Optional tip preference / Preferencia de propina: '+tip,'Details / Detalles: '+v('detalles'),
