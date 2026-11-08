@@ -124,6 +124,8 @@ a.contacto{color:#d4af37}
 <h2 id="booking-title">CALCULA Y RESERVA / QUOTE & BOOK</h2>
 <p>Un solo formulario para calcular la tarifa y solicitar tu viaje. La reserva requiere confirmación de la compañía.</p>
 <form id="unifiedForm" style="max-width:650px">
+<label for="serviceType">Service / Tipo de servicio</label><select id="serviceType"><option value="transfer">Traslado / Point-to-point transfer</option><option value="hourly">Por horas / Hourly chauffeur</option></select>
+<div id="hourlyFields" hidden><label for="hours">Hours / Horas (mínimo 3)</label><input id="hours" type="number" min="3" step="any" value="3"><p>$95 por hora / per hour · Mínimo / Minimum $285. Sin máximo de horas / No maximum hours. Sujeto a aprobación / Subject to approval.</p><p id="hourlyTotal" aria-live="polite"></p><p>Envía la solicitud por WhatsApp o correo. El pago se coordina después de la aprobación. / Send your request by WhatsApp or email. Payment is arranged after approval.</p></div>
 <label for="origen">Pickup / Dirección de recogida *</label><input id="origen" required maxlength="200" autocomplete="street-address" placeholder="Boston Logan Airport, MA">
 <label for="destino">Drop-off / Destino *</label><input id="destino" required maxlength="200" placeholder="Woburn, MA">
 <button type="button" id="calcular" class="boton">CALCULAR TARIFA GPS / GET FARE</button>
@@ -228,6 +230,7 @@ el('calcular').addEventListener('click',async()=>{
 el('unifiedForm').addEventListener('submit',async event=>{
  event.preventDefault();
  const val=id=>el(id).value.trim();
+ if(el('serviceType').value==='hourly'){sendHourlyRequest();return;}
  if(!quote||quote.from!==val('origen')||quote.to!==val('destino')){
   el('bookingStatus').textContent='Primero calcula la tarifa GPS con las direcciones actuales.';el('calcular').focus();return;
  }
@@ -322,6 +325,64 @@ el('unifiedForm').addEventListener('submit',async event=>{
  guide.addEventListener('keydown', function (event) {
   if (event.key === 'Escape') { showGuide(false); button.focus(); }
  });
+}());
+</script>
+
+
+<script>
+(function(){
+ const type=el('serviceType'),hours=el('hours');
+ const destinationLabel=document.querySelector('label[for="destino"]');
+ const paymentLabel=document.querySelector('label[for="pago"]');
+ const paymentNotice=el('pago').nextElementSibling;
+ function hourlyAmount(){
+  const h=Number(hours.value);
+  if(!hours.value.trim()||!Number.isFinite(h)||h<3||!Number.isSafeInteger(Math.round(h*9500)))throw new Error('Reserva al menos 3 horas / Book at least 3 hours.');
+  return Math.round(h*9500);
+ }
+ function refreshHourly(){
+  if(type.value!=='hourly')return;
+  try{
+   const amount=hourlyAmount(),tip=tipData();
+   const gratuity=tip.tipPercent?Math.round(amount*tip.tipPercent/100):tip.tipCents;
+   el('hourlyTotal').textContent='Servicio / Service: '+money(amount)+' · Propina / Tip: '+money(gratuity)+' · Total estimado / Estimated total: '+money(amount+gratuity);
+  }catch(e){el('hourlyTotal').textContent=e.message;}
+  el('envios').style.display='none';
+ }
+ function changeService(){
+  const hourly=type.value==='hourly';
+  el('hourlyFields').hidden=!hourly;hours.required=hourly;hours.disabled=!hourly;
+  el('destino').required=!hourly;
+  destinationLabel.textContent=hourly?'Itinerary / Destino o itinerario (opcional)':'Drop-off / Destino *';
+  el('calcular').hidden=hourly;el('quoteResult').hidden=true;quote=null;updateTotals();
+  el('quoteStatus').textContent='';el('bookingStatus').textContent='';
+  el('pago').hidden=hourly;paymentLabel.hidden=hourly;paymentNotice.hidden=hourly;
+  el('submitBooking').textContent=hourly?'PREPARAR SOLICITUD / PREPARE REQUEST':'CONTINUAR / CONTINUE';
+  el('envios').style.display='none';refreshHourly();
+ }
+ window.sendHourlyRequest=function(){
+  try{
+   const amount=hourlyAmount(),tip=tipData();
+   const gratuity=tip.tipPercent?Math.round(amount*tip.tipPercent/100):tip.tipCents;
+   const v=id=>el(id).value.trim();
+   const message=['HOURLY SERVICE REQUEST / SOLICITUD POR HORAS - Pimentel Transportation LLC',
+    'Name / Nombre: '+v('nombre'),'Email / Correo: '+v('email'),'Phone / Teléfono: '+v('telefono'),
+    'Date / Fecha: '+v('fecha'),'Time / Hora: '+v('hora'),'Pickup / Recogida: '+v('origen'),
+    'Itinerary / Itinerario: '+v('destino'),'Hours / Horas: '+v('hours'),'Rate / Tarifa: $95/hour',
+    'Service / Servicio: '+money(amount),'Optional tip / Propina: '+money(gratuity),'Estimated total / Total estimado: '+money(amount+gratuity),
+    'Passengers / Pasajeros: '+v('pasajeros'),'Details / Detalles: '+v('detalles'),
+    'Payment arranged after approval / Pago a coordinar después de aprobación',
+    'PENDING COMPANY APPROVAL / PENDIENTE DE APROBACIÓN'].join('\n');
+   el('whatsapp').href='https://wa.me/16177855657?text='+encodeURIComponent(message);
+   el('correo').href='mailto:Cesarloeski17@gmail.com?subject='+encodeURIComponent('Hourly service request / Solicitud por horas')+'&body='+encodeURIComponent(message);
+   el('envios').hidden=false;el('envios').style.display='block';
+   el('bookingStatus').textContent='Selecciona WhatsApp o correo y envía el mensaje. La reserva queda pendiente de aprobación. / Select WhatsApp or email and send your request. Booking is pending approval.';
+   el('envios').scrollIntoView({behavior:'smooth'});
+  }catch(e){el('bookingStatus').textContent=e.message;}
+ };
+ type.addEventListener('change',changeService);
+ for(const id of ['hours','tip','tipAmount'])el(id).addEventListener('input',refreshHourly);
+ changeService();
 }());
 </script>
 
