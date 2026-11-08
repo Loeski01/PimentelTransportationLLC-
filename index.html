@@ -37,6 +37,11 @@ a.contacto{color:#d4af37}
 
 [hidden]{display:none!important}
 #calcular{display:none!important}
+
+#grandTotal:not(:empty),#hourlyTotal:not(:empty){background:#101010;border:2px solid #d4af37;border-radius:12px;padding:20px 12px;text-align:center;line-height:1.4}
+.final-total-label{display:block;font-size:17px;color:#fff;font-weight:700}
+.final-total-amount{display:block;font-size:clamp(38px,10vw,50px);font-weight:800;color:#e8c969;line-height:1.2;margin-top:10px;overflow-wrap:anywhere}
+.final-total-detail{display:block;font-size:15px;color:#ddd;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -147,7 +152,7 @@ a.contacto{color:#d4af37}
 <div id="requestSummary" style="margin-top:20px;border-top:1px solid #55451c;padding-top:12px"><h3>Resumen de tu solicitud / Request summary</h3><p id="quoteStatus" role="status" aria-live="polite"></p>
 <div id="quoteResult" hidden style="border:1px solid #d4af37;border-radius:10px;padding:16px;margin-top:15px;text-align:center">
 <h3>Tarifa estimada / Estimated fare</h3>
-<p id="quoteTotal" style="font-size:36px;color:#d4af37;font-weight:bold;margin:5px"></p>
+<p id="quoteTotal" style="font-size:24px;color:#fff;font-weight:bold;margin:5px"></p>
 <p id="quoteDetails"></p>
 <p style="font-size:13px">Estimado sin peajes, estacionamiento ni espera adicional. Sujeto a confirmación. / Estimate excludes tolls, parking and extra waiting. Subject to confirmation.</p>
 </div>
@@ -201,7 +206,7 @@ function updateTotals(){
  try{
   const tip=tipData();
   const amount=tip.tipPercent?Math.round(quote.amount*tip.tipPercent/100):tip.tipCents;
-  el('grandTotal').textContent='Total estimado con propina / Estimated total: '+money(quote.amount+amount);
+  el('grandTotal').innerHTML='<span class="final-total-detail">Viaje / Fare: '+money(quote.amount)+' · Propina / Tip: '+money(amount)+'</span><span class="final-total-label">Total estimado con propina<br>Estimated total including tip</span><strong class="final-total-amount">'+money(quote.amount+amount)+'</strong>';
  }catch(e){el('grandTotal').textContent=e.message;}
 }
 el('tip').addEventListener('change',updateTotals);
@@ -347,7 +352,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
   try{
    const amount=hourlyAmount(),tip=tipData();
    const gratuity=tip.tipPercent?Math.round(amount*tip.tipPercent/100):tip.tipCents;
-   el('hourlyTotal').textContent='Servicio / Service: '+money(amount)+' · Propina / Tip: '+money(gratuity)+' · Total estimado / Estimated total: '+money(amount+gratuity);
+   el('hourlyTotal').innerHTML='<span class="final-total-detail">Servicio / Service: '+money(amount)+' · Propina / Tip: '+money(gratuity)+'</span><span class="final-total-label">Total estimado con propina<br>Estimated total including tip</span><strong class="final-total-amount">'+money(amount+gratuity)+'</strong>';
   }catch(e){el('hourlyTotal').textContent=e.message;}
   el('envios').style.display='none';
  }
