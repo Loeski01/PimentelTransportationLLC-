@@ -25,6 +25,29 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows);
     } catch(e){next(e)}
   });
+  // Read-only preview: never deletes or changes dispatch records.
+  // This route deliberately returns only counts and IDs, not passenger details or PIN hashes.
+  router.get('/admin/test-cleanup-preview',requireAdmin,async(req,res,next)=>{
+    try{
+      const [drivers,trips,notifications,audit]=await Promise.all([
+        db.query('SELECT id,display_name,active FROM dispatch_drivers ORDER BY id'),
+        db.query('SELECT id,driver_id,status FROM dispatch_trips ORDER BY id'),
+        db.query('SELECT trip_id,driver_id FROM dispatch_admin_notifications'),
+        db.query('SELECT trip_id FROM dispatch_trip_audit')
+      ]);
+      const driverIds=drivers.rows.map(r=>String(r.id));
+      const tripIds=trips.rows.map(r=>String(r.id));
+      res.set('Cache-Control','no-store').json({
+        mode:'read_only',
+        backupVerified:false,
+        deletionEnabled:false,
+        counts:{drivers:driverIds.length,trips:tripIds.length,notifications:notifications.rowCount,audit:audit.rowCount},
+        drivers:drivers.rows.map(r=>({id:r.id,displayName:r.display_name,active:r.active})),
+        trips:trips.rows.map(r=>({id:r.id,driverId:r.driver_id,status:r.status})),
+        warning:'Preview only. Confirm every record is test data and verify a restorable backup before any deletion.'
+      });
+    }catch(e){next(e)}
+  });
   // Admin-only driver enrollment; only a salted hash of the four-digit PIN is stored.
   router.post('/admin/drivers',requireAdmin,async(req,res,next)=>{
     try {
