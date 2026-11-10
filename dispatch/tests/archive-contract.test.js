@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const router=fs.readFileSync(path.join(__dirname,'../router.js'),'utf8');
 const panel=fs.readFileSync(path.join(__dirname,'../private-panel.html'),'utf8');
-const migration=fs.readFileSync(path.join(__dirname,'../migrations/004-trip-archiving.sql'),'utf8');
+const migration=fs.readFileSync(path.join(__dirname,'../migrations/005-trip-archiving.sql'),'utf8');
 
 test('archive operation requires admin authentication and explicit confirmation',()=>{
   assert.match(router,/router\.post\('\/admin\/trips\/archive-completed',requireAdmin/);
