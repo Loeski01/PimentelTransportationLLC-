@@ -21,7 +21,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips WHERE archived_at IS NULL ORDER BY pickup_at DESC LIMIT 100");
       res.json(q.rows);
     } catch(e){next(e)}
   });
@@ -114,6 +114,21 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       const q=await updateAndAudit("UPDATE dispatch_trips SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status IN ('pending','approved','assigned','accepted') RETURNING id,status",[req.params.id], 'admin', req.session?.userId||'admin', 'cancelled');
       if(!q.rowCount)return res.status(409).json({error:'Trip cannot be cancelled in current state'});
       res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
+  // Archived trips are retained for billing, audit and dispute resolution.
+  router.get('/admin/trips/archived',requireAdmin,async(req,res,next)=>{
+    try{
+      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,driver_id,status,archived_at FROM dispatch_trips WHERE archived_at IS NOT NULL ORDER BY archived_at DESC LIMIT 100");
+      res.set('Cache-Control','no-store').json(q.rows);
+    }catch(e){next(e)}
+  });
+  // Only completed trips are eligible; never archives pending or active work.
+  router.post('/admin/trips/archive-completed',requireAdmin,async(req,res,next)=>{
+    try{
+      if(req.body?.confirm!==true)return res.status(400).json({error:'Explicit archive confirmation required'});
+      const q=await db.query("UPDATE dispatch_trips SET archived_at=NOW() WHERE status='completed' AND archived_at IS NULL RETURNING id");
+      res.set('Cache-Control','no-store').json({archivedCount:q.rowCount,tripIds:q.rows.map(row=>row.id)});
     }catch(e){next(e)}
   });
   router.get('/admin/trips/:id/history',requireAdmin,async(req,res,next)=>{
