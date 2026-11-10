@@ -65,6 +65,11 @@ async function startDispatch(){
   // Existing staging databases need this idempotent schema upgrade: CREATE TABLE IF NOT EXISTS does not add columns.
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS on_my_way_at TIMESTAMPTZ');
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS passenger_phone TEXT');
+  // Explicit opt-in: only apply archiving after a verified restorable backup.
+  if(process.env.DISPATCH_ENABLE_TRIP_ARCHIVING==='true'){
+   const archiveMigration=fs.readFileSync(path.join(__dirname,'migrations/005-trip-archiving.sql'),'utf8');
+   await client.query(archiveMigration);
+  }
   await client.query('COMMIT');
   console.info('Dispatch startup: schema initialization complete');
  }catch(err){await client.query('ROLLBACK');throw err}

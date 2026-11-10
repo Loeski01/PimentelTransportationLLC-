@@ -21,9 +21,31 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips WHERE archived_at IS NULL ORDER BY pickup_at DESC LIMIT 100");
       res.json(q.rows);
     } catch(e){next(e)}
+  });
+  // Read-only preview: never deletes or changes dispatch records.
+  // This route deliberately returns only counts and IDs, not passenger details or PIN hashes.
+  router.get('/admin/test-cleanup-preview',requireAdmin,async(req,res,next)=>{
+    try{
+      const [drivers,trips,notifications,audit]=await Promise.all([
+        db.query('SELECT id,display_name,active FROM dispatch_drivers ORDER BY id'),
+        db.query('SELECT id,driver_id,status FROM dispatch_trips ORDER BY id'),
+        db.query('SELECT trip_id,driver_id FROM dispatch_admin_notifications'),
+        db.query('SELECT trip_id FROM dispatch_trip_audit')
+      ]);
+      // Inventory is read-only; IDs are returned only to the authenticated administrator.
+      res.set('Cache-Control','no-store').json({
+        mode:'read_only',
+        backupVerified:false,
+        deletionEnabled:false,
+        counts:{drivers:drivers.rowCount,trips:trips.rowCount,notifications:notifications.rowCount,audit:audit.rowCount},
+        drivers:drivers.rows.map(r=>({id:r.id,displayName:r.display_name,active:r.active})),
+        trips:trips.rows.map(r=>({id:r.id,driverId:r.driver_id,status:r.status})),
+        warning:'Preview only. Confirm every record is test data and verify a restorable backup before any deletion.'
+      });
+    }catch(e){next(e)}
   });
   // Admin-only driver enrollment; only a salted hash of the four-digit PIN is stored.
   router.post('/admin/drivers',requireAdmin,async(req,res,next)=>{
@@ -92,6 +114,21 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       const q=await updateAndAudit("UPDATE dispatch_trips SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status IN ('pending','approved','assigned','accepted') RETURNING id,status",[req.params.id], 'admin', req.session?.userId||'admin', 'cancelled');
       if(!q.rowCount)return res.status(409).json({error:'Trip cannot be cancelled in current state'});
       res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
+  // Archived trips are retained for billing, audit and dispute resolution.
+  router.get('/admin/trips/archived',requireAdmin,async(req,res,next)=>{
+    try{
+      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,driver_id,status,archived_at FROM dispatch_trips WHERE archived_at IS NOT NULL ORDER BY archived_at DESC LIMIT 100");
+      res.set('Cache-Control','no-store').json(q.rows);
+    }catch(e){next(e)}
+  });
+  // Only completed trips are eligible; never archives pending or active work.
+  router.post('/admin/trips/archive-completed',requireAdmin,async(req,res,next)=>{
+    try{
+      if(req.body?.confirm!==true)return res.status(400).json({error:'Explicit archive confirmation required'});
+      const q=await db.query("UPDATE dispatch_trips SET archived_at=NOW() WHERE status='completed' AND archived_at IS NULL RETURNING id");
+      res.set('Cache-Control','no-store').json({archivedCount:q.rowCount,tripIds:q.rows.map(row=>row.id)});
     }catch(e){next(e)}
   });
   router.get('/admin/trips/:id/history',requireAdmin,async(req,res,next)=>{

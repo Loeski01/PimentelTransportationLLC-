@@ -1,0 +1,42 @@
+name: Dispatch cleanup preview checks
+on:
+  push:
+    branches:
+      - feature/dispatch-test-cleanup-preview-20261109
+  pull_request:
+    paths:
+      - 'dispatch/**'
+      - '.github/workflows/dispatch-cleanup-preview.yml'
+permissions:
+  contents: read
+jobs:
+  dispatch-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dispatch_test
+          POSTGRES_PASSWORD: isolated_test_only
+          POSTGRES_DB: dispatch_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dispatch_test -d dispatch_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: dispatch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - name: Verify archiving on disposable PostgreSQL
+        env:
+          DISPATCH_STAGING_DATABASE_URL: postgresql://dispatch_test:isolated_test_only@localhost:5432/dispatch_test
+        run: node scripts/verify-archive-postgres.js
