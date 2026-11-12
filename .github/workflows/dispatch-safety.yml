@@ -1,0 +1,25 @@
+name: Dispatch safety checks
+on:
+  pull_request:
+    paths:
+      - 'dispatch/**'
+      - '.github/workflows/dispatch-safety.yml'
+  push:
+    branches:
+      - 'feature/dispatch-cleanup-preflight-20261111'
+    paths:
+      - 'dispatch/**'
+      - '.github/workflows/dispatch-safety.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dispatch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
