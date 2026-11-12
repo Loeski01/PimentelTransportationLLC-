@@ -25,6 +25,33 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows);
     } catch(e){next(e)}
   });
+  // Administrator-only completed-trip cleanup; disabled until backup restoration is verified.
+  router.get('/admin/trips/completed-cleanup-preview',requireAdmin,async(req,res,next)=>{
+    try{
+      const q=await db.query("SELECT id FROM dispatch_trips WHERE status='completed' ORDER BY id");
+      res.set('Cache-Control','no-store').json({count:q.rowCount,ids:q.rows.map(r=>String(r.id)),enabled:process.env.DISPATCH_COMPLETED_DELETE_ENABLED==='yes'});
+    }catch(e){next(e)}
+  });
+  router.post('/admin/trips/completed-cleanup',requireAdmin,async(req,res,next)=>{
+    if(process.env.DISPATCH_COMPLETED_DELETE_ENABLED!=='yes')return res.status(403).json({error:'Cleanup disabled until verified backup restore'});
+    const ids=req.body?.ids;
+    if(!Array.isArray(ids)||!ids.length||ids.length>10000||ids.some(x=>typeof x!=='string'||!/^[1-9][0-9]*$/.test(x))||new Set(ids).size!==ids.length)return res.status(400).json({error:'Invalid completed trip selection'});
+    const client=await db.connect();
+    try{
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(76340211)");
+      const q=await client.query("SELECT id FROM dispatch_trips WHERE status='completed' ORDER BY id FOR UPDATE");
+      const actual=q.rows.map(r=>String(r.id));
+      if(actual.length!==ids.length||actual.some((id,i)=>id!==ids[i])){await client.query('ROLLBACK');return res.status(409).json({error:'Completed trips changed; refresh and confirm again'});}
+      await client.query('DELETE FROM dispatch_admin_notifications WHERE trip_id=ANY($1::bigint[])',[ids]);
+      await client.query('DELETE FROM dispatch_trip_audit WHERE trip_id=ANY($1::bigint[])',[ids]);
+      const deleted=await client.query("DELETE FROM dispatch_trips WHERE status='completed' AND id=ANY($1::bigint[])",[ids]);
+      if(deleted.rowCount!==ids.length)throw Error('Cleanup count mismatch');
+      await client.query('COMMIT');
+      res.set('Cache-Control','no-store').json({deletedTrips:deleted.rowCount});
+    }catch(e){await client.query('ROLLBACK').catch(()=>{});next(e)}
+    finally{client.release()}
+  });
   // Admin-only driver enrollment; only a salted hash of the four-digit PIN is stored.
   router.post('/admin/drivers',requireAdmin,async(req,res,next)=>{
     try {
