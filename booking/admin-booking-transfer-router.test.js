@@ -20,6 +20,10 @@ function dbFactory(state='received'){
    return {rowCount:1,rows:[{reference:ref,status,dispatch_trip_id:dispatchId}]};
   if(sql.startsWith('SELECT reference, passenger_name'))
    return {rowCount:1,rows:[{...booking,status}]};
+  if(sql.startsWith('UPDATE')&&sql.includes("last_transfer_error='Rejected by dispatch'")){
+   if(status!=='transferring')return {rowCount:0,rows:[]};
+   status='received';return {rowCount:1,rows:[{reference:ref,status}]};
+  }
   if(sql.startsWith('UPDATE')&&sql.includes("status='transferred'")){
    if(status!=='transferring')return {rowCount:0,rows:[]};
    status='transferred';dispatchId=values[1];
@@ -86,4 +90,24 @@ test('network timeout does not reset transfer state for blind resend',async()=>{
   const two=await fetch(url,{method:'POST'});assert.equal(two.status,409);
   assert.equal(sends,1);
  });
+});
+
+test('invalid stored pickup time is rejected locally and claim safely reset',async()=>{
+ const db=dbFactory();let sends=0;
+ // A synthetic malformed local time is injected into the selected database row.
+ const original=db.query;
+ db.query=async(sql,params)=>{
+  const result=await original(sql,params);
+  if(sql.startsWith('SELECT reference, passenger_name'))
+   return {rowCount:1,rows:[{...booking,status:'transferring',pickup_local_time:'25:99:00'}]};
+  return result;
+ };
+ await withServer({db,auth:true,send:async()=>{sends++;return {id:11,status:'pending'}}},async base=>{
+  const res=await fetch(base+'/admin/booking/'+ref+'/send-to-dispatch',{method:'POST'});
+  assert.equal(res.status,422);
+  assert.equal(sends,0);
+  const retry=await fetch(base+'/admin/booking/'+ref+'/send-to-dispatch',{method:'POST'});
+  assert.equal(retry.status,422);
+ });
+ assert.ok(db.calls.some(sql=>sql.includes("last_transfer_error='Rejected by dispatch'")));
 });
