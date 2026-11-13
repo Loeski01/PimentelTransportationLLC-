@@ -50,3 +50,26 @@ test('audit failure rolls back trip creation and releases connection',async()=>{
  assert.ok(!calls.includes('COMMIT'));
  assert.equal(calls.at(-1),'RELEASE');
 });
+
+test('import does not copy fare, contact details or assign a driver',async()=>{
+ const db=fakePool();
+ await createPendingTripFromBooking(db,{...payload,passenger_phone:'6175550100',passenger_email:'test@example.com',fare_cents:9900,driver_id:8});
+ const insert=db.calls.find(c=>c.sql.startsWith('INSERT INTO dispatch_trips'));
+ assert.ok(insert);
+ assert.ok(!/fare_cents|passenger_phone|passenger_email|driver_id/.test(insert.sql));
+ assert.equal(insert.params.length,5);
+ assert.equal(db.calls.filter(c=>c.sql==='COMMIT').length,1);
+});
+test('unresolved duplicate reference rolls back instead of inventing a trip',async()=>{
+ const calls=[];
+ const client={query:async(sql)=>{
+  calls.push(sql);
+  if(sql.startsWith('INSERT INTO dispatch_trips'))return {rowCount:0,rows:[]};
+  if(sql.startsWith('SELECT id,status'))return {rowCount:0,rows:[]};
+  return {rowCount:1,rows:[]};
+ },release:()=>calls.push('RELEASE')};
+ await assert.rejects(createPendingTripFromBooking({connect:async()=>client},payload),/conflict not resolved/);
+ assert.ok(calls.includes('ROLLBACK'));
+ assert.ok(!calls.includes('COMMIT'));
+ assert.equal(calls.at(-1),'RELEASE');
+});
