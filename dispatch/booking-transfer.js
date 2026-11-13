@@ -6,7 +6,7 @@ async function createPendingTripFromBooking(db, payload) {
  const {booking_reference, passenger_surname, pickup_address, destination_address, pickup_at}=payload||{};
  if(typeof booking_reference!=='string'||!/^PT-[A-Z0-9-]{4,64}$/.test(booking_reference)||
     ![passenger_surname,pickup_address,destination_address].every(s=>typeof s==='string'&&s.trim().length>0&&s.length<=250)||
-    typeof pickup_at!=='string'||!/(?:Z|[+-]\\d{2}:\\d{2})$/.test(pickup_at)||!Number.isFinite(Date.parse(pickup_at)))
+    typeof pickup_at!=='string'||!/(?:Z|[+-]\d{2}:\d{2})$/.test(pickup_at)||!Number.isFinite(Date.parse(pickup_at)))
    throw new TypeError('Invalid transfer payload');
  const client=await db.connect();
  try {
