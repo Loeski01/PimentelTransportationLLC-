@@ -1,0 +1,27 @@
+name: Booking to dispatch staging unit tests
+on:
+  push:
+    branches:
+      - feature/booking-dispatch-integration-20261112
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check integration JavaScript syntax
+        run: |
+          node --check dispatch/booking-transfer.js
+          node --check dispatch/booking-import-router.js
+          node --check dispatch/service-auth.js
+          node --check booking/transfer-state.js
+      - name: Run isolated transfer and authentication tests
+        run: |
+          node --test dispatch/booking-transfer.test.js dispatch/service-auth.test.js booking/transfer-state.test.js
+# No deploy or database migration. This workflow does not use production secrets.
