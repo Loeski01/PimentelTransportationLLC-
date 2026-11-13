@@ -41,3 +41,22 @@ test('invalid booking reference rejected before fetch',async()=>{
  await assert.rejects(send({...payload,booking_reference:'invalid'}),/Valid booking/);
  assert.equal(count,0);
 });
+
+test('rejects embedded credentials, URL parameters and non-root paths',()=>{
+ for(const baseUrl of [
+  'https://user:pass@pimentel-dispatch-oregon-staging.onrender.com/',
+  'https://pimentel-dispatch-oregon-staging.onrender.com/?token=secret',
+  'https://pimentel-dispatch-oregon-staging.onrender.com/other',
+  'https://pimentel-dispatch-oregon-staging.onrender.com/#fragment'
+ ])assert.throws(()=>createDispatchSender({...opts,baseUrl}),/HTTPS/);
+});
+test('network timeout or transport failure does not retry automatically',async()=>{
+ let calls=0;
+ const send=createDispatchSender({...opts,fetchImpl:async()=>{calls++;throw new Error('network timeout')}});
+ await assert.rejects(send(payload),/network timeout/);
+ assert.equal(calls,1);
+});
+test('invalid transport configuration rejected before sending',()=>{
+ assert.throws(()=>createDispatchSender({...opts,timeoutMs:0}),/transport/);
+ assert.throws(()=>createDispatchSender({...opts,timeoutMs:30001}),/transport/);
+});
