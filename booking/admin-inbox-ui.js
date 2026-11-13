@@ -44,8 +44,8 @@ if(typeof window!=='undefined'){
       headers:{'Content-Type':'application/json'}
      });
      if(!result.ok)throw new Error('Transferencia no confirmada ('+result.status+'). No repitas el envío sin revisar el estado.');
-     message('Transferencia registrada. El viaje queda pendiente de aprobación.');
      await load();
+     message('Transferencia registrada. El viaje queda pendiente de aprobación.');
     }catch(error){message(error.message);button.disabled=true;}
    });
    card.append(button);list.append(card);
