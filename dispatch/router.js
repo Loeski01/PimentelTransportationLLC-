@@ -86,6 +86,17 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       res.json(q.rows[0]);
     }catch(e){next(e)}
   });
+  // Restore an existing driver without changing their PIN or prior trip history.
+  router.post('/admin/drivers/:id/activate',requireAdmin,async(req,res,next)=>{
+    try {
+      if(!/^[1-9][0-9]*$/.test(req.params.id))return res.status(400).json({error:'Invalid driver ID'});
+      const q=await db.query('UPDATE dispatch_drivers SET active=TRUE WHERE id=$1 AND active=FALSE RETURNING id,display_name,active',[req.params.id]);
+      if(q.rowCount)return res.set('Cache-Control','no-store').json(q.rows[0]);
+      const existing=await db.query('SELECT id,display_name,active FROM dispatch_drivers WHERE id=$1',[req.params.id]);
+      if(!existing.rowCount)return res.status(404).json({error:'Driver not found'});
+      return res.status(409).json({error:'Driver is already active'});
+    }catch(e){next(e)}
+  });
   router.get('/admin/drivers',requireAdmin,async(req,res,next)=>{
     try {
       const q=await db.query("SELECT id,display_name,active FROM dispatch_drivers ORDER BY display_name");
