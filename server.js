@@ -210,6 +210,28 @@ const bookingDb = bookingPersistenceEnabled && process.env.BOOKING_DATABASE_URL
   ? new (require("pg").Pool)({ connectionString: process.env.BOOKING_DATABASE_URL, max: 3, connectionTimeoutMillis: 5000 })
   : null;
 const saveStagingBooking = bookingDb ? require("./booking/booking-inbox").saveBookingRequest : null;
+// Readiness reports real PostgreSQL connectivity and required schema, never credentials or PII.
+if (process.env.NODE_ENV !== "production") {
+  app.get("/api/booking-readiness", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    if (!bookingPersistenceEnabled || !bookingDb)
+      return res.status(503).json({ ready: false, database: "not-configured" });
+    try {
+      const result = await bookingDb.query(`SELECT
+        to_regclass('public.booking_requests') IS NOT NULL AS booking_table,
+        to_regclass('public.dispatch_trips') IS NOT NULL AS dispatch_table,
+        EXISTS(SELECT 1 FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='dispatch_trips'
+          AND column_name='booking_reference') AS booking_reference`);
+      const checks = result.rows[0];
+      const ready = Object.values(checks).every(Boolean);
+      return res.status(ready ? 200 : 503).json({ ready, database: "connected", schema: checks });
+    } catch (error) {
+      console.error("Booking readiness check failed:", error.code || error.name);
+      return res.status(503).json({ ready: false, database: "unavailable" });
+    }
+  });
+}
 const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
