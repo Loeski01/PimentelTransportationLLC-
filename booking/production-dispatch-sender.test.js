@@ -13,10 +13,16 @@ test('forwards only valid booking reference to dedicated intake',async()=>{
  let called=false;
  const send=createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret,enabled:true,fetchImpl:async(url,options)=>{
  called=true;assert.equal(url,'https://dispatch.onrender.com/booking/intake');assert.equal(options.headers['X-Booking-Service-Key'],secret);
- return {ok:true,json:async()=>({received:true})};
+ return {ok:true,json:async()=>({stored:true,reference:'PT-ABC1234'})};
  }});
  await assert.rejects(send({reference:'bad'}),/reference/);
  assert.equal(called,false);
- assert.deepEqual(await send({reference:'PT-ABC1234'}),{received:true});
+ assert.deepEqual(await send({reference:'PT-ABC1234'}),{stored:true,reference:'PT-ABC1234'});
  assert.equal(called,true);
+});
+
+test('rejects mismatched dispatch acknowledgement',async()=>{
+ const send=createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret,enabled:true,
+  fetchImpl:async()=>({ok:true,json:async()=>({stored:true,reference:'PT-OTHER'})})});
+ await assert.rejects(send({reference:'PT-ABC1234'}),/acknowledgement mismatch/);
 });
