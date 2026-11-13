@@ -204,6 +204,12 @@ async function sendBookingEmail({to, subject, text, replyTo}) {
     clearTimeout(timeout);
   }
 }
+// Booking persistence is opt-in and staging-only. Never mount on the public production server.
+const bookingPersistenceEnabled = process.env.BOOKING_PERSISTENCE_STAGING_ENABLED === "true" && process.env.NODE_ENV !== "production";
+const bookingDb = bookingPersistenceEnabled && process.env.BOOKING_DATABASE_URL
+  ? new (require("pg").Pool)({ connectionString: process.env.BOOKING_DATABASE_URL, max: 3, connectionTimeoutMillis: 5000 })
+  : null;
+const saveStagingBooking = bookingDb ? require("./booking/booking-inbox").saveBookingRequest : null;
 const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
@@ -237,6 +243,13 @@ app.post("/api/booking-request", async (req, res) => {
     const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
     const dollars = cents => "$" + (cents / 100).toFixed(2);
     const reference = "PT-" + Date.now().toString(36).toUpperCase();
+    if (bookingPersistenceEnabled) {
+      if (!bookingDb) return res.status(503).json({ error: "La base de reservas de prueba no está configurada." });
+      await saveStagingBooking(bookingDb, {
+        reference, name, phone, email, from, to, date, time, passengers,
+        payment, tier, fareCents: fare.amount, tipCents: tip, details
+      });
+    }
     const summary = [
       "Solicitud: " + reference, "Nombre: " + name, "Correo: " + email,
       "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
