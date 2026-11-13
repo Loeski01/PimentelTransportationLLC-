@@ -25,7 +25,14 @@ function createAdminBookingTransferRouter({db,requireAdmin,sendToDispatch,timeZo
    // Query only the claimed row. This route never exposes PII in its HTTP response.
    const fetched=await db.query(getBookingForTransferSQL, [reference]);
    if(fetched.rowCount!==1)throw new Error('Claimed booking record missing');
-   const payload=inboxRowToDispatch(fetched.rows[0],timeZone);
+   let payload;
+   try {
+    payload=inboxRowToDispatch(fetched.rows[0],timeZone);
+   }catch(validationError){
+    // Local validation failed before contacting dispatch. Safe to reset for correction.
+    await markBookingRejectedBeforeCommit(db,reference);
+    return res.status(422).json({error:'Booking data needs correction before transfer'});
+   }
    // sendToDispatch must be a server-side authenticated client, not browser fetch.
    // Throws on timeout or unknown result; leave status transferring for reconciliation.
    const result=await sendToDispatch(payload);
