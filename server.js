@@ -211,7 +211,7 @@ const bookingDb = bookingPersistenceEnabled && process.env.BOOKING_DATABASE_URL
   : null;
 const saveStagingBooking = bookingDb ? require("./booking/booking-inbox").saveBookingRequest : null;
 // Readiness reports real PostgreSQL connectivity and required schema, never credentials or PII.
-if (process.env.NODE_ENV !== "production") {
+{
   app.get("/api/booking-readiness", async (req, res) => {
     res.set("Cache-Control", "no-store");
     if (!bookingPersistenceEnabled || !bookingDb)
