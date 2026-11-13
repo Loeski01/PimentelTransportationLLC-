@@ -28,6 +28,16 @@ const loginLimiter=rateLimit({windowMs:900000,limit:5,standardHeaders:'draft-7',
 app.use('/auth/login',loginLimiter);
 app.use('/auth',createLoginRouter({db,checkAdminPassword,rotateSession}));
 const role=expected=>async(req,res,next)=>{try{if(!req.session?.userId||req.session.role!==expected)return res.sendStatus(403);if(expected==='driver'){const q=await db.query('SELECT id FROM dispatch_drivers WHERE id=$1 AND active=TRUE',[req.session.userId]);if(!q.rowCount)return res.sendStatus(403);req.driver={id:req.session.userId}}next()}catch(e){next(e)}};
+// Booking import is opt-in for isolated staging only. Never enable before
+// applying and verifying the booking-reference migration on staging DB.
+if(process.env.BOOKING_IMPORT_STAGING_ENABLED==='true') {
+ if(process.env.NODE_ENV==='production')throw Error('Booking import staging route cannot run in production');
+ const {createServiceAuth}=require('./service-auth');
+ const {createBookingImportRouter}=require('./booking-import-router');
+ app.use('/dispatch/booking',createBookingImportRouter({
+  db,requireServiceAuth:createServiceAuth(process.env.BOOKING_SERVICE_SECRET)
+ }));
+}
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
 if(require.main===module)app.listen(Number(process.env.PORT)||3100);
