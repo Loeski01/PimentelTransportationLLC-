@@ -23,6 +23,8 @@ jobs:
       - name: Check integration JavaScript syntax
         run: |
           node --check server.js
+          node --check scripts/apply-staging-booking-migrations.js
+          node --check scripts/verify-internal-booking-schema.js
           node --check dispatch/booking-transfer.js
           node --check dispatch/booking-import-router.js
           node --check dispatch/booking-import-router.integration.test.js
