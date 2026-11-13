@@ -50,8 +50,25 @@ function router({db,secret,requireAdmin}){
    if(b.status!=='received'){await client.query('ROLLBACK');return res.status(409).json({error:'Not transferable'})}
    const localDate=b.pickup_local_date instanceof Date?b.pickup_local_date.toISOString().slice(0,10):String(b.pickup_local_date).slice(0,10);
    const localTime=String(b.pickup_local_time).slice(0,8);
-   const dt=new Date(localDate+'T'+localTime+'-05:00');
-   if(!Number.isFinite(dt.getTime()))throw Error('Invalid pickup time');
+   // Resolve Boston wall-clock time using America/New_York, including daylight saving.
+   // Reject nonexistent spring-forward times rather than silently shifting a pickup.
+   const parts=/^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(localDate);
+   const clock=/^(\\d{2}):(\\d{2})(?::(\\d{2}))?$/.exec(localTime);
+   if(!parts||!clock)throw Error('Invalid pickup time');
+   const y=Number(parts[1]),m=Number(parts[2]),d=Number(parts[3]);
+   const hh=Number(clock[1]),mm=Number(clock[2]),ss=Number(clock[3]||0);
+   const wall=Date.UTC(y,m-1,d,hh,mm,ss);
+   const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',
+     year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+   const matches=[];
+   for(const hours of [4,5]){
+     const candidate=new Date(wall+hours*3600000);
+     const fields=Object.fromEntries(fmt.formatToParts(candidate).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
+     if(fields.year===y&&fields.month===m&&fields.day===d&&fields.hour===hh&&fields.minute===mm&&fields.second===ss)
+       matches.push(candidate);
+   }
+   if(!matches.length)throw Error('Invalid or nonexistent Boston pickup time');
+   const dt=matches[0];
    const surname=b.passenger_name.trim().split(/\s+/).slice(-1)[0];
    const inserted=await client.query(`INSERT INTO dispatch_trips
     (booking_reference,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,fare_cents,status)
