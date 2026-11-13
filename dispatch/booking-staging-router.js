@@ -52,8 +52,8 @@ function router({db,secret,requireAdmin}){
    const localTime=String(b.pickup_local_time).slice(0,8);
    // Resolve Boston wall-clock time using America/New_York, including daylight saving.
    // Reject nonexistent spring-forward times rather than silently shifting a pickup.
-   const parts=/^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(localDate);
-   const clock=/^(\\d{2}):(\\d{2})(?::(\\d{2}))?$/.exec(localTime);
+   const parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
+   const clock=/^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(localTime);
    if(!parts||!clock)throw Error('Invalid pickup time');
    const y=Number(parts[1]),m=Number(parts[2]),d=Number(parts[3]);
    const hh=Number(clock[1]),mm=Number(clock[2]),ss=Number(clock[3]||0);
