@@ -345,8 +345,8 @@ form.onsubmit=async e=>{e.preventDefault();button.disabled=true;message.textCont
   const allowed=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
   if(!allowed(b.name,100)||!allowed(b.phone,40)||!allowed(b.email,254)||
     !allowed(b.from,200)||!allowed(b.to,200)||
-    !/^\\d{4}-\\d{2}-\\d{2}$/.test(b.date||'')||
-    !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(b.time||''))
+    !/^\d{4}-\d{2}-\d{2}$/.test(b.date||'')||
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time||''))
     return res.status(400).json({error:'Datos de prueba incompletos'});
   if(!/prueba/i.test(b.name)||b.email!=='prueba@example.com'||b.phone!=='+16175550123')
     return res.status(400).json({error:'Utiliza únicamente los datos ficticios de prueba'});
