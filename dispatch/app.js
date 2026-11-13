@@ -50,6 +50,12 @@ const loginLimiter=rateLimit({windowMs:900000,limit:5,standardHeaders:'draft-7',
 app.use('/auth/login',loginLimiter);
 app.use('/auth',createLoginRouter({db,checkAdminPassword,rotateSession}));
 const role=expected=>async(req,res,next)=>{try{if(!req.session?.userId||req.session.role!==expected)return res.sendStatus(403);if(expected==='driver'){const q=await db.query('SELECT id FROM dispatch_drivers WHERE id=$1 AND active=TRUE',[req.session.userId]);if(!q.rowCount)return res.sendStatus(403);req.driver={id:req.session.userId}}next()}catch(e){next(e)}};
+if(process.env.BOOKING_INTAKE_STAGING_ENABLED==='true'){
+ if(process.env.BOOKING_SCHEMA_STAGING_ENABLED!=='true')throw Error('Booking schema must be enabled');
+ const {router}=require('./booking-staging-router');
+ app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin')}));
+ app.get('/booking-admin',role('admin'),(req,res)=>res.sendFile(require('node:path').join(__dirname,'booking-admin.html')));
+}
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
 async function startDispatch(){
