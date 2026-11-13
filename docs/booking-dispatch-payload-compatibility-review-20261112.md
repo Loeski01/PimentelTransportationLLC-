@@ -26,3 +26,11 @@ The booking endpoint currently supplies local date and local time separately, wh
 
 ## Current state
 This review is based on the checked-in source files. No Render service was reconfigured, no database migration was applied, no credentials were changed, and no production booking/payment code was modified.
+
+
+## Adapter implementation added
+- Added `booking/booking-to-dispatch.js`, an allowlisted mapper that passes only booking reference, passenger surname, pickup/destination, and timezone-normalized pickup instant to dispatch.
+- It requires an explicit IANA timezone. For the Boston operating area, `America/New_York` is the intended configuration; the code does not silently default it.
+- It rejects invalid dates, nonexistent spring-forward times, and ambiguous fall-back times rather than guessing.
+- Added tests for the field allowlist, Eastern conversion, and daylight-saving edge cases; included them in the staging CI workflow.
+- These tests have not yet produced a confirmed CI run. No Render database or service was changed.
