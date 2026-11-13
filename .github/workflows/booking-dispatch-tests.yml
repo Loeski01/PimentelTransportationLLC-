@@ -36,5 +36,5 @@ jobs:
           node --check booking/admin-inbox-ui.js
       - name: Run isolated transfer and authentication tests
         run: |
-          node --test dispatch/booking-transfer.test.js dispatch/service-auth.test.js booking/transfer-state.test.js booking/booking-to-dispatch.test.js booking/booking-inbox.test.js booking/booking-request-mapper.test.js booking/inbox-row-to-dispatch.test.js booking/booking-transfer-lifecycle.test.js booking/admin-booking-transfer-router.test.js booking/dispatch-sender.test.js booking/admin-inbox-ui.test.js
+          node --test dispatch/booking-transfer.test.js dispatch/service-auth.test.js booking/transfer-state.test.js booking/booking-to-dispatch.test.js booking/booking-inbox.test.js booking/booking-request-mapper.integration.test.js booking/inbox-row-to-dispatch.test.js booking/booking-transfer-lifecycle.test.js booking/admin-booking-transfer-router.test.js booking/dispatch-sender.test.js booking/admin-inbox-ui.test.js
 # No deploy or database migration. This workflow does not use production secrets.
