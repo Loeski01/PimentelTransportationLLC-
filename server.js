@@ -323,6 +323,51 @@ app.post("/api/booking-request", async (req, res) => {
   }
 });
 
+
+/* Private staging workflow test. Never mounted on the public production branch. */
+if(process.env.BOOKING_FORWARD_STAGING_ENABLED==='true' &&
+   process.env.RENDER_SERVICE_NAME==='pimentel-booking-integration-staging'){
+ app.get('/staging-booking',(req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.type('html').send(`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reserva de prueba Pimentel</title><style>body{background:#111;color:#eee;font:16px system-ui;max-width:650px;margin:auto;padding:22px}h1{color:#e4bf65}label{display:block;margin:14px 0}input{display:block;width:100%;box-sizing:border-box;padding:13px;font:inherit}button{padding:15px;background:#e4bf65;border:0;border-radius:8px;font-weight:bold}#message{white-space:pre-wrap}</style><h1>Pimentel · Reserva de prueba</h1><p>Solo pruebas. No se realiza cobro ni se envían correos a clientes.</p><form id="form"><label>Nombre ficticio<input name="name" required value="Prueba Pimentel"></label><label>Teléfono ficticio<input name="phone" required value="+16175550123"></label><label>Correo ficticio<input name="email" type="email" required value="prueba@example.com"></label><label>Recogida<input name="from" required value="Boston Logan Airport, MA"></label><label>Destino<input name="to" required value="Cambridge, MA"></label><label>Fecha<input name="date" type="date" required></label><label>Hora<input name="time" type="time" required value="14:00"></label><button id="send">Enviar reserva de prueba</button></form><p id="message"></p><script>
+const form=document.getElementById('form'),message=document.getElementById('message'),button=document.getElementById('send');
+form.onsubmit=async e=>{e.preventDefault();button.disabled=true;message.textContent='Enviando...';try{
+ const b=Object.fromEntries(new FormData(form));
+ const r=await fetch('/api/staging-booking-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+ const v=await r.json();if(!r.ok)throw Error(v.error||'Error '+r.status);
+ message.textContent='Reserva de prueba guardada: '+v.reference+'. Ahora abre el buzón de administrador y pulsa Actualizar.';
+}catch(e){message.textContent=e.message}finally{button.disabled=false}};
+<\/script></html>`);
+ });
+ app.post('/api/staging-booking-request',async(req,res)=>{
+  res.set('Cache-Control','no-store');
+  const b=req.body||{};
+  const allowed=(v,max)=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
+  if(!allowed(b.name,100)||!allowed(b.phone,40)||!allowed(b.email,254)||
+    !allowed(b.from,200)||!allowed(b.to,200)||
+    !/^\\d{4}-\\d{2}-\\d{2}$/.test(b.date||'')||
+    !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(b.time||''))
+    return res.status(400).json({error:'Datos de prueba incompletos'});
+  if(!/prueba/i.test(b.name)||b.email!=='prueba@example.com'||b.phone!=='+16175550123')
+    return res.status(400).json({error:'Utiliza únicamente los datos ficticios de prueba'});
+  const secret=process.env.BOOKING_SERVICE_SECRET;
+  if(!secret||Buffer.byteLength(secret)<32)return res.status(503).json({error:'Conexión de pruebas no configurada'});
+  try{
+   const fare=await calculateFare(b.from.trim(),b.to.trim(),'luxury');
+   const reference='PT-TEST-'+require('node:crypto').randomBytes(6).toString('hex').toUpperCase();
+   const response=await fetch('https://pimentel-dispatch-oregon-staging.onrender.com/booking-staging/intake',{
+    method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),
+    headers:{'Content-Type':'application/json','X-Booking-Service-Key':secret},
+    body:JSON.stringify({reference,name:b.name,phone:b.phone,email:b.email,from:b.from,to:b.to,
+     date:b.date,time:b.time,passengers:'1',payment:'later',tier:'luxury',
+     fareCents:fare.amount,tipCents:0,details:'STAGING TEST ONLY'})
+   });
+   if(!response.ok)throw Error('Intake '+response.status);
+   res.status(201).json({reference,received:true});
+  }catch(e){console.error('Staging test booking failed:',e.code||e.name);res.status(502).json({error:'No se pudo guardar la reserva de prueba. No repitas hasta revisar el buzón.'})}
+ });
+}
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
