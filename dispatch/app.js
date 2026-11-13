@@ -54,7 +54,7 @@ if(process.env.BOOKING_INTAKE_STAGING_ENABLED==='true'){
  if(process.env.BOOKING_SCHEMA_STAGING_ENABLED!=='true')throw Error('Booking schema must be enabled');
  const {router}=require('./booking-staging-router');
  app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin')}));
- app.get('/booking-admin',role('admin'),(req,res)=>res.sendFile(require('node:path').join(__dirname,'booking-admin.html')));
+ app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>res.sendFile(require('node:path').join(__dirname,'booking-admin.html')));
 }
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
