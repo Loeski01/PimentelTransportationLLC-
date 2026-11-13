@@ -9,6 +9,19 @@ function createAdminBookingTransferRouter({db,requireAdmin,sendToDispatch,timeZo
     typeof sendToDispatch!=='function'||typeof timeZone!=='string'||!timeZone)
   throw new TypeError('Authenticated staging transfer dependencies required');
  const router=express.Router();
+ // Admin-only inbox: limited, recent items. Never accessible without an admin session.
+ router.get('/',requireAdmin,async(req,res,next)=>{
+  res.set('Cache-Control','no-store');
+  try {
+   const result=await db.query(`SELECT reference,passenger_name,passenger_phone,
+   passenger_email,pickup_address,destination_address,
+   pickup_local_date::text AS pickup_local_date,
+   pickup_local_time::text AS pickup_local_time,
+   passenger_count,service_tier,fare_cents,tip_cents,status,dispatch_trip_id,created_at
+   FROM booking_requests ORDER BY created_at DESC LIMIT 100`);
+   res.json(result.rows);
+  }catch(error){next(error)}
+ });
  router.post('/:reference/send-to-dispatch',requireAdmin,async(req,res,next)=>{
   res.set('Cache-Control','no-store');
   try{
