@@ -86,7 +86,11 @@ async function startDispatch(){
    if(process.env.NODE_ENV!=='production'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true')
     throw Error('Production booking schema isolation failed');
    const database=await client.query('SELECT current_database() AS name');
-   if(/dev|staging|test/i.test(database.rows[0].name))throw Error('Production cannot use a test database');
+   const expectedName=process.env.DISPATCH_PRODUCTION_DATABASE_NAME;
+   if(!expectedName||!/^[a-z][a-z0-9_]{3,62}$/.test(expectedName))
+    throw Error('Explicit production database identity required');
+   if(/dev|staging|test/i.test(database.rows[0].name)||database.rows[0].name!==expectedName)
+    throw Error('Production dispatch database identity mismatch');
    await client.query(`CREATE TABLE IF NOT EXISTS booking_requests (
      id BIGSERIAL PRIMARY KEY, reference TEXT NOT NULL UNIQUE,
      passenger_name TEXT NOT NULL, passenger_phone TEXT NOT NULL,
