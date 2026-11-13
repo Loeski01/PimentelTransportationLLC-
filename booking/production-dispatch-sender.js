@@ -21,7 +21,10 @@ function createProductionDispatchSender({endpoint,secret,enabled=false,fetchImpl
       body:JSON.stringify(booking)
     });
     if(!response.ok) throw new Error('Dispatch intake not acknowledged; reconcile before retry');
-    return response.json();
+    const acknowledgement=await response.json();
+    if(!acknowledgement || acknowledgement.stored!==true || acknowledgement.reference!==booking.reference)
+      throw new Error('Dispatch acknowledgement mismatch; reconcile before retry');
+    return acknowledgement;
   };
 }
 module.exports={createProductionDispatchSender};
