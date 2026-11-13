@@ -272,6 +272,21 @@ app.post("/api/booking-request", async (req, res) => {
         payment, tier, fareCents: fare.amount, tipCents: tip, details
       });
     }
+    // Opt-in staging-only transfer to the private dispatch database.
+    if(process.env.BOOKING_FORWARD_STAGING_ENABLED==='true'){
+      if(process.env.RENDER_SERVICE_NAME!=='pimentel-booking-integration-staging')
+        return res.status(503).json({error:'Staging booking service identity mismatch'});
+      const secret=process.env.BOOKING_SERVICE_SECRET;
+      if(!secret||Buffer.byteLength(secret)<32)
+        return res.status(503).json({error:'Staging booking forwarding not configured'});
+      const response=await fetch('https://pimentel-dispatch-oregon-staging.onrender.com/booking-staging/intake',{
+        method:'POST',redirect:'error',signal:AbortSignal.timeout(12000),
+        headers:{'Content-Type':'application/json','X-Booking-Service-Key':secret},
+        body:JSON.stringify({reference,name,phone,email,from,to,date,time,passengers,
+          payment,tier,fareCents:fare.amount,tipCents:tip,details})
+      });
+      if(!response.ok)throw new Error('Staging dispatch intake rejected request: '+response.status);
+    }
     const summary = [
       "Solicitud: " + reference, "Nombre: " + name, "Correo: " + email,
       "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
