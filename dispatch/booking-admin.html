@@ -1,0 +1,28 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reservas | Pimentel</title><style>body{background:#111;color:#f8f4e8;font:16px system-ui;margin:auto;max-width:780px;padding:24px}h1{color:#d8b45c}.booking{border:1px solid #8c753b;border-radius:12px;padding:16px;margin:14px 0}button,a{background:#d8b45c;color:#111;border:0;border-radius:8px;padding:10px 14px;font-weight:700}button:disabled{opacity:.5}p{overflow-wrap:anywhere}</style><h1>Pimentel · Reservas</h1><p><a href="/panel">Volver a despacho</a> <button id="refresh">Actualizar</button></p><p id="message">Cargando...</p><div id="list"></div><script>
+const list=document.getElementById('list'),message=document.getElementById('message');
+function element(tag,value){const e=document.createElement(tag);e.textContent=String(value??'');return e}
+async function load(){
+ const response=await fetch('/booking-staging/inbox',{credentials:'same-origin',cache:'no-store'});
+ if(response.status===403){message.textContent='Inicia sesión como administrador en el panel.';return}
+ if(!response.ok)throw Error('No se pudieron cargar las reservas ('+response.status+')');
+ const records=await response.json();list.replaceChildren();
+ for(const b of records){
+  const card=element('section','');card.className='booking';
+  card.append(element('h3',b.reference),element('p',b.passenger_name+' · '+b.pickup_local_date+' '+b.pickup_local_time),
+   element('p',b.pickup_address+' → '+b.destination_address),
+   element('p','Tarifa estimada: $'+(b.fare_cents/100).toFixed(2)),
+   element('p','Estado: '+b.status));
+  const button=element('button',b.status==='received'?'Enviar a despacho':'Enviado a despacho');
+  button.disabled=b.status!=='received';
+  button.onclick=async()=>{
+   if(!confirm('¿Enviar '+b.reference+' a despacho?'))return;
+   button.disabled=true;message.textContent='Enviando...';
+   try{const r=await fetch('/booking-staging/'+encodeURIComponent(b.reference)+'/send-to-dispatch',{method:'POST',credentials:'same-origin'});if(!r.ok)throw Error('No se pudo transferir ('+r.status+')');await load()}catch(e){message.textContent=e.message}
+  };
+  card.append(button);list.append(card);
+ }
+ message.textContent=records.length?'Reservas: '+records.length:'No hay reservas todavía';
+}
+document.getElementById('refresh').onclick=()=>load().catch(e=>message.textContent=e.message);
+load().catch(e=>message.textContent=e.message);
+</script></html>
