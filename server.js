@@ -273,6 +273,26 @@ app.post("/api/booking-request", async (req, res) => {
   }
 });
 
+// Safe rollout preflight: report configuration presence only, never secrets or customer data.
+// This endpoint does not forward bookings, charge cards, or change existing behavior.
+app.get("/api/integration-preflight", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const checks = {
+    stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+    emailConfigured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL),
+    dispatchEndpointConfigured: Boolean(process.env.BOOKING_DISPATCH_URL),
+    dispatchAuthenticationConfigured: Boolean(process.env.BOOKING_SERVICE_SECRET && Buffer.byteLength(process.env.BOOKING_SERVICE_SECRET) >= 32),
+    bookingDatabaseConfigured: Boolean(process.env.BOOKING_DATABASE_URL)
+  };
+  res.json({
+    service: "booking-production-preflight",
+    configurationReady: Object.values(checks).every(Boolean),
+    checks,
+    forwardingEnabled: false,
+    note: "Configuration checks only; no live connectivity, delivery, or payment test"
+  });
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Payment server listening on port", PORT);
