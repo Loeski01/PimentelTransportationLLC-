@@ -242,7 +242,7 @@ app.post("/api/booking-request", async (req, res) => {
     if (fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
     const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
     const dollars = cents => "$" + (cents / 100).toFixed(2);
-    const reference = "PT-" + Date.now().toString(36).toUpperCase();
+    const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
     if (bookingPersistenceEnabled) {
       if (!bookingDb) return res.status(503).json({ error: "La base de reservas de prueba no está configurada." });
       await saveStagingBooking(bookingDb, {
