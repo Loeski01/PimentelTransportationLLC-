@@ -236,7 +236,23 @@ app.post("/api/booking-request", async (req, res) => {
     if (fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
     const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
     const dollars = cents => "$" + (cents / 100).toFixed(2);
-    const reference = "PT-" + Date.now().toString(36).toUpperCase();
+    const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
+    // Forward to the dedicated production dispatch only after explicit activation.
+    // Do not send to staging or confirm the booking when intake fails.
+    if (process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true") {
+      const {createProductionDispatchSender} = require("./booking/production-dispatch-sender");
+      const forward = createProductionDispatchSender({
+        enabled: true,
+        endpoint: process.env.BOOKING_DISPATCH_URL,
+        secret: process.env.BOOKING_SERVICE_SECRET
+      });
+      const ack = await forward({
+        reference, name, phone, email, from, to, date, time, passengers,
+        payment, tier, fareCents: fare.amount, tipCents: tip, details
+      });
+      if (!ack || ack.stored !== true || ack.reference !== reference)
+        throw new Error("Dispatch intake acknowledgement invalid");
+    }
     const summary = [
       "Solicitud: " + reference, "Nombre: " + name, "Correo: " + email,
       "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
@@ -271,6 +287,25 @@ app.post("/api/booking-request", async (req, res) => {
     if (error.status) return sendError(res, error);
     res.status(502).json({ error: "No se pudo enviar la solicitud. Intenta nuevamente o utiliza WhatsApp." });
   }
+});
+
+// Safe rollout preflight: report configuration presence only, never secrets or customer data.
+// This endpoint does not forward bookings, charge cards, or change existing behavior.
+app.get("/api/integration-preflight", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const checks = {
+    stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+    emailConfigured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL),
+    dispatchEndpointConfigured: Boolean(process.env.BOOKING_DISPATCH_URL),
+    dispatchAuthenticationConfigured: Boolean(process.env.BOOKING_SERVICE_SECRET && Buffer.byteLength(process.env.BOOKING_SERVICE_SECRET) >= 32)
+  };
+  res.json({
+    service: "booking-production-preflight",
+    configurationReady: Object.values(checks).every(Boolean),
+    checks,
+    forwardingEnabled: process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true",
+    note: "Configuration presence only; does not verify dispatch connectivity, persistence, email delivery, or payment"
+  });
 });
 
 const PORT = process.env.PORT || 10000;

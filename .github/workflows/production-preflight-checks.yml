@@ -1,0 +1,27 @@
+name: Production preflight code checks
+on:
+  push:
+    branches: [feature/production-booking-dispatch-rollout-20261113]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies without scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Validate production server syntax
+        run: node --check server.js
+      - name: Validate existing booking and payment test files
+        run: |
+          find . -maxdepth 2 -name '*.test.js' -not -path './node_modules/*' -print
+          node --test --test-concurrency=1 $(find . -maxdepth 2 -name '*.test.js' -not -path './node_modules/*' -print)
+# No production credentials, live payment calls, migrations, or deployment.
