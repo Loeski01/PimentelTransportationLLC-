@@ -2,8 +2,8 @@
 // Allowlisted adapter: booking data stays in the booking inbox; only dispatch fields cross services.
 function zonedParts(date, time, timeZone) {
  if (typeof timeZone !== 'string' || !timeZone) throw new TypeError('Explicit IANA time zone required');
- const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(date || '');
- const t = /^([01]\\d|2[0-3]):([0-5]\\d)$/.exec(time || '');
+ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '');
+ const t = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time || '');
  if (!m || !t) throw new TypeError('Invalid local pickup date or time');
  const target = {year:+m[1],month:+m[2],day:+m[3],hour:+t[1],minute:+t[2]};
  const wall = Date.UTC(target.year,target.month-1,target.day,target.hour,target.minute);
@@ -30,7 +30,7 @@ function bookingToDispatchPayload(booking, timeZone) {
  if (!booking || typeof booking!=='object') throw new TypeError('Booking required');
  const reference=booking.reference;
  const name=typeof booking.name==='string'?booking.name.trim():'';
- const surname=name.split(/\\s+/).filter(Boolean).slice(-1)[0] || '';
+ const surname=name.split(/\s+/).filter(Boolean).slice(-1)[0] || '';
  const pickup=typeof booking.from==='string'?booking.from.trim():'';
  const destination=typeof booking.to==='string'?booking.to.trim():'';
  if (typeof reference!=='string' || !/^PT-[A-Z0-9-]{4,64}$/.test(reference) || !surname || surname.length>250 || !pickup || pickup.length>250 || !destination || destination.length>250) throw new TypeError('Invalid booking fields for dispatch');
