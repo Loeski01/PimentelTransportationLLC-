@@ -26,3 +26,21 @@ test('rejects mismatched dispatch acknowledgement',async()=>{
   fetchImpl:async()=>({ok:true,json:async()=>({stored:true,reference:'PT-OTHER'})})});
  await assert.rejects(send({reference:'PT-ABC1234'}),/acknowledgement mismatch/);
 });
+
+test('rejects unpersisted acknowledgement and HTTP failures',async()=>{
+ for(const response of [
+  {ok:true,json:async()=>({stored:false,reference:'PT-ABC1234'})},
+  {ok:false,status:503,json:async()=>({stored:true,reference:'PT-ABC1234'})}
+ ]){
+  const send=createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret,enabled:true,fetchImpl:async()=>response});
+  await assert.rejects(send({reference:'PT-ABC1234'}),/acknowledg|not acknowledged/);
+ }
+});
+test('rejects endpoints with credentials, query strings, and redirects',()=>{
+ for(const endpoint of [
+  'https://user:pass@dispatch.onrender.com/booking/intake',
+  'https://dispatch.onrender.com/booking/intake?debug=true',
+  'https://dispatch.onrender.com/booking/intake#fragment',
+  'https://dispatch-dev.onrender.com/booking/intake'
+ ]) assert.throws(()=>createProductionDispatchSender({endpoint,secret,enabled:true}),/production intake/);
+});
