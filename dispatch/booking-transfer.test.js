@@ -27,3 +27,12 @@ test('missing reference rejected before DB connection',async()=>{
  const db=fakePool();await assert.rejects(createPendingTripFromBooking(db,{...payload,booking_reference:''}),/Invalid/);
  assert.equal(db.calls.length,0);
 });
+
+test('UTC timestamp is accepted',async()=>{
+ const db=fakePool();const result=await createPendingTripFromBooking(db,{...payload,pickup_at:'2026-11-14T19:30:00Z'});
+ assert.equal(result.status,'pending');
+});
+test('timestamp without timezone is rejected',async()=>{
+ const db=fakePool();await assert.rejects(createPendingTripFromBooking(db,{...payload,pickup_at:'2026-11-14T14:30:00'}),/Invalid/);
+ assert.equal(db.calls.length,0);
+});
