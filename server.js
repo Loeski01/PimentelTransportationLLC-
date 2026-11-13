@@ -297,15 +297,14 @@ app.get("/api/integration-preflight", (req, res) => {
     stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
     emailConfigured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL),
     dispatchEndpointConfigured: Boolean(process.env.BOOKING_DISPATCH_URL),
-    dispatchAuthenticationConfigured: Boolean(process.env.BOOKING_SERVICE_SECRET && Buffer.byteLength(process.env.BOOKING_SERVICE_SECRET) >= 32),
-    bookingDatabaseConfigured: Boolean(process.env.BOOKING_DATABASE_URL)
+    dispatchAuthenticationConfigured: Boolean(process.env.BOOKING_SERVICE_SECRET && Buffer.byteLength(process.env.BOOKING_SERVICE_SECRET) >= 32)
   };
   res.json({
     service: "booking-production-preflight",
     configurationReady: Object.values(checks).every(Boolean),
     checks,
-    forwardingEnabled: false,
-    note: "Configuration checks only; no live connectivity, delivery, or payment test"
+    forwardingEnabled: process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true",
+    note: "Configuration presence only; does not verify dispatch connectivity, persistence, email delivery, or payment"
   });
 });
 
