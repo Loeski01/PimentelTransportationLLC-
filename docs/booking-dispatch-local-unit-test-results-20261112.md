@@ -28,3 +28,9 @@ Limitations:
 - No service secret has been configured in Render.
 - No end-to-end booking-to-dispatch test has been run.
 - Production booking, dispatch, and payment services remain untouched.
+
+
+## Follow-up verification
+The same 15 tests were independently rerun from the branch source in a local Node.js test environment. Result: 15 passed, 0 failed, 0 skipped. This confirms the pure unit tests, not PostgreSQL integration.
+
+The Render development database remains unreachable through the hosted query connector because its external IP allowlist is empty. No allowlist was widened and no migration was applied. The dispatch schema currently has no `booking_reference` column in its checked-in base schema; the separate staging migration adds it and its partial unique index. Apply and verify that migration only after secure staging database access is available.
