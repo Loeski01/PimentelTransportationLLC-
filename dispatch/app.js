@@ -56,6 +56,16 @@ if(process.env.BOOKING_INTAKE_STAGING_ENABLED==='true'){
  app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin')}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>res.sendFile(require('node:path').join(__dirname,'booking-admin.html')));
 }
+// Dedicated production intake; never permit staging intake and production intake together.
+if(process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'){
+ if(process.env.BOOKING_INTAKE_STAGING_ENABLED==='true'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true')
+  throw Error('Production and staging booking intake must be isolated');
+ if(process.env.NODE_ENV!=='production')throw Error('Production intake requires NODE_ENV=production');
+ if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED!=='true')throw Error('Production booking schema must be enabled');
+ const {router}=require('./booking-staging-router');
+ app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin')}));
+ app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>res.sendFile(require('node:path').join(__dirname,'booking-admin.html')));
+}
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
 async function startDispatch(){
@@ -71,6 +81,32 @@ async function startDispatch(){
   // Existing staging databases need this idempotent schema upgrade: CREATE TABLE IF NOT EXISTS does not add columns.
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS on_my_way_at TIMESTAMPTZ');
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS passenger_phone TEXT');
+  // Production booking inbox uses the same additive schema, but only in an isolated database.
+  if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED==='true'){
+   if(process.env.NODE_ENV!=='production'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true')
+    throw Error('Production booking schema isolation failed');
+   const database=await client.query('SELECT current_database() AS name');
+   if(/dev|staging|test/i.test(database.rows[0].name))throw Error('Production cannot use a test database');
+   await client.query(`CREATE TABLE IF NOT EXISTS booking_requests (
+     id BIGSERIAL PRIMARY KEY, reference TEXT NOT NULL UNIQUE,
+     passenger_name TEXT NOT NULL, passenger_phone TEXT NOT NULL,
+     passenger_email TEXT NOT NULL, pickup_address TEXT NOT NULL,
+     destination_address TEXT NOT NULL, pickup_local_date DATE NOT NULL,
+     pickup_local_time TIME NOT NULL, passenger_count TEXT,
+     service_tier TEXT NOT NULL CHECK(service_tier IN ('luxury','comfort')),
+     fare_cents INTEGER NOT NULL CHECK(fare_cents>=0),
+     tip_cents INTEGER NOT NULL DEFAULT 0 CHECK(tip_cents>=0),
+     payment_preference TEXT NOT NULL CHECK(payment_preference IN ('later','coordinate')),
+     special_instructions TEXT,
+     status TEXT NOT NULL DEFAULT 'received'
+       CHECK(status IN ('received','transferring','transferred','cancelled')),
+     dispatch_trip_id BIGINT UNIQUE, transfer_attempts INTEGER NOT NULL DEFAULT 0,
+     last_transfer_error TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), transferred_at TIMESTAMPTZ)`);
+   await client.query('CREATE INDEX IF NOT EXISTS booking_requests_inbox_idx ON booking_requests(status,created_at DESC)');
+   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS booking_reference TEXT');
+   await client.query('CREATE UNIQUE INDEX IF NOT EXISTS dispatch_trips_booking_reference_unique ON dispatch_trips(booking_reference) WHERE booking_reference IS NOT NULL');
+  }
   // Additive staging integration schema. Never delete or rewrite existing trips.
   if(process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true'){
    const database=await client.query('SELECT current_database() AS name');
