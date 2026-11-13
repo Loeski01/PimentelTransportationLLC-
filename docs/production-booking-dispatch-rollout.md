@@ -1,5 +1,8 @@
 # Pimentel — producción: reservas web → despacho
 
+## Restricción de costos — decisión del propietario (2026-11-13)
+**No se autoriza ningún cargo nuevo en Render.** No crear PostgreSQL de pago, servicios Starter, ni complementos facturables. Tampoco utilizar bases de desarrollo o temporales para reservas reales. Solo se permite avanzar con revisiones de código, CI y documentación sin costo adicional. La publicación permanece bloqueada hasta una autorización posterior, expresa y específica para cualquier recurso de pago.
+
 ## Estado
 El flujo se probó de extremo a extremo en *staging*. Este documento NO declara producción activa.
 No fusionar a `main` hasta verificar cada punto y ejecutar una reserva controlada.
