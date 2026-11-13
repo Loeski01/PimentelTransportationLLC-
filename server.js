@@ -236,7 +236,23 @@ app.post("/api/booking-request", async (req, res) => {
     if (fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
     const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
     const dollars = cents => "$" + (cents / 100).toFixed(2);
-    const reference = "PT-" + Date.now().toString(36).toUpperCase();
+    const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
+    // Forward to the dedicated production dispatch only after explicit activation.
+    // Do not send to staging or confirm the booking when intake fails.
+    if (process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true") {
+      const {createProductionDispatchSender} = require("./booking/production-dispatch-sender");
+      const forward = createProductionDispatchSender({
+        enabled: true,
+        endpoint: process.env.BOOKING_DISPATCH_URL,
+        secret: process.env.BOOKING_SERVICE_SECRET
+      });
+      const ack = await forward({
+        reference, name, phone, email, from, to, date, time, passengers,
+        payment, tier, fareCents: fare.amount, tipCents: tip, details
+      });
+      if (!ack || ack.stored !== true || ack.reference !== reference)
+        throw new Error("Dispatch intake acknowledgement invalid");
+    }
     const summary = [
       "Solicitud: " + reference, "Nombre: " + name, "Correo: " + email,
       "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
