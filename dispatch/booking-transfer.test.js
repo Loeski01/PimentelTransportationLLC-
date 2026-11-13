@@ -36,3 +36,17 @@ test('timestamp without timezone is rejected',async()=>{
  const db=fakePool();await assert.rejects(createPendingTripFromBooking(db,{...payload,pickup_at:'2026-11-14T14:30:00'}),/Invalid/);
  assert.equal(db.calls.length,0);
 });
+
+test('audit failure rolls back trip creation and releases connection',async()=>{
+ const calls=[];
+ const client={query:async(sql)=>{
+   calls.push(sql);
+   if(sql.startsWith('INSERT INTO dispatch_trips'))return {rowCount:1,rows:[{id:12,status:'pending'}]};
+   if(sql.startsWith('INSERT INTO dispatch_audit'))throw new Error('audit unavailable');
+   return {rowCount:1,rows:[]};
+ },release:()=>calls.push('RELEASE')};
+ await assert.rejects(createPendingTripFromBooking({connect:async()=>client},payload),/audit unavailable/);
+ assert.ok(calls.includes('ROLLBACK'));
+ assert.ok(!calls.includes('COMMIT'));
+ assert.equal(calls.at(-1),'RELEASE');
+});
