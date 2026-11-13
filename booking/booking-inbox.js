@@ -7,6 +7,10 @@ function validateBookingRecord(b) {
  for (const k of required) if (typeof b[k] !== 'string' || !b[k].trim()) throw new TypeError('Invalid '+k);
  if (!/^PT-[A-Z0-9-]{4,64}$/.test(b.reference)) throw new TypeError('Invalid reference');
  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time)) throw new TypeError('Invalid pickup date/time');
+ const [year,month,day]=b.date.split('-').map(Number);
+ const date=new Date(Date.UTC(year,month-1,day));
+ if(year<2000 || year>9999 || date.getUTCFullYear()!==year || date.getUTCMonth()!==month-1 || date.getUTCDate()!==day)
+  throw new TypeError('Invalid pickup date/time');
  if (!ALLOWED_PAYMENT.has(b.payment) || !ALLOWED_TIER.has(b.tier)) throw new TypeError('Invalid booking options');
  if (!Number.isSafeInteger(b.fareCents) || b.fareCents < 0 || !Number.isSafeInteger(b.tipCents) || b.tipCents < 0) throw new TypeError('Invalid amounts');
  return true;
