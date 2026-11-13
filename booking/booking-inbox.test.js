@@ -54,3 +54,17 @@ test('does not expose fare to dispatch during inbox persistence',async()=>{
  assert.equal(db.calls[0].values[10],6500);
  assert.equal(db.calls[0].values[11],975);
 });
+
+test('rejects impossible calendar dates before writing a reservation',async()=>{
+ for(const date of ['2026-02-30','2026-13-01','2026-00-10','2026-11-31','2025-02-29']){
+  const db=fakeDb();
+  await assert.rejects(saveBookingRequest(db,{...booking,date}),/date\/time/);
+  assert.equal(db.calls.length,0);
+ }
+});
+test('accepts a valid leap-day reservation date',async()=>{
+ const db=fakeDb();
+ const result=await saveBookingRequest(db,{...booking,date:'2028-02-29'});
+ assert.equal(result.created,true);
+ assert.equal(db.calls[0].values[6],'2028-02-29');
+});
