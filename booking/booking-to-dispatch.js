@@ -10,8 +10,15 @@ function zonedParts(date, time, timeZone) {
  const validCalendar = new Date(wall).getUTCFullYear()===target.year && new Date(wall).getUTCMonth()+1===target.month && new Date(wall).getUTCDate()===target.day;
  if (!validCalendar) throw new TypeError('Invalid calendar date');
  const fmt = new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+ const offsets = new Set();
+ for (let delta=-36; delta<=36; delta+=6) {
+  const sample = new Date(wall+delta*3600000);
+  const p = Object.fromEntries(fmt.formatToParts(sample).filter(x=>x.type!=='literal').map(x=>[x.type,+x.value]));
+  const represented = Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute);
+  offsets.add((represented-sample.getTime())/60000);
+ }
  const candidates = [];
- for (let offset=-14*60; offset<=14*60; offset++) {
+ for (const offset of offsets) {
   const instant = new Date(wall-offset*60000);
   const p = Object.fromEntries(fmt.formatToParts(instant).filter(x=>x.type!=='literal').map(x=>[x.type,+x.value]));
   if (p.year===target.year && p.month===target.month && p.day===target.day && p.hour===target.hour && p.minute===target.minute) candidates.push(instant);
