@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Pimentel Transportation — Bandeja de reservas de prueba</title>
+<style>
+body{background:#111;color:#f7f7f7;font:16px system-ui;margin:0}
+main{max-width:780px;margin:auto;padding:24px}
+h1,h2{color:#e9c65a}h2{font-size:1.15rem}
+.booking{background:#242424;border:1px solid #514729;border-radius:12px;padding:16px;margin:14px 0}
+button{background:#e9c65a;color:#151515;border:0;border-radius:8px;padding:12px;font-weight:bold}
+button:disabled{opacity:.55}
+#booking-notice{min-height:2rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Pimentel Transportation</h1>
+<p>Bandeja administrativa de pruebas. Las reservas deben revisarse antes de enviarse a despacho.</p>
+<button type="button" id="booking-refresh">Actualizar reservas</button>
+<p id="booking-notice" role="status" aria-live="polite"></p>
+<section id="booking-list" aria-label="Reservas"></section>
+</main>
+<script src="/admin-inbox-ui.js" defer></script>
+</body>
+</html>
