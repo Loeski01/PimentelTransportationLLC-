@@ -16,6 +16,8 @@ function dbFactory(state='received'){
    if(status!=='received')return {rowCount:0,rows:[]};
    status='transferring';return {rowCount:1,rows:[{reference:ref,status}]};
   }
+  if(sql.includes('FROM booking_requests ORDER BY created_at DESC LIMIT 100'))
+   return {rowCount:1,rows:[{reference:ref,status}]};
   if(sql.startsWith('SELECT reference,status,dispatch_trip_id'))
    return {rowCount:1,rows:[{reference:ref,status,dispatch_trip_id:dispatchId}]};
   if(sql.startsWith('SELECT reference, passenger_name'))
@@ -110,4 +112,22 @@ test('invalid stored pickup time is rejected locally and claim safely reset',asy
   assert.equal(retry.status,422);
  });
  assert.ok(db.calls.some(sql=>sql.includes("last_transfer_error='Rejected by dispatch'")));
+});
+
+test('anonymous users cannot list booking inbox',async()=>{
+ const db=dbFactory();
+ await withServer({db,auth:false,send:async()=>({id:1,status:'pending',created:true})},async base=>{
+  const response=await fetch(base+'/admin/booking/');
+  assert.equal(response.status,403);assert.equal(db.calls.length,0);
+ });
+});
+test('authenticated admin can list recent booking inbox with no-cache',async()=>{
+ const db=dbFactory();
+ await withServer({db,auth:true,send:async()=>({id:1,status:'pending',created:true})},async base=>{
+  const response=await fetch(base+'/admin/booking/');
+  assert.equal(response.status,200);
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal((await response.json())[0].reference,ref);
+  assert.ok(db.calls.some(sql=>sql.includes('LIMIT 100')));
+ });
 });
