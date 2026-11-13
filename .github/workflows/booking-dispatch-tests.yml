@@ -22,6 +22,7 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Check integration JavaScript syntax
         run: |
+          node --check server.js
           node --check dispatch/booking-transfer.js
           node --check dispatch/booking-import-router.js
           node --check dispatch/booking-import-router.integration.test.js
