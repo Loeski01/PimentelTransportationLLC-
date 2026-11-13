@@ -34,3 +34,23 @@ test('rejects unsupported payment preference',async()=>{
  const db=fakeDb();await assert.rejects(saveBookingRequest(db,{...booking,payment:'credit_card'}),/options/);
  assert.equal(db.calls.length,0);
 });
+
+test('duplicate reference with missing database row fails safely',async()=>{
+ const calls=[];
+ const db={query:async(sql)=>{calls.push(sql);return {rowCount:0,rows:[]}}};
+ await assert.rejects(saveBookingRequest(db,booking),/idempotency conflict unresolved/);
+ assert.equal(calls.length,2);
+});
+test('rejects negative fare and tip before database writes',async()=>{
+ for(const patch of [{fareCents:-1},{tipCents:-1},{fareCents:1.5},{tipCents:NaN}]){
+  const db=fakeDb();
+  await assert.rejects(saveBookingRequest(db,{...booking,...patch}),/Invalid amounts/);
+  assert.equal(db.calls.length,0);
+ }
+});
+test('does not expose fare to dispatch during inbox persistence',async()=>{
+ const db=fakeDb();await saveBookingRequest(db,booking);
+ assert.match(db.calls[0].sql,/booking_requests/);
+ assert.equal(db.calls[0].values[10],6500);
+ assert.equal(db.calls[0].values[11],975);
+});
