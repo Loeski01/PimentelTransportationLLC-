@@ -245,6 +245,7 @@ app.post("/api/booking-request", async (req, res) => {
       const forward = createProductionDispatchSender({
         enabled: true,
         endpoint: process.env.BOOKING_DISPATCH_URL,
+        promotedProductionHost: process.env.BOOKING_DISPATCH_PROMOTED_HOST,
         secret: process.env.BOOKING_SERVICE_SECRET
       });
       const ack = await forward({

@@ -44,3 +44,21 @@ test('rejects endpoints with credentials, query strings, and redirects',()=>{
   'https://dispatch-dev.onrender.com/booking/intake'
  ]) assert.throws(()=>createProductionDispatchSender({endpoint,secret,enabled:true}),/production intake/);
 });
+
+test('reusing an existing service requires authenticated production database attestation',async()=>{
+ const endpoint='https://pimentel-dispatch-oregon-staging.onrender.com/booking/intake';
+ const host='pimentel-dispatch-oregon-staging.onrender.com';
+ for(const environment of [{mode:'staging',databaseVerified:true},{mode:'production',databaseVerified:false}]){
+  let intakeCalled=false;
+  const send=createProductionDispatchSender({endpoint,secret,enabled:true,promotedProductionHost:host,fetchImpl:async url=>{
+   if(url.endsWith('/booking/intake'))intakeCalled=true;
+   return {ok:true,json:async()=>environment};
+  }});
+  await assert.rejects(send({reference:'PT-ABC1234'}),/not verified/);assert.equal(intakeCalled,false);
+ }
+ let calls=0;
+ const send=createProductionDispatchSender({endpoint,secret,enabled:true,promotedProductionHost:host,fetchImpl:async url=>{
+  calls++;return {ok:true,json:async()=>url.endsWith('/environment')?{mode:'production',databaseVerified:true}:{stored:true,reference:'PT-ABC1234'}};
+ }});
+ assert.equal((await send({reference:'PT-ABC1234'})).stored,true);assert.equal(calls,2);
+});

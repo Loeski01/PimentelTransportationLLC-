@@ -1,6 +1,6 @@
 'use strict';
 const express=require('express'),crypto=require('node:crypto');
-function router({db,secret,requireAdmin,sendAcceptance}){
+function router({db,secret,requireAdmin,sendAcceptance,production=false,productionDatabaseName}){
  if(typeof secret!=='string'||Buffer.byteLength(secret)<32)throw Error('Staging booking intake secret missing');
  const r=express.Router();
  require('./booking-acceptance').registerAcceptanceRoute(r,{db,requireAdmin,sendAcceptance});
@@ -11,6 +11,9 @@ function router({db,secret,requireAdmin,sendAcceptance}){
   if(!supplied||!crypto.timingSafeEqual(a,b))return res.sendStatus(403);
   next();
  };
+ r.get('/environment',auth,async(req,res,next)=>{
+  try{const q=await db.query('SELECT current_database() AS name');res.set('Cache-Control','no-store').json({mode:production?'production':'staging',databaseVerified:production&&!!productionDatabaseName&&q.rows[0].name===productionDatabaseName})}catch(e){next(e)}
+ });
  r.post('/intake',auth,async(req,res,next)=>{
   const b=req.body||{};
   if(!/^PT-[A-Z0-9-]{4,64}$/.test(b.reference||'')||

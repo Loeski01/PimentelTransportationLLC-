@@ -64,7 +64,7 @@ if(process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'){
  if(process.env.NODE_ENV!=='production')throw Error('Production intake requires NODE_ENV=production');
  if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED!=='true')throw Error('Production booking schema must be enabled');
  const {router}=require('./booking-staging-router');
- app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance}));
+ app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,production:true,productionDatabaseName:process.env.DISPATCH_PRODUCTION_DATABASE_NAME}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>{res.set('Cache-Control','no-store');const base=process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'?'/booking':'/booking-staging';res.type('html').send(require('node:fs').readFileSync(require('node:path').join(__dirname,'booking-admin.html'),'utf8').replace('__BOOKING_API_BASE__',JSON.stringify(base)))});
 }
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
