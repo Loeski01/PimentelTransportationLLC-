@@ -257,7 +257,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <p id="bookingStatus" role="status" aria-live="polite"></p>
 </form>
 <div id="envios" hidden style="display:none">
-<h3>Solicitud lista / Request ready</h3><p>Envía tu solicitud por WhatsApp o correo. Pendiente de aprobación. / Send your request by WhatsApp or email. Pending approval.</p>
+<h3>Contactar por WhatsApp o correo / Contact by WhatsApp or email</h3><p>Si deseas contactarnos también por WhatsApp o correo, usa estos botones. La reserva sigue sujeta a aprobación. / To contact us by WhatsApp or email, use these buttons. Booking remains subject to approval.</p>
 <a class="boton" id="whatsapp" target="_blank" rel="noopener">ENVIAR / SEND WHATSAPP</a>
 <a class="boton" id="correo">ENVIAR CORREO / SEND EMAIL</a>
 </div>
@@ -372,7 +372,12 @@ el('unifiedForm').addEventListener('submit',async event=>{
     }finally{clearTimeout(timer);}
     if(!response.ok)throw new Error(data.error||'No se pudo enviar la solicitud. / Unable to send the request.');
     el('bookingStatus').textContent='Solicitud recibida / Request received: '+data.reference+'. Pendiente de aprobación / Pending approval. '+(data.customerNoticeSent?'Enviamos un correo al cliente. / We emailed the customer.':'No se pudo enviar el correo; contacta a la compañía. / Email could not be sent; contact the company.');
-    el('envios').style.display='none';return;
+    const contactMessage='Referencia / Reference: '+data.reference+'\n'+message;
+    el('whatsapp').href='https://wa.me/16177855657?text='+encodeURIComponent(contactMessage);
+    el('correo').href='mailto:Cesarloeski17@gmail.com?subject='+encodeURIComponent('Reservation '+data.reference)+'&body='+encodeURIComponent(contactMessage);
+    el('envios').hidden=false;el('envios').style.display='block';
+    el('bookingStatus').textContent+=' Puedes avisarnos también por WhatsApp usando el botón de abajo. / You can also notify us through the WhatsApp button below.';
+    return;
   }catch(e){
     el('bookingStatus').textContent=e.name==='AbortError'?'No se pudo confirmar la entrega. Revisa tu correo antes de reintentar. / Delivery could not be confirmed. Check your email before retrying.':'Envío automático no disponible / Automatic delivery unavailable: '+e.message+' Puedes usar WhatsApp o correo debajo. / You can use WhatsApp or email below.';
   }finally{btn.disabled=false;}

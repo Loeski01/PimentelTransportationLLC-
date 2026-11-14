@@ -292,7 +292,22 @@ app.post("/api/booking-request", async (req, res) => {
     } catch (error) {
       console.error("Customer email delivery error:", error.message);
     }
-    res.json({ reference, received: true, customerNoticeSent, adminNoticeSent });
+    let adminSmsNoticeSent = false;
+    // Optional owner alert. Never enable until sender, balance and costs are verified.
+    if (process.env.BOOKING_SMS_ENABLED === 'true') {
+      try {
+        const sendSms = require('./booking/admin-sms').createAdminSmsSender({
+          enabled: true, apiKey: process.env.BREVO_API_KEY,
+          sender: process.env.BOOKING_SMS_SENDER,
+          recipient: process.env.BOOKING_SMS_TO || '16177855657'
+        });
+        await sendSms({ reference, date, time });
+        adminSmsNoticeSent = true;
+      } catch (error) {
+        console.error('Admin SMS notification not acknowledged; check provider before retrying');
+      }
+    }
+    res.json({ reference, received: true, customerNoticeSent, adminNoticeSent, adminSmsNoticeSent });
   } catch (error) {
     console.error("Booking request failed:", error.message);
     if (error.status) return sendError(res, error);
