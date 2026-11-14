@@ -1,0 +1,13 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {WAIT_MS,canMarkNoShow}=require('../no-show-policy');
+const now=Date.parse('2026-10-29T15:00:00Z');
+const arrival=ms=>new Date(now-ms).toISOString();
+test('wait is exactly fifteen minutes',()=>assert.equal(WAIT_MS,900000));
+test('no-show denied before fifteen minutes',()=>assert.equal(canMarkNoShow({status:'accepted',arrivedAt:arrival(WAIT_MS-1),now}),false));
+test('no-show allowed at fifteen minutes',()=>assert.equal(canMarkNoShow({status:'accepted',arrivedAt:arrival(WAIT_MS),now}),true));
+test('no-show allowed after fifteen minutes',()=>assert.equal(canMarkNoShow({status:'accepted',arrivedAt:arrival(WAIT_MS+1000),now}),true));
+test('no-show denied without arrival',()=>assert.equal(canMarkNoShow({status:'accepted',now}),false));
+test('no-show denied for completed trip',()=>assert.equal(canMarkNoShow({status:'completed',arrivedAt:arrival(WAIT_MS),now}),false));
+test('no-show denied for invalid arrival',()=>assert.equal(canMarkNoShow({status:'accepted',arrivedAt:'bad-date',now}),false));

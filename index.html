@@ -364,7 +364,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
   const btn=el('submitBooking');btn.disabled=true;
   el('bookingStatus').textContent='Enviando solicitud / Sending request...';
   try{
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),22000);
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);
     let response,data;
     try{
       response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({name:val('nombre'),email:val('email'),phone:val('telefono'),from:quote.from,to:quote.to,date:val('fecha'),time:val('hora'),passengers:val('pasajeros'),details:val('detalles'),payment:val('pago'),tier:selectedTier(),expectedFareCents:quote.amount,...tip})});
