@@ -1,0 +1,46 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {createProductionDispatchSender}=require('./production-dispatch-sender');
+const secret='x'.repeat(40);
+test('disabled unless explicitly enabled',()=>assert.throws(()=>createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret}),/disabled/));
+test('rejects staging and non-HTTPS destinations',()=>{
+ for(const endpoint of ['https://dispatch-staging.onrender.com/booking/intake','http://dispatch.onrender.com/booking/intake','https://dispatch.onrender.com/booking-staging/intake','https://example.com/booking/intake'])
+ assert.throws(()=>createProductionDispatchSender({endpoint,secret,enabled:true}),/production intake/);
+});
+test('rejects short authentication secrets',()=>assert.throws(()=>createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret:'short',enabled:true}),/secret/));
+test('forwards only valid booking reference to dedicated intake',async()=>{
+ let called=false;
+ const send=createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret,enabled:true,fetchImpl:async(url,options)=>{
+ called=true;assert.equal(url,'https://dispatch.onrender.com/booking/intake');assert.equal(options.headers['X-Booking-Service-Key'],secret);
+ return {ok:true,json:async()=>({stored:true,reference:'PT-ABC1234'})};
+ }});
+ await assert.rejects(send({reference:'bad'}),/reference/);
+ assert.equal(called,false);
+ assert.deepEqual(await send({reference:'PT-ABC1234'}),{stored:true,reference:'PT-ABC1234'});
+ assert.equal(called,true);
+});
+
+test('rejects mismatched dispatch acknowledgement',async()=>{
+ const send=createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret,enabled:true,
+  fetchImpl:async()=>({ok:true,json:async()=>({stored:true,reference:'PT-OTHER'})})});
+ await assert.rejects(send({reference:'PT-ABC1234'}),/acknowledgement mismatch/);
+});
+
+test('rejects unpersisted acknowledgement and HTTP failures',async()=>{
+ for(const response of [
+  {ok:true,json:async()=>({stored:false,reference:'PT-ABC1234'})},
+  {ok:false,status:503,json:async()=>({stored:true,reference:'PT-ABC1234'})}
+ ]){
+  const send=createProductionDispatchSender({endpoint:'https://dispatch.onrender.com/booking/intake',secret,enabled:true,fetchImpl:async()=>response});
+  await assert.rejects(send({reference:'PT-ABC1234'}),/acknowledg|not acknowledged/);
+ }
+});
+test('rejects endpoints with credentials, query strings, and redirects',()=>{
+ for(const endpoint of [
+  'https://user:pass@dispatch.onrender.com/booking/intake',
+  'https://dispatch.onrender.com/booking/intake?debug=true',
+  'https://dispatch.onrender.com/booking/intake#fragment',
+  'https://dispatch-dev.onrender.com/booking/intake'
+ ]) assert.throws(()=>createProductionDispatchSender({endpoint,secret,enabled:true}),/production intake/);
+});
