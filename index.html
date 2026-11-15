@@ -507,22 +507,25 @@ el('unifiedForm').addEventListener('submit',async event=>{
 (function(){
  let timer;
  const type=el('serviceType');
+ const completed={origen:el('origen').value.trim(),destino:el('destino').value.trim()};
+ let lastAttempt='';
  function queueQuote(){
   clearTimeout(timer);
-  if(type.value!=='transfer'||!el('origen').value.trim()||!el('destino').value.trim())return;
+  const from=el('origen').value.trim(),to=el('destino').value.trim();
+  if(type.value!=='transfer'||!from||!to||completed.origen!==from||completed.destino!==to)return;
   timer=setTimeout(function attemptQuote(){
-   if(type.value!=='transfer')return;
+   if(type.value!=='transfer'||el('origen').value.trim()!==from||el('destino').value.trim()!==to)return;
    if(el('calcular').disabled){timer=setTimeout(attemptQuote,400);return;}
-   const from=el('origen').value.trim(),to=el('destino').value.trim();
-   if(!from||!to)return;
-   if(quote&&quote.from===from&&quote.to===to)return;
+   const key=JSON.stringify([from,to,selectedTier()]);
+   if(lastAttempt===key)return;
+   if(quote&&quote.from===from&&quote.to===to&&quote.tier===selectedTier())return;
+   lastAttempt=key;
    el('calcular').click();
-  },1000);
+  },300);
  }
  for(const id of ['origen','destino']){
-  el(id).addEventListener('input',queueQuote);
-  el(id).addEventListener('change',queueQuote);
-  el(id).addEventListener('blur',queueQuote);
+  el(id).addEventListener('input',()=>{clearTimeout(timer);completed[id]='';lastAttempt='';});
+  for(const event of ['change','blur'])el(id).addEventListener(event,()=>{completed[id]=el(id).value.trim();queueQuote();});
  }
  type.addEventListener('change',queueQuote);
  queueQuote();

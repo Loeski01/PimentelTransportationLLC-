@@ -31,29 +31,48 @@ class QuoteError extends Error {
 }
 const quoteCache = new Map();
 let nextGeocode = 0;
+const addressCache = new Map();
+let geocodeBlockedUntil = 0;
+function checkGeocoderCooldown() {
+  if (Date.now() < geocodeBlockedUntil) throw new QuoteError(503, "MAP_RATE_LIMIT", "El servicio de direcciones está ocupado. Puedes enviar tu solicitud para cotización.");
+}
 async function getJSON(url, signal) {
   const response = await fetch(url, {
     signal,
     headers: { Accept: "application/json", "User-Agent": "PimentelTransportationLLC/1.0 (https://loeski01.github.io/PimentelTransportationLLC-/)" }
   });
   if (!response.ok) {
+    if (new URL(url).hostname === "nominatim.openstreetmap.org" && response.status === 429) {
+      const retry = response.headers?.get?.("retry-after");
+      const seconds = retry && /^\d+$/.test(retry) ? Number(retry) : 0;
+      const until = seconds ? Date.now() + seconds * 1000 : Date.parse(retry || "");
+      geocodeBlockedUntil = Math.max(Date.now() + 60000, Number.isFinite(until) ? until : 0);
+      checkGeocoderCooldown();
+    }
     console.error("Map provider rejected request:", new URL(url).hostname, "HTTP", response.status);
     throw new QuoteError(503, "MAP_UNAVAILABLE", "El servicio de mapas no está disponible. Inténtalo más tarde.");
   }
   return response.json();
 }
 async function locate(address, signal) {
+  const key = address.trim().replace(/\s+/g, " ").toLowerCase();
+  const cached = addressCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.place;
+  checkGeocoderCooldown();
   // Space all Nominatim requests, including concurrent visitors, at least one second apart.
   const slot = Math.max(Date.now(), nextGeocode);
   if (slot - Date.now() > 3000) throw new QuoteError(503, "BUSY", "Hay varias consultas en curso. Inténtalo en unos segundos.");
   nextGeocode = slot + 1100;
   await require("node:timers/promises").setTimeout(Math.max(0, slot - Date.now()), undefined, { signal });
+  checkGeocoderCooldown();
   const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=" + encodeURIComponent(address);
   const results = await getJSON(url, signal);
   if (!Array.isArray(results)) throw new Error("Invalid geocoder response");
   if (!results.length) throw new QuoteError(422, "ADDRESS_NOT_FOUND", "No se encontró la dirección: " + address + ". Incluye ciudad y estado.");
   const place = results[0];
   if (!Number.isFinite(Number(place.lat)) || !Number.isFinite(Number(place.lon))) throw new Error("Invalid coordinates");
+  if (addressCache.size >= 1000) addressCache.delete(addressCache.keys().next().value);
+  addressCache.set(key, { place, expires: Date.now() + 86400000 });
   return place;
 }
 function validAddresses(from, to) {

@@ -114,3 +114,30 @@ test('checkout sends selected tip and server fare, and restores controls on paym
  await element('calculate').click();element('tipChoice').value='15';element('tipChoice').change();element('paymentKind').value='tip_only';element('paymentKind').change();
  await element('checkout').click();assert.equal(element('checkoutStatus').textContent,'Payment unavailable');assert.equal(element('checkout').disabled,false);assert.equal(element('from').disabled,false);
 });
+
+test('resolved addresses are reused across service tiers and reverse trips',async()=>{
+ let geocodes=0;
+ const request=backend(async url=>({ok:true,json:async()=>url.includes('/search?')?(geocodes++,[place]):{code:'Ok',routes:[{distance:16093.44,duration:1200}]}}));
+ for(const body of [{from:'Boston',to:'Woburn'},{from:'Boston',to:'Woburn',tier:'comfort'},{from:'woburn',to:'  BOSTON  '}])assert.equal((await request(body)).status,200);
+ assert.equal(geocodes,2);
+});
+test('provider rate limit stops subsequent geocoder calls during cooldown',async()=>{
+ let calls=0;
+ const request=backend(async()=>{calls++;return {ok:false,status:429,headers:{get:()=> '120'}};});
+ assert.equal((await request({from:'Boston',to:'Woburn'})).data.code,'MAP_RATE_LIMIT');
+ assert.equal((await request({from:'Cambridge',to:'Logan'})).data.code,'MAP_RATE_LIMIT');
+ assert.equal(calls,1);
+});
+test('automatic fare waits for both address fields to be completed and does not repeat on blur',()=>{
+ const html=fs.readFileSync('index.html','utf8');
+ const source=html.slice(html.indexOf(' let timer;\n const type='),html.indexOf(' window.sendUnpricedRequest='));
+ let next=0,calls=0;const tasks=new Map(),elements={};
+ const el=id=>elements[id]??={value:id==='serviceType'?'transfer':'',disabled:false,events:{},addEventListener(name,fn){(this.events[name]??=[]).push(fn);},click(){calls++;}};
+ const fire=(id,event)=>{for(const fn of el(id).events[event]||[])fn();};
+ const flush=()=>{for(const [id,fn] of [...tasks]){tasks.delete(id);fn();}};
+ vm.runInNewContext(source,{el,quote:null,selectedTier:()=> 'luxury',setTimeout(fn){tasks.set(++next,fn);return next;},clearTimeout(id){tasks.delete(id);}});
+ el('origen').value='Boston';fire('origen','input');fire('origen','blur');flush();assert.equal(calls,0);
+ el('destino').value='Woburn';fire('destino','input');flush();assert.equal(calls,0);
+ fire('destino','change');fire('destino','blur');flush();assert.equal(calls,1);
+ fire('origen','blur');fire('destino','blur');flush();assert.equal(calls,1);
+});
