@@ -222,9 +222,10 @@ app.post("/api/booking-request", async (req, res) => {
   const payment = clean(body.payment, 30);
   const tier = clean(body.tier || 'luxury', 20);
   const tipPercent = Number(body.tipPercent), tipCents = Number(body.tipCents);
+  const quotePending = body.quotePending === true;
   if (!name || !phone || !emailPattern.test(email) || !validAddresses(from, to) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
-      !Number.isSafeInteger(body.expectedFareCents) || body.expectedFareCents < 0 ||
+      (!quotePending && (!Number.isSafeInteger(body.expectedFareCents) || body.expectedFareCents < 0)) ||
       ![0, 10, 15, 20].includes(tipPercent) || !Number.isSafeInteger(tipCents) ||
       tipCents < 0 || tipCents > 100000 || (tipPercent > 0 && tipCents > 0) ||
       !["later", "coordinate"].includes(payment) || !validTier(tier)) {
@@ -232,9 +233,11 @@ app.post("/api/booking-request", async (req, res) => {
   }
   bookingThrottle.set(ip, Date.now());
   try {
-    const fare = await calculateFare(from, to, tier);
-    if (fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
-    const tip = tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
+    if (quotePending && process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED !== "true")
+      return res.status(503).json({error:"La recepción de cotizaciones no está disponible. Contacta a la compañía."});
+    const fare = quotePending ? {amount:null} : await calculateFare(from, to, tier);
+    if (!quotePending && fare.amount !== body.expectedFareCents) return res.status(409).json({ error: "La tarifa cambió. Calcula nuevamente antes de reservar." });
+    const tip = quotePending && tipPercent ? 0 : tipPercent ? Math.round(fare.amount * tipPercent / 100) : tipCents;
     const dollars = cents => "$" + (cents / 100).toFixed(2);
     const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
     let dispatchStored = false;
@@ -250,7 +253,7 @@ app.post("/api/booking-request", async (req, res) => {
       });
       const ack = await forward({
         reference, name, phone, email, from, to, date, time, passengers,
-        payment, tier, fareCents: fare.amount, tipCents: tip, details
+        payment, tier, fareCents: fare.amount, tipCents: tip, quotePending, details: quotePending ? details + "\nTarifa pendiente de cotización. Preferencia de propina: " + tipPercent + "% / " + tipCents + " cents" : details
       });
       if (!ack || ack.stored !== true || ack.reference !== reference)
         throw new Error("Dispatch intake acknowledgement invalid");
@@ -261,8 +264,8 @@ app.post("/api/booking-request", async (req, res) => {
       "Teléfono: " + phone, "Fecha: " + date, "Hora: " + time,
       "Categoría: " + (tier==='comfort'?'Comfort Private Ride':'Executive Black SUV'),
       "Recogida: " + from, "Destino: " + to, "Pasajeros: " + passengers,
-      "Tarifa estimada: " + dollars(fare.amount), "Propina opcional: " + dollars(tip),
-      "Total estimado: " + dollars(fare.amount + tip),
+      "Tarifa estimada: " + (quotePending ? "PENDIENTE DE COTIZACIÓN" : dollars(fare.amount)), "Propina opcional: " + dollars(tip),
+      "Total estimado: " + (quotePending ? "PENDIENTE DE COTIZACIÓN" : dollars(fare.amount + tip)),
       "Pago: " + payment, "Detalles: " + details,
       "Estado: PENDIENTE DE CONFIRMACIÓN"
     ].join("\n");

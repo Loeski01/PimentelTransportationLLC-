@@ -526,7 +526,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
  }
  type.addEventListener('change',queueQuote);
  queueQuote();
- window.sendUnpricedRequest=function(){
+ window.sendUnpricedRequest=async function(){
   const v=id=>el(id).value.trim();
   const tip=el('tip').value==='custom'?v('tipAmount')+' USD':el('tip').value+'%';
   const message=['RESERVATION REQUEST / SOLICITUD DE RESERVA',
@@ -538,10 +538,23 @@ el('unifiedForm').addEventListener('submit',async event=>{
    'No payment collected. Payment arranged after fare approval. / Sin cobro. Pago a coordinar después de aprobar la tarifa.',
    'PENDING COMPANY APPROVAL / PENDIENTE DE APROBACIÓN'].join('\n');
   try{tipData();}catch(e){el('bookingStatus').textContent=e.message;return;}
+  const btn=el('submitBooking');btn.disabled=true;
+  el('bookingStatus').textContent='Enviando solicitud con tarifa pendiente / Sending quote request...';
+  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),65000);
+  try{
+   const response=await fetch(API+'/api/booking-request',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({name:v('nombre'),email:v('email'),phone:v('telefono'),from:v('origen'),to:v('destino'),date:v('fecha'),time:v('hora'),passengers:v('pasajeros'),details:v('detalles'),payment:'coordinate',tier:selectedTier(),quotePending:true,...tipData()})});
+   const data=await response.json();
+   if(!response.ok||data.received!==true)throw Error(data.error||'No se pudo guardar la solicitud');
+   el('envios').hidden=true;el('envios').style.display='none';
+   el('bookingStatus').textContent='Solicitud recibida / Request received: '+data.reference+'. Tarifa pendiente de cotización y aprobación. No se ha realizado ningún cobro. / Fare and company approval pending. No payment collected.';
+   return;
+  }catch(e){
+   el('bookingStatus').textContent=e.name==='AbortError'?'Entrega no verificada. Revisa con la compañía antes de reenviar. / Delivery unverified. Check with the company before retrying.':'No se pudo confirmar la recepción en despacho. Puedes contactar por WhatsApp o correo. / Dispatch receipt unverified. Contact us by WhatsApp or email.';
+  }finally{clearTimeout(deadline);btn.disabled=false;}
   el('whatsapp').href='https://wa.me/16177855657?text='+encodeURIComponent(message);
   el('correo').href='mailto:Cesarloeski17@gmail.com?subject='+encodeURIComponent('Quote request / Solicitud de cotización')+'&body='+encodeURIComponent(message);
   el('envios').hidden=false;el('envios').style.display='block';
-  el('bookingStatus').textContent='Tarifa pendiente. Envía por WhatsApp o correo para recibir cotización. No se ha realizado ningún cobro. / Fare pending. Send by WhatsApp or email for a quote. No payment has been collected.';
+
   el('envios').scrollIntoView({behavior:'smooth'});
  };
 }());

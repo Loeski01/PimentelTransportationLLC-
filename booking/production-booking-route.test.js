@@ -11,8 +11,16 @@ function route({mailFails=false,intakeFails=false}={}){
   }
  });
  vm.runInContext(fs.readFileSync('server.js','utf8'),context);
- return {async call(){let status=200,data;const res={setHeader(){},status(n){status=n;return this},json(d){data=d}};await routes['/api/booking-request']({ip:'test',body:{name:'Test Passenger',email:'test@example.com',phone:'+16175550123',from:'Boston',to:'Woburn',date:'2026-11-20',time:'14:30',passengers:'1',details:'TEST',payment:'later',tier:'luxury',tipPercent:0,tipCents:0,expectedFareCents:8000}},res);return {status,data}},get forwarded(){return forwarded},get mailCalls(){return mailCalls}};
+ return {async call(overrides={}){let status=200,data;const res={setHeader(){},status(n){status=n;return this},json(d){data=d}};await routes['/api/booking-request']({ip:'test',body:{name:'Test Passenger',email:'test@example.com',phone:'+16175550123',from:'Boston',to:'Woburn',date:'2026-11-20',time:'14:30',passengers:'1',details:'TEST',payment:'later',tier:'luxury',tipPercent:0,tipCents:0,expectedFareCents:8000,...overrides}},res);return {status,data}},get forwarded(){return forwarded},get mailCalls(){return mailCalls},get mapCalls(){return mapCalls}};
 }
 test('public booking forwards server-calculated amount and exact reference before notices',async()=>{const h=route();const r=await h.call();assert.equal(r.status,200);assert.equal(r.data.reference,h.forwarded.reference);assert.equal(h.forwarded.fareCents,8000);assert.equal(r.data.received,true);assert.equal(h.mailCalls,2)});
 test('a stored booking remains received when email provider fails',async()=>{const h=route({mailFails:true});const r=await h.call();assert.equal(r.status,200);assert.equal(r.data.received,true);assert.equal(r.data.adminNoticeSent,false);assert.equal(r.data.customerNoticeSent,false)});
 test('failed intake does not send misleading received notices',async()=>{const h=route({intakeFails:true});const r=await h.call();assert.equal(r.status,502);assert.equal(h.mailCalls,0)});
+
+test('unpriced request persists null fare without calling maps and preserves tip preference',async()=>{
+ const h=route();const r=await h.call({quotePending:true,expectedFareCents:undefined,tipPercent:15});
+ assert.equal(r.status,200);assert.equal(h.mapCalls,0);assert.equal(h.forwarded.fareCents,null);
+ assert.equal(h.forwarded.quotePending,true);assert.match(h.forwarded.details,/15%/);assert.equal(h.forwarded.tipCents,0);
+ assert.equal(r.data.received,true);assert.equal(h.mailCalls,2);
+});
+test('unpriced intake failure sends no received notices',async()=>{const h=route({intakeFails:true});const r=await h.call({quotePending:true});assert.equal(r.status,502);assert.equal(h.mailCalls,0)});

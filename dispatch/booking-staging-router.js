@@ -20,7 +20,7 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
    !['luxury','comfort'].includes(b.tier)||!['later','coordinate'].includes(b.payment)||
    !/^\d{4}-\d{2}-\d{2}$/.test(b.date||'')||!/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time||'')||
    ![b.name,b.phone,b.email,b.from,b.to].every(x=>typeof x==='string'&&x.trim()&&x.length<=254)||
-   !Number.isSafeInteger(b.fareCents)||b.fareCents<0||!Number.isSafeInteger(b.tipCents)||b.tipCents<0)
+   (!(b.quotePending===true&&b.fareCents===null)&&(!Number.isSafeInteger(b.fareCents)||b.fareCents<0))||!Number.isSafeInteger(b.tipCents)||b.tipCents<0)
    return res.status(400).json({error:'Invalid booking'});
   try{
    const q=await db.query(`INSERT INTO booking_requests
@@ -36,9 +36,18 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
  r.get('/inbox',requireAdmin,async(req,res,next)=>{
   try{const q=await db.query(`SELECT reference,passenger_name,pickup_address,destination_address,
    pickup_local_date::text AS pickup_local_date,pickup_local_time::text AS pickup_local_time,
-   service_tier,fare_cents,status,dispatch_trip_id,acceptance_notice_status FROM booking_requests
+   service_tier,fare_cents,special_instructions,status,dispatch_trip_id,acceptance_notice_status FROM booking_requests
    ORDER BY created_at DESC LIMIT 100`);
    res.set('Cache-Control','no-store').json(q.rows)
+  }catch(e){next(e)}
+ });
+ r.post('/:reference/quote',requireAdmin,async(req,res,next)=>{
+  const fare=req.body?.fareCents;
+  if(!/^PT-[A-Z0-9-]{4,64}$/.test(req.params.reference)||!Number.isSafeInteger(fare)||fare<=0||fare>10000000)return res.status(400).json({error:'Tarifa inválida'});
+  try{
+   const result=await db.query("UPDATE booking_requests SET fare_cents=$2,updated_at=NOW() WHERE reference=$1 AND status='received' AND fare_cents IS NULL RETURNING reference",[req.params.reference,fare]);
+   if(!result.rowCount)return res.status(409).json({error:'La tarifa ya fue definida o la reserva cambió'});
+   res.json({quoted:true});
   }catch(e){next(e)}
  });
  r.post('/:reference/send-to-dispatch',requireAdmin,async(req,res,next)=>{
@@ -50,6 +59,7 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
    const q=await client.query('SELECT * FROM booking_requests WHERE reference=$1 FOR UPDATE',[ref]);
    if(!q.rowCount){await client.query('ROLLBACK');return res.sendStatus(404)}
    const b=q.rows[0];
+   if(b.fare_cents===null){await client.query('ROLLBACK');return res.status(409).json({error:'Define la tarifa antes de enviar a despacho'})}
    if(b.status==='transferred'){await client.query('COMMIT');return res.json({status:'transferred',id:b.dispatch_trip_id})}
    if(b.status!=='received'){await client.query('ROLLBACK');return res.status(409).json({error:'Not transferable'})}
    const localDate=b.pickup_local_date instanceof Date?b.pickup_local_date.toISOString().slice(0,10):String(b.pickup_local_date).slice(0,10);
