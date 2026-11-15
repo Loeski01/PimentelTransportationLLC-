@@ -178,6 +178,12 @@ const brevoApiKey = process.env.BREVO_API_KEY;
 const senderEmail = process.env.BREVO_SENDER_EMAIL;
 const senderName = "Pimentel Transportation LLC";
 const mailReady = Boolean(brevoApiKey && senderEmail);
+const {createAdminSms} = require("./booking/admin-sms");
+const notifyAdminSms = createAdminSms({
+  enabled: process.env.BOOKING_ADMIN_SMS_ENABLED === "true",
+  apiKey: brevoApiKey,
+  sender: process.env.BREVO_SMS_SENDER
+});
 async function sendBookingEmail({to, subject, text, replyTo}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
@@ -292,7 +298,11 @@ app.post("/api/booking-request", async (req, res) => {
     } catch (error) {
       console.error("Customer email delivery error:", error.message);
     }
-    res.json({ reference, received: true, customerNoticeSent, adminNoticeSent });
+    // Optional administrator SMS. Failure must not invalidate a received booking.
+    const adminSms = await notifyAdminSms(reference);
+    if (!['disabled','submitted'].includes(adminSms.status))
+      console.error("Administrator SMS status:", adminSms.status);
+    res.json({ reference, received: true, customerNoticeSent, adminNoticeSent, adminSmsStatus: adminSms.status });
   } catch (error) {
     console.error("Booking request failed:", error.message);
     if (error.status) return sendError(res, error);
