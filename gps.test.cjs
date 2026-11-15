@@ -5,7 +5,7 @@ const fs=require('node:fs');
 function backend(fetch, stripeCreate){
  const routes={}; const app={use(){},get(){},post(path,fn){routes[path]=fn;},listen(){}};
  const express=()=>app; express.json=()=>()=>{};
- const context=vm.createContext({require:n=>n==='express'?express:n==='stripe'?function(){return {checkout:{sessions:{create:stripeCreate}}};}:{setTimeout:async()=>{}},fetch,AbortSignal,console,process:{env:stripeCreate?{STRIPE_SECRET_KEY:'sk_test_mock'}:{}}});
+ const context=vm.createContext({require:n=>n==='./booking/admin-sms'?require('./booking/admin-sms'):n==='express'?express:n==='stripe'?function(){return {checkout:{sessions:{create:stripeCreate}}};}:{setTimeout:async()=>{}},fetch,AbortSignal,console,process:{env:stripeCreate?{STRIPE_SECRET_KEY:'sk_test_mock'}:{}}});
  vm.runInContext(fs.readFileSync('server.js','utf8'),context);
  return async(body,path='/api/quote')=>{let status=200,data;const res={setHeader(){},status(n){status=n;return this;},json(d){data=d;}}; await routes[path]({body},res);return {status,data};};
 }
