@@ -138,6 +138,7 @@ async function startDispatch(){
    console.info('Booking staging: additive schema checked');
   }
   if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED==='true'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true'){
+   await client.query('ALTER TABLE booking_requests ALTER COLUMN fare_cents DROP NOT NULL');
    await client.query("ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS acceptance_notice_status TEXT NOT NULL DEFAULT 'pending' CHECK(acceptance_notice_status IN ('pending','sending','sent','failed','unknown'))");
    await client.query('ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS acceptance_notice_sent_at TIMESTAMPTZ');
    await client.query('ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS acceptance_message_id TEXT');

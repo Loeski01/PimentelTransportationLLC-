@@ -11,17 +11,18 @@ async function load(){
   const card=element('section','');card.className='booking';
   card.append(element('h3',b.reference),element('p',b.passenger_name+' · '+b.pickup_local_date+' '+b.pickup_local_time),
    element('p',b.pickup_address+' → '+b.destination_address),
-   element('p','Tarifa estimada: $'+(b.fare_cents/100).toFixed(2)),
+   element('p',b.fare_cents===null?'Tarifa pendiente de cotización':'Tarifa estimada: $'+(b.fare_cents/100).toFixed(2)),
    element('p','Estado: '+b.status));
+  if(b.special_instructions)card.append(element('p',b.special_instructions));
   const button=element('button',b.status==='received'?'Enviar a despacho':'Enviado a despacho');
-  button.disabled=b.status!=='received';
+  button.disabled=b.status!=='received'||b.fare_cents===null;
   button.onclick=async()=>{
    if(!confirm('¿Enviar '+b.reference+' a despacho?'))return;
    button.disabled=true;message.textContent='Enviando...';
    try{const r=await fetch(bookingBase+'/' +encodeURIComponent(b.reference)+'/send-to-dispatch',{method:'POST',credentials:'same-origin'});if(!r.ok)throw Error('No se pudo transferir ('+r.status+')');await load()}catch(e){message.textContent=e.message}
   };
   const accept=element('button',b.acceptance_notice_status==='sent'?'Aceptación enviada':b.acceptance_notice_status==='failed'?'Reintentar correo de aceptación':'Aceptar y notificar al cliente');
-  accept.disabled=b.status==='cancelled'||['sent','sending','unknown'].includes(b.acceptance_notice_status);
+  accept.disabled=b.fare_cents===null||b.status==='cancelled'||['sent','sending','unknown'].includes(b.acceptance_notice_status);
   accept.onclick=async()=>{
    if(!confirm('¿Aceptar '+b.reference+' y enviar un correo de confirmación al cliente? La asignación del conductor seguirá siendo manual.'))return;
    accept.disabled=true;message.textContent='Aceptando y enviando correo...';
@@ -37,6 +38,18 @@ async function load(){
     await load();message.textContent='Reserva aprobada. Correo de aceptación enviado al proveedor; la entrega al buzón del cliente aún puede demorar.';
    }catch(e){await load().catch(()=>{});message.textContent=e.message}
   };
+  if(b.fare_cents===null&&b.status==='received'){
+   const input=element('input','');input.type='number';input.min='0.01';input.step='0.01';input.placeholder='Tarifa USD';input.setAttribute('aria-label','Tarifa en dólares');
+   const save=element('button','Guardar tarifa / Save fare');
+   save.onclick=async()=>{
+    if(!/^\d+(\.\d{1,2})?$/.test(input.value)||Number(input.value)<=0){message.textContent='Escribe una tarifa válida en dólares.';return}
+    const fareCents=Math.round(Number(input.value)*100);
+    if(!confirm('¿Guardar tarifa de $'+(fareCents/100).toFixed(2)+'? Esto no confirma ni cobra el viaje.'))return;
+    save.disabled=true;
+    try{const r=await fetch(bookingBase+'/'+encodeURIComponent(b.reference)+'/quote',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({fareCents})});if(!r.ok)throw Error('No se pudo guardar la tarifa');await load()}catch(e){message.textContent=e.message;save.disabled=false}
+   };
+   card.append(input,save,element('p','Define la tarifa antes de aprobar. No se ha realizado ningún cobro.'));
+  }
   card.append(button,document.createTextNode(' '),accept);
   if(['sending','unknown'].includes(b.acceptance_notice_status))card.append(element('p','Envío en curso o incierto: verifica el correo antes de reenviar.'));
   list.append(card);

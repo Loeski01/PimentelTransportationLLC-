@@ -34,6 +34,7 @@ function registerAcceptanceRoute(r,{db,requireAdmin,sendAcceptance}){
    booking=result.rows[0];
    const stop=async(status,error)=>{await client.query('ROLLBACK');return res.status(status).json({error})};
    if(!booking)return await stop(404,'Reserva no encontrada');
+   if(booking.fare_cents===null)return await stop(409,'Define la tarifa antes de confirmar la reserva');
    if(booking.acceptance_notice_status==='sent'){await client.query('COMMIT');return res.json({accepted:true,notice:'sent',alreadySent:true})}
    if(['sending','unknown'].includes(booking.acceptance_notice_status))return await stop(409,'Envío en curso o incierto. Verifica el correo antes de volver a enviar.');
    if(booking.status!=='transferred'||!booking.dispatch_trip_id)return await stop(409,'Envía primero la reserva a despacho.');
