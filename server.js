@@ -36,7 +36,10 @@ async function getJSON(url, signal) {
     signal,
     headers: { Accept: "application/json", "User-Agent": "PimentelTransportationLLC/1.0 (https://loeski01.github.io/PimentelTransportationLLC-/)" }
   });
-  if (!response.ok) throw new QuoteError(503, "MAP_UNAVAILABLE", "El servicio de mapas no está disponible. Inténtalo más tarde.");
+  if (!response.ok) {
+    console.error("Map provider rejected request:", new URL(url).hostname, "HTTP", response.status);
+    throw new QuoteError(503, "MAP_UNAVAILABLE", "El servicio de mapas no está disponible. Inténtalo más tarde.");
+  }
   return response.json();
 }
 async function locate(address, signal) {
