@@ -98,6 +98,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .vehicle-option p{font-size:14px;color:#d8d2c5;margin:8px 0;min-height:44px}
 .vehicle-notice{max-width:930px;margin:12px auto 30px;color:#c8c0ae;font-size:13px}
 @media(max-width:620px){.vehicle-choices{gap:10px}.vehicle-option>img,.vehicle-photo-pair{height:135px}.vehicle-option .vehicle-content{padding:12px}.vehicle-option .vehicle-title{font-size:17px}.vehicle-option .vehicle-price{font-size:13px}.vehicle-option p{font-size:12px;min-height:68px}.vehicle-option .vehicle-select{font-size:12px}}
+
+/* Premium footer branding — visual-only; booking logic untouched */
+.premium-footer{padding:38px 16px 26px;background:#080808;border-top:2px solid #c8a24b;text-align:center}
+.premium-footer-inner{max-width:560px;margin:auto}
+.premium-crest{display:block;width:116px;height:116px;margin:0 auto 9px}
+.premium-footer-name{font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:clamp(28px,7vw,46px);letter-spacing:.14em;line-height:1.15;background:linear-gradient(120deg,#b88b34,#f9e8ad 45%,#c69a3c 75%,#f4d78a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.premium-footer-subtitle{font-family:Georgia,'Times New Roman',serif;font-size:clamp(13px,3vw,18px);letter-spacing:.24em;color:#ded9d0;margin-top:8px}
+.premium-footer-rule{height:1px;max-width:260px;margin:20px auto 14px;background:linear-gradient(90deg,transparent,#c7a04c,transparent)}
+.premium-footer-tagline{color:#d1c7b4;font-size:13px;line-height:1.5;margin:0 0 12px}
+.premium-footer-copyright{color:#9d9588;font-size:11px;margin:0}
+@media(max-width:480px){.premium-crest{width:94px;height:94px}.premium-footer-name{letter-spacing:.09em}.premium-footer-subtitle{letter-spacing:.14em}}
 </style>
 </head>
 <body>
@@ -272,9 +283,23 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <p>Boston, Massachusetts</p>
 </section>
 
-<footer>
-© PimentelTransportationLLC
-<p>Luxury Transportation | Boston & Massachusetts</p>
+<footer class="premium-footer" aria-label="Pimentel Transportation LLC">
+<div class="premium-footer-inner">
+<svg class="premium-crest" viewBox="0 0 160 160" role="img" aria-label="Escudo dorado Pimentel con letra P y laureles">
+<defs><linearGradient id="crestGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f9e6a5"/><stop offset=".42" stop-color="#c59a3b"/><stop offset=".7" stop-color="#fff0b8"/><stop offset="1" stop-color="#9d7429"/></linearGradient></defs>
+<path d="M80 11 L124 27 V76 Q124 109 80 137 Q36 109 36 76 V27 Z" fill="#0b0b0b" stroke="url(#crestGold)" stroke-width="3"/>
+<path d="M80 19 L116 33 V76 Q116 103 80 127 Q44 103 44 76 V33 Z" fill="none" stroke="#b88a37" stroke-width="1"/>
+<text x="80" y="98" font-family="Georgia,serif" font-size="77" font-weight="bold" text-anchor="middle" fill="url(#crestGold)">P</text>
+<g fill="none" stroke="url(#crestGold)" stroke-width="2.2" stroke-linecap="round">
+<path d="M31 118 Q9 95 18 59 M129 118 Q151 95 142 59"/>
+<path d="M25 104 l-13 -7 m13 -3 l-12 -12 m13 0 l-8 -15 m14 46 l-12 -3 m115 -6 l13 -7 m-13 -3 l12 -12 m-13 0 l8 -15 m-14 46 l12 -3"/>
+</g></svg>
+<div class="premium-footer-name">PIMENTEL</div>
+<div class="premium-footer-subtitle">TRANSPORTATION LLC</div>
+<div class="premium-footer-rule" aria-hidden="true"></div>
+<p class="premium-footer-tagline">Luxury Transportation | Boston &amp; Massachusetts</p>
+<p class="premium-footer-copyright">© Pimentel Transportation LLC</p>
+</div>
 </footer>
 
 <script>
