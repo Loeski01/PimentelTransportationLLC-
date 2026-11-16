@@ -98,6 +98,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .vehicle-option p{font-size:14px;color:#d8d2c5;margin:8px 0;min-height:44px}
 .vehicle-notice{max-width:930px;margin:12px auto 30px;color:#c8c0ae;font-size:13px}
 @media(max-width:620px){.vehicle-choices{gap:10px}.vehicle-option>img,.vehicle-photo-pair{height:135px}.vehicle-option .vehicle-content{padding:12px}.vehicle-option .vehicle-title{font-size:17px}.vehicle-option .vehicle-price{font-size:13px}.vehicle-option p{font-size:12px;min-height:68px}.vehicle-option .vehicle-select{font-size:12px}}
+
+/* Pimentel executive booking footer: visual-only styling */
+.pimentel-luxury-footer{background:#080808;color:#dfd6c2;text-align:center;padding:34px 18px 28px;border-top:1px solid #b58b46;box-shadow:inset 0 1px 0 #44331a}
+.pimentel-footer-brand{max-width:560px;margin:auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+.pimentel-footer-crest{width:112px;height:124px;display:block;margin:0 auto 3px}
+.pimentel-footer-name{font-family:Georgia,'Times New Roman',serif;font-size:clamp(28px,6vw,46px);letter-spacing:.16em;font-weight:bold;line-height:1.15;background:linear-gradient(125deg,#fff1bd,#c49642 45%,#f4dc99 75%,#a2732c);color:#d7b56c;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.pimentel-footer-subtitle{font-family:Georgia,'Times New Roman',serif;color:#d3d0c9;font-size:clamp(12px,2.8vw,17px);letter-spacing:.25em}
+.pimentel-footer-divider{width:145px;height:1px;background:linear-gradient(90deg,transparent,#caa15c,transparent);margin:12px auto 4px}
+.pimentel-luxury-footer .pimentel-footer-tagline{color:#d1c5ae;font-size:12px;letter-spacing:.06em;margin:4px 0}
+.pimentel-luxury-footer .pimentel-footer-copyright{color:#9c907b;font-size:11px;margin:4px 0}
+@media(max-width:420px){.pimentel-luxury-footer{padding:27px 12px 22px}.pimentel-footer-crest{width:95px;height:106px}.pimentel-footer-name{letter-spacing:.10em}.pimentel-footer-subtitle{letter-spacing:.14em}}
 </style>
 </head>
 <body>
@@ -272,9 +283,25 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <p>Boston, Massachusetts</p>
 </section>
 
-<footer>
-© PimentelTransportationLLC
-<p>Luxury Transportation | Boston & Massachusetts</p>
+<footer class="pimentel-luxury-footer" aria-label="Pimentel Transportation LLC">
+  <div class="pimentel-footer-brand">
+    <svg class="pimentel-footer-crest" viewBox="0 0 150 165" role="img" aria-label="Escudo Pimentel dorado con letra P y laureles" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="ptGold" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fff2bb"/><stop offset=".32" stop-color="#d8ac55"/><stop offset=".7" stop-color="#946521"/><stop offset="1" stop-color="#f1d38a"/></linearGradient></defs>
+      <path d="M75 10 L120 24 L116 96 Q109 129 75 151 Q41 129 34 96 L30 24 Z" fill="#0a0a0a" stroke="url(#ptGold)" stroke-width="3"/>
+      <path d="M75 19 L111 31 L107 94 Q102 119 75 139 Q48 119 43 94 L39 31 Z" fill="none" stroke="#a9813c" stroke-width="1.5"/>
+      <text x="75" y="106" font-family="Georgia,serif" font-size="79" text-anchor="middle" fill="url(#ptGold)">P</text>
+      <g fill="none" stroke="url(#ptGold)" stroke-width="2.3" stroke-linecap="round">
+        <path d="M30 128 Q8 107 14 62 M120 128 Q142 107 136 62"/>
+        <path d="M26 114 l-15 -7 m17 -3 l-13 -12 m16 2 l-10 -14 m10 -1 l-7 -15 m9 3 l-3 -16"/>
+        <path d="M124 114 l15 -7 m-17 -3 l13 -12 m-16 2 l10 -14 m-10 -1 l7 -15 m-9 3 l3 -16"/>
+      </g>
+    </svg>
+    <div class="pimentel-footer-name">PIMENTEL</div>
+    <div class="pimentel-footer-subtitle">TRANSPORTATION LLC</div>
+    <div class="pimentel-footer-divider"></div>
+    <p class="pimentel-footer-tagline">Luxury Transportation | Boston &amp; Massachusetts</p>
+    <p class="pimentel-footer-copyright">© Pimentel Transportation LLC</p>
+  </div>
 </footer>
 
 <script>
