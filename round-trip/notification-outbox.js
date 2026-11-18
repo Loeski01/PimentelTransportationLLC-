@@ -17,7 +17,14 @@ async function deliverBookingNotification({client,eventId,send}) {
   if(claim.rowCount!==1) return {claimed:false};
   const item=claim.rows[0];
   try {
-    const result=await send({eventId,recipientEmail:item.recipient_email});
+    const details=await client.query(
+      `SELECT e.event_id,e.booking_id,e.changes,e.previous_fare_cents,e.new_fare_cents,
+              b.reference,b.customer_name
+       FROM pt_booking_change_events e
+       JOIN pt_customer_bookings b ON b.id=e.booking_id
+       WHERE e.event_id=$1`,[eventId]);
+    if(details.rowCount!==1) throw new Error('Notification event details unavailable');
+    const result=await send({eventId,recipientEmail:item.recipient_email,booking:details.rows[0]});
     if (!result || result.accepted !== true) throw new Error('Mail provider did not accept message');
     await client.query(
       `UPDATE pt_booking_notification_outbox SET status='accepted',accepted_at=now(),last_error=NULL
