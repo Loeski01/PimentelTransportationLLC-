@@ -4,6 +4,11 @@
 // mounted only after verified admin session middleware is installed.
 const express = require('express');
 const { bostonPickupTime } = require('./boston-pickup-time');
+// An audit entry also keeps the archived record out of operational queues.
+const notArchived = tripId => `NOT EXISTS (
+  SELECT 1 FROM dispatch_trip_audit archived
+  WHERE archived.trip_id=${tripId} AND archived.actor_role='admin' AND archived.action='archived'
+)`;
 const editableTripStatuses = ['pending', 'approved', 'assigned', 'accepted'];
 const validTripText = text => typeof text === 'string' && text.trim().length > 0 && text.trim().length <= 250;
 const validTripPhone = phone => !phone || /^\+[1-9][0-9]{7,14}$/.test(phone);
@@ -25,7 +30,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status,updated_at::text AS edit_version FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query(`SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status,updated_at::text AS edit_version FROM dispatch_trips WHERE ${notArchived("dispatch_trips.id")} ORDER BY pickup_at DESC LIMIT 100`);
       res.json(q.rows);
     } catch(e){next(e)}
   });
@@ -166,6 +171,28 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       next(error);
     }
   });
+  router.post('/admin/trips/:id/archive', requireAdmin, async (req, res, next) => {
+    const { id } = req.params;
+    const version = req.body?.version;
+    if (!/^[1-9]\d{0,18}$/.test(id) || BigInt(id) > 9223372036854775807n ||
+        typeof version !== 'string' || !version || version.length > 64) {
+      return res.status(400).json({error:'Invalid trip or version'});
+    }
+    try {
+      const q = await updateAndAudit(
+        `UPDATE dispatch_trips
+         SET status=CASE WHEN status IN ('pending','approved','assigned','accepted','started')
+                         THEN 'cancelled' ELSE status END, updated_at=clock_timestamp()
+         WHERE id=$1 AND updated_at::text=$2 AND ${notArchived("dispatch_trips.id")}
+         RETURNING id`,
+        [id, version], 'admin', req.session?.userId || 'admin', 'archived'
+      );
+      if (!q.rowCount) return res.status(409).json({error:'Trip changed or was already removed from the panels'});
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
   // Admin can cancel a trip that has not yet started; assigned drivers lose access immediately.
   router.post('/admin/trips/:id/cancel',requireAdmin,async(req,res,next)=>{
     try {
@@ -208,11 +235,11 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       const q=await db.query(`SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND (
         status IN ('assigned','accepted','started','no_show')
         OR id IN (
-          SELECT id FROM dispatch_trips
-          WHERE driver_id=$1 AND status='completed'
+          SELECT id FROM dispatch_trips completed
+          WHERE driver_id=$1 AND status='completed' AND ${notArchived("completed.id")}
           ORDER BY pickup_at DESC, id DESC LIMIT 50
         )
-      ) AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at`,[req.driver.id]);
+      ) AND ${notArchived("dispatch_trips.id")} AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at`,[req.driver.id]);
       res.json(q.rows); // Intentionally NEVER return fare or payment data.
     } catch(e){next(e)}
   });
@@ -255,7 +282,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Administrator-only inbox. Never exposed through driver endpoints.
   router.get('/admin/notifications',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT notices.id,notices.trip_id,notices.driver_id,notices.event_type,notices.created_at,notices.read_at,t.passenger_surname,d.display_name AS driver_name FROM (SELECT n.id,n.trip_id,n.driver_id::text AS driver_id,n.event_type,n.created_at,n.read_at FROM dispatch_admin_notifications n UNION ALL SELECT -a.id AS id,a.trip_id,a.actor_id AS driver_id,CASE WHEN a.action='driver:started' THEN 'trip_started' ELSE 'no_show' END AS event_type,a.created_at,NULL::timestamptz AS read_at FROM dispatch_trip_audit a WHERE a.actor_role='driver' AND a.action IN ('driver:no_show','driver:started')) notices JOIN dispatch_trips t ON t.id=notices.trip_id JOIN dispatch_drivers d ON d.id::text=notices.driver_id ORDER BY notices.created_at DESC,notices.id DESC LIMIT 100");
+      const q=await db.query(`SELECT notices.id,notices.trip_id,notices.driver_id,notices.event_type,notices.created_at,notices.read_at,t.passenger_surname,d.display_name AS driver_name FROM (SELECT n.id,n.trip_id,n.driver_id::text AS driver_id,n.event_type,n.created_at,n.read_at FROM dispatch_admin_notifications n UNION ALL SELECT -a.id AS id,a.trip_id,a.actor_id AS driver_id,CASE WHEN a.action='driver:started' THEN 'trip_started' ELSE 'no_show' END AS event_type,a.created_at,NULL::timestamptz AS read_at FROM dispatch_trip_audit a WHERE a.actor_role='driver' AND a.action IN ('driver:no_show','driver:started')) notices JOIN dispatch_trips t ON t.id=notices.trip_id JOIN dispatch_drivers d ON d.id::text=notices.driver_id WHERE ${notArchived("t.id")} ORDER BY notices.created_at DESC,notices.id DESC LIMIT 100`);
       res.set('Cache-Control','no-store').json(q.rows);
     }catch(e){next(e)}
   });
