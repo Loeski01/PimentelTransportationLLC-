@@ -1,5 +1,26 @@
 'use strict';
 const express=require('express'),crypto=require('node:crypto');
+function bostonPickupTime(localDate,localTime){
+  // Resolve Boston wall-clock time using America/New_York, including daylight saving.
+  // Reject nonexistent spring-forward times rather than silently shifting a pickup.
+  const parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
+  const clock=/^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(localTime);
+  if(!parts||!clock)throw RangeError('Invalid pickup time');
+  const y=Number(parts[1]),m=Number(parts[2]),d=Number(parts[3]);
+  const hh=Number(clock[1]),mm=Number(clock[2]),ss=Number(clock[3]||0);
+  const wall=Date.UTC(y,m-1,d,hh,mm,ss);
+  const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const matches=[];
+  for(const hours of [4,5]){
+    const candidate=new Date(wall+hours*3600000);
+    const fields=Object.fromEntries(fmt.formatToParts(candidate).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
+    if(fields.year===y&&fields.month===m&&fields.day===d&&fields.hour===hh&&fields.minute===mm&&fields.second===ss)
+      matches.push(candidate);
+  }
+  if(matches.length!==1)throw RangeError('Invalid, nonexistent or ambiguous Boston pickup time');
+  return matches[0];
+}
 function router({db,secret,requireAdmin,sendAcceptance,production=false,productionDatabaseName,stagingEditSecret,stagingEditNotificationEmail}){
  if(typeof secret!=='string'||Buffer.byteLength(secret)<32)throw Error('Staging booking intake secret missing');
  const r=express.Router();
@@ -20,6 +41,52 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
     db,requireAdmin,signingSecret:stagingEditSecret,notificationEmail:stagingEditNotificationEmail
    });
   }
+  r.post('/round-trip/:reference/send-to-dispatch',requireAdmin,async(req,res,next)=>{
+   const {reference}=req.params;
+   if(!/^PT-[A-Z0-9-]{4,64}$/.test(reference))return res.sendStatus(400);
+   let client;
+   try{
+    client=await db.connect();
+    await client.query('BEGIN');
+    const {rows:[booking]}=await client.query(
+     "SELECT * FROM pt_customer_bookings WHERE reference=$1 AND trip_type='round_trip' FOR UPDATE",[reference]);
+    if(!booking){
+     await client.query('ROLLBACK');
+     return res.sendStatus(404);
+    }
+    if(booking.status!=='pending'){
+     await client.query('ROLLBACK');
+     return res.sendStatus(409);
+    }
+    const {from,to,date,time}=booking.outbound;
+    const legs=[
+     {key:'OUTBOUND',from,to,pickup:bostonPickupTime(date,time)},
+     {key:'RETURN',from:to,to:from,pickup:bostonPickupTime(booking.return_leg.date,booking.return_leg.time)}
+    ];
+    if(legs[1].pickup<=legs[0].pickup)throw RangeError('Return is not after departure');
+    const surname=booking.customer_name.trim().split(/\s+/).at(-1);
+    const trips=[];
+    for(const leg of legs){
+     // The combined fare stays on the booking. Dispatch legs do not carry separate fares.
+     const trip=await client.query(`INSERT INTO dispatch_trips
+      (booking_reference,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,status)
+      VALUES ($1,$2,$3,$4,$5,$6,'pending') RETURNING id`,
+     [reference+'-'+leg.key,surname,booking.customer_phone,leg.from,leg.to,leg.pickup]);
+     const id=trip.rows[0].id;
+     await client.query(`INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action)
+      VALUES ($1,'admin',$2,'created_from_round_trip')`,[id,String(req.session.userId)]);
+     trips.push({leg:leg.key,id});
+    }
+    await client.query("UPDATE pt_customer_bookings SET status='dispatched',version=version+1,updated_at=now() WHERE id=$1",[booking.id]);
+    await client.query('COMMIT');
+    res.status(201).json({reference,trips});
+   }catch(error){
+    if(client)await client.query('ROLLBACK').catch(()=>{});
+    if(error instanceof RangeError)return res.status(422).json({error:error.message});
+    if(error.code==='23505')return res.sendStatus(409);
+    next(error);
+   }finally{client?.release();}
+  });
   r.post('/round-trip-intake',auth,async(req,res,next)=>{
    const {persistRoundTripRequest}=require('../round-trip/persist-request');
    res.set('Cache-Control','no-store');
@@ -100,25 +167,7 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
    if(b.status!=='received'){await client.query('ROLLBACK');return res.status(409).json({error:'Not transferable'})}
    const localDate=b.pickup_local_date instanceof Date?b.pickup_local_date.toISOString().slice(0,10):String(b.pickup_local_date).slice(0,10);
    const localTime=String(b.pickup_local_time).slice(0,8);
-   // Resolve Boston wall-clock time using America/New_York, including daylight saving.
-   // Reject nonexistent spring-forward times rather than silently shifting a pickup.
-   const parts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
-   const clock=/^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(localTime);
-   if(!parts||!clock)throw Error('Invalid pickup time');
-   const y=Number(parts[1]),m=Number(parts[2]),d=Number(parts[3]);
-   const hh=Number(clock[1]),mm=Number(clock[2]),ss=Number(clock[3]||0);
-   const wall=Date.UTC(y,m-1,d,hh,mm,ss);
-   const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',
-     year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-   const matches=[];
-   for(const hours of [4,5]){
-     const candidate=new Date(wall+hours*3600000);
-     const fields=Object.fromEntries(fmt.formatToParts(candidate).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
-     if(fields.year===y&&fields.month===m&&fields.day===d&&fields.hour===hh&&fields.minute===mm&&fields.second===ss)
-       matches.push(candidate);
-   }
-   if(matches.length!==1)throw Error('Invalid, nonexistent or ambiguous Boston pickup time');
-   const dt=matches[0];
+   const dt=bostonPickupTime(localDate,localTime);
    const surname=b.passenger_name.trim().split(/\s+/).slice(-1)[0];
    const inserted=await client.query(`INSERT INTO dispatch_trips
     (booking_reference,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,fare_cents,status)
