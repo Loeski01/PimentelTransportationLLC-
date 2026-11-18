@@ -83,6 +83,21 @@ async function run(){
   assert.equal(Number(durable.version),4);
   assert.equal(Number(durable.fare_cents),22000);
   assert.equal(durable.outbound.time,'12:00');
+  // Once dispatch has started, edits must fail without touching audit or outbox.
+  await client.query("UPDATE pt_customer_bookings SET status='en_route' WHERE id=$1",[inserted.rows[0].id]);
+  const eventCountBefore=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
+  const outboxCountBefore=Number((await client.query('SELECT count(*) AS n FROM pt_booking_notification_outbox')).rows[0].n);
+  await assert.rejects(
+    persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:4,before:{...before,status:'confirmed',time:'12:00',phone:'5551234567',email:'new@example.test',passengers:'3'},patch:{time:'12:30'},previousFareCents:22000,newFareCents:22500,notificationEmail:'admin@example.test'}),
+    error=>error.code==='BOOKING_CONFLICT'
+  );
+  const blocked=(await client.query('SELECT status,version,fare_cents,outbound FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(blocked.status,'en_route');
+  assert.equal(Number(blocked.version),4);
+  assert.equal(Number(blocked.fare_cents),22000);
+  assert.equal(blocked.outbound.time,'12:00');
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),eventCountBefore);
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_notification_outbox')).rows[0].n),outboxCountBefore);
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
