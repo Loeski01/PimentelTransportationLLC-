@@ -121,6 +121,14 @@ async function run(){
   assert.equal(approvedState.status,'approved');
   assert.equal(Number(approvedState.version),6);
   assert.equal(approvedState.return_leg.time,'15:30');
+  // A stale approved-booking snapshot must not overwrite a newer return itinerary.
+  const auditBeforeStale=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
+  await assert.rejects(persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:6,before:approvedBefore,patch:{phone:'5559876543'},previousFareCents:23500,newFareCents:23500,notificationEmail:'admin@example.test'}),error=>error.code==='BOOKING_CONFLICT');
+  const staleState=(await client.query('SELECT version,return_leg,customer_phone FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(Number(staleState.version),6);
+  assert.equal(staleState.return_leg.time,'15:30');
+  assert.equal(staleState.customer_phone,'5551234567');
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),auditBeforeStale);
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
