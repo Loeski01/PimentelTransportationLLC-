@@ -36,6 +36,21 @@ async function run(){
   const again=await deliverBookingNotification({client,eventId:changed.eventId,send:async()=>{sends++;return {accepted:true}}});
   assert.equal(again.claimed,false);
   assert.equal(sends,1);
+  // Real database concurrency guard: stale edits must not mutate the booking or create events.
+  const eventsBefore=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
+  await assert.rejects(
+   persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:1,before,patch:{time:'12:00'},previousFareCents:20000,newFareCents:22000,notificationEmail:'admin@example.test'}),
+   error=>error.code==='BOOKING_CONFLICT'
+  );
+  const afterConflict=(await client.query('SELECT version,fare_cents,outbound FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(Number(afterConflict.version),2);
+  assert.equal(Number(afterConflict.fare_cents),21000);
+  assert.equal(afterConflict.outbound.time,'11:00');
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),eventsBefore);
+  // Real database constraints reject invalid required contact values.
+  await assert.rejects(client.query('UPDATE pt_customer_bookings SET customer_email=NULL WHERE id=$1',[inserted.rows[0].id]),error=>error.code==='23502');
+  const intact=(await client.query('SELECT customer_email FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(intact.customer_email,'new@example.test');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
