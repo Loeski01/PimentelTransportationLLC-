@@ -38,9 +38,7 @@ async function deliverBookingNotification({client,eventId,send}) {
       return {claimed:true,accepted:true,acknowledgementRecorded:false,requiresReconciliation:true};
     }
   } catch(err) {
-    await client.query(
-      `UPDATE pt_booking_notification_outbox
-       SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry' END,
+    // An exception from the mail sender may mean the provider accepted the message.\n    // Never automatically resend an ambiguous outcome; require manual reconciliation.\n    if (err && err.deliveryOutcome !== 'rejected') {\n      return {claimed:true,accepted:false,requiresReconciliation:true,retryQueued:false};\n    }\n    await client.query(\n      `UPDATE pt_booking_notification_outbox\n       SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry' END,
            next_attempt_at=now()+interval '5 minutes',sending_started_at=NULL,last_error=$2
        WHERE event_id=$1 AND status='sending'`,[eventId,String(err.message||err).slice(0,500)]);
     return {claimed:true,accepted:false,retryQueued:Number(item.attempts)<5,permanentlyFailed:Number(item.attempts)>=5};
