@@ -38,3 +38,19 @@ test('driver view displays pickup date and time in Boston without displaying far
  assert.match(driverView,/Pickup \/ Recogida:/);
  assert.doesNotMatch(driverView,/t\.fare_cents/);
 });
+
+test('duplicate reference is idempotent only for identical stored details',async()=>{
+ const body={reference:'PT-DUPLICATE1',name:'Passenger Example',phone:'+16175550123',email:'passenger@example.com',from:'Boston',to:'Cambridge',date:'2026-11-20',time:'14:30',tier:'luxury',payment:'later',fareCents:8000,tipCents:0};
+ const stored={passenger_name:body.name,passenger_phone:body.phone,passenger_email:body.email,pickup_address:body.from,destination_address:body.to,pickup_local_date:body.date,pickup_local_time:body.time,passenger_count:null,service_tier:body.tier,fare_cents:body.fareCents,tip_cents:body.tipCents,payment_preference:body.payment,special_instructions:null};
+ const db={query:async(sql)=>sql.includes('INSERT INTO booking_requests')?{rowCount:0,rows:[]}:{rowCount:1,rows:[stored]}};
+ const app=express();app.use(express.json());app.use('/booking',router({secret:'x'.repeat(40),db,requireAdmin:(req,res)=>res.sendStatus(403)}));
+ const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+ const url='http://127.0.0.1:'+server.address().port+'/booking/intake';
+ const send=payload=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-Booking-Service-Key':'x'.repeat(40)},body:JSON.stringify(payload)});
+ try{
+  assert.equal((await send(body)).status,200);
+  assert.equal((await send({...body,time:'15:30'})).status,409);
+  assert.equal((await send({...body,phone:'+16175550999'})).status,409);
+  assert.equal((await send({...body,fareCents:9000})).status,409);
+ }finally{await new Promise(resolve=>server.close(resolve))}
+});
