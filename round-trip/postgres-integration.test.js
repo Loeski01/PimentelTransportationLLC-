@@ -108,6 +108,19 @@ async function run(){
   const eventsBeforeCancel=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
   await assert.rejects(persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:5,before:{...before,status:'confirmed',time:'12:00',returnTime:'15:00',phone:'5551234567',email:'new@example.test',passengers:'3'},patch:{returnTime:'16:00'},previousFareCents:23000,newFareCents:24000,notificationEmail:'admin@example.test'}),error=>error.code==='BOOKING_CONFLICT');
   assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),eventsBeforeCancel);
+  // Approved bookings can be modified before dispatch, with exactly one audit/outbox pair.
+  await client.query("UPDATE pt_customer_bookings SET status='approved' WHERE id=$1",[inserted.rows[0].id]);
+  const approvedBefore={...before,status:'approved',time:'12:00',returnTime:'15:00',phone:'5551234567',email:'new@example.test',passengers:'3'};
+  const auditBefore=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
+  const noticesBefore=Number((await client.query('SELECT count(*) AS n FROM pt_booking_notification_outbox')).rows[0].n);
+  const approvedChange=await persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:5,before:approvedBefore,patch:{returnTime:'15:30'},previousFareCents:23000,newFareCents:23500,notificationEmail:'admin@example.test'});
+  assert.equal(approvedChange.version,6);
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),auditBefore+1);
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_notification_outbox')).rows[0].n),noticesBefore+1);
+  const approvedState=(await client.query('SELECT status,version,return_leg FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(approvedState.status,'approved');
+  assert.equal(Number(approvedState.version),6);
+  assert.equal(approvedState.return_leg.time,'15:30');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
