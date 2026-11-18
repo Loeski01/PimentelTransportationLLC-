@@ -17,6 +17,7 @@ jobs:
         run: |
           node round-trip/pricing.test.js
           node round-trip/modification.test.js
+          node round-trip/legacy-boundary.test.js
       - name: Database transaction and notification mocks
         run: |
           node round-trip/persist-modification.test.js
