@@ -16,17 +16,23 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
   if (event.changes.some(change => !['from','to','date','time','returnDate','returnTime'].includes(change.field)))
     throw new RangeError('Contact and passenger edits not yet supported by persistence');
   const { after } = event;
+  // Require the database row to match the snapshot used for validation and pricing.
+  // Prevent stale fare/schedule data from being overwritten even if a caller supplies an old version.
+  const snapshotOutbound = JSON.stringify({from:before.from,to:before.to,date:before.date,time:before.time});
+  const snapshotReturn = before.tripType === 'round_trip' ? JSON.stringify({date:before.returnDate,time:before.returnTime}) : null;
   await client.query('BEGIN');
   try {
     const updated = await client.query(
       `UPDATE pt_customer_bookings
        SET outbound=$1::jsonb, return_leg=$2::jsonb, fare_cents=$3, version=version+1, updated_at=now()
        WHERE id=$4 AND version=$5 AND status IN ('pending','approved','confirmed')
+       AND reference=$6 AND fare_cents=$7
+       AND outbound=$8::jsonb AND return_leg IS NOT DISTINCT FROM $9::jsonb
        RETURNING id,version,reference`,
       [
         JSON.stringify({from:after.from,to:after.to,date:after.date,time:after.time}),
         after.tripType === 'round_trip' ? JSON.stringify({date:after.returnDate,time:after.returnTime}) : null,
-        newFareCents,bookingId,expectedVersion
+        newFareCents,bookingId,expectedVersion,before.reference,previousFareCents,snapshotOutbound,snapshotReturn
       ]
     );
     if (updated.rowCount !== 1 || updated.rows[0].reference !== before.reference) {
