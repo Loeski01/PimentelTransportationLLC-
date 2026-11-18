@@ -150,6 +150,10 @@ app.post("/api/round-trip-quote", async (req, res) => {
 });
 
 app.post("/api/create-checkout-session", async (req, res) => {
+  // Fail closed: the legacy one-way flow must never silently accept round-trip details.
+  if (req.body?.tripType === "round_trip" || req.body?.returnDate != null || req.body?.returnTime != null) {
+    return res.status(409).json({ code: "ROUND_TRIP_NOT_ENABLED", error: "Round-trip booking and payment are not yet available. / Las reservas y pagos de ida y vuelta aún no están disponibles." });
+  }
   if (!stripe) {
     return res.status(503).json({ error: "Stripe is not configured" });
   }
@@ -252,6 +256,10 @@ const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
 app.post("/api/booking-request", async (req, res) => {
+  // Fail closed: the legacy one-way flow must never silently accept round-trip details.
+  if (req.body?.tripType === "round_trip" || req.body?.returnDate != null || req.body?.returnTime != null) {
+    return res.status(409).json({ code: "ROUND_TRIP_NOT_ENABLED", error: "Round-trip booking and payment are not yet available. / Las reservas y pagos de ida y vuelta aún no están disponibles." });
+  }
   res.setHeader("Cache-Control", "no-store");
   if (!mailReady) return res.status(503).json({ error: "Las notificaciones automáticas todavía no están activadas. Usa WhatsApp o correo." });
   const ip = req.ip || "unknown";
