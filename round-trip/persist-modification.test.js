@@ -1,0 +1,34 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {persistBookingChange}=require('./persist-modification');
+const before={reference:'PT-TEST',name:'Test',tripType:'round_trip',status:'confirmed',from:'Boston',to:'Cambridge',date:'2026-12-01',time:'10:00',returnDate:'2026-12-02',returnTime:'14:00'};
+function mock({conflict=false,failOutbox=false}={}) {
+ const calls=[];
+ return {calls,async query(sql,args=[]) {
+   calls.push({sql,args});
+   if(sql.includes('UPDATE pt_customer_bookings')) return conflict?{rowCount:0,rows:[]}:{rowCount:1,rows:[{reference:'PT-TEST',version:3}]};
+   if(failOutbox&&sql.includes('INSERT INTO pt_booking_notification_outbox')) throw Error('outbox unavailable');
+   return {rowCount:1,rows:[]};
+ }};
+}
+async function run(){
+ const db=mock();
+ const result=await persistBookingChange({client:db,bookingId:7,expectedVersion:2,before,patch:{time:'11:00'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'});
+ assert.equal(result.notificationQueued,true);
+ assert.equal(result.version,3);
+ assert.equal(db.calls[0].sql,'BEGIN');
+ assert.equal(db.calls.at(-1).sql,'COMMIT');
+ assert.equal(db.calls.filter(c=>c.sql.includes('INSERT INTO pt_booking_change_events')).length,1);
+ assert.equal(db.calls.filter(c=>c.sql.includes('INSERT INTO pt_booking_notification_outbox')).length,1);
+ const conflict=mock({conflict:true});
+ await assert.rejects(()=>persistBookingChange({client:conflict,bookingId:7,expectedVersion:2,before,patch:{time:'11:00'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'}),{code:'BOOKING_CONFLICT'});
+ assert.equal(conflict.calls.at(-1).sql,'ROLLBACK');
+ const failure=mock({failOutbox:true});
+ await assert.rejects(()=>persistBookingChange({client:failure,bookingId:7,expectedVersion:2,before,patch:{time:'11:00'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'}),/outbox unavailable/);
+ assert.equal(failure.calls.at(-1).sql,'ROLLBACK');
+ const invalid=mock();
+ await assert.rejects(()=>persistBookingChange({client:invalid,bookingId:7,expectedVersion:2,before,patch:{phone:'5551234567'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'}),/not yet supported/);
+ assert.equal(invalid.calls.length,0);
+ console.log('Persistence mock transaction tests passed (12 assertions)');
+}
+run().catch(e=>{console.error(e);process.exitCode=1});
