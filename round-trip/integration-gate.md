@@ -68,3 +68,8 @@ Determine which existing persistent store is authoritative for bookings and whet
 - Sandbox delivery receipts, payment idempotency, legacy booking/QR/bilingual regressions, rollback and cost check still required.
 
 **Release status remains BLOCKED.**
+
+### Stage 2 component verification — 2026-11-18
+- Booking intake and acceptance, duplicate reference conflict rejection, driver pickup date/time display (America/New_York), dispatcher route authorization and trip milestone tests: passed in feature-branch CI at commit `9fc7270da30cfc485d8a08fa8195d470dc89ae22` (https://github.com/Loeski01/PimentelTransportationLLC-/actions/runs/44332869391).
+- **Closed for code regression tests only.** No end-to-end live driver UI or production DB verification performed.
+- **Remaining Stage 2 blocker:** authoritative durable production booking database and isolated end-to-end booking → manual dispatch → driver assignment → driver view validation. Existing staging claims do not substitute for current environment checks.
