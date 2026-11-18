@@ -158,6 +158,15 @@ async function run(){
   await client.query('BEGIN');
   assert.equal(await consumeEditGrant({client,token:rollbackGrant,secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow}),true);
   await client.query('COMMIT');
+  // The edit token must be consumed atomically with the booking edit and audit/outbox.
+  const securedBefore={...approvedBefore,returnTime:'15:30'};
+  const securedToken=issueEditGrant({secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow,ttlMs:60000});
+  const securedEdit=await persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:6,before:securedBefore,patch:{phone:'5553332222'},previousFareCents:23500,newFareCents:23500,notificationEmail:'admin@example.test',editGrant:{token:securedToken,secret:grantSecret,now:grantNow}});
+  assert.equal(securedEdit.version,7);
+  await assert.rejects(persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:7,before:{...securedBefore,phone:'5553332222'},patch:{phone:'5553334444'},previousFareCents:23500,newFareCents:23500,notificationEmail:'admin@example.test',editGrant:{token:securedToken,secret:grantSecret,now:grantNow}}),error=>error.code==='EDIT_GRANT_REJECTED');
+  const afterReplay=(await client.query('SELECT version,customer_phone FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(Number(afterReplay.version),7);
+  assert.equal(afterReplay.customer_phone,'5553332222');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
