@@ -47,15 +47,7 @@ CREATE TABLE IF NOT EXISTS pt_booking_notification_outbox (
 CREATE INDEX IF NOT EXISTS pt_booking_outbox_due_idx ON pt_booking_notification_outbox(next_attempt_at) WHERE status IN ('pending','retry');
 -- Single-use signed edit grants; never store the raw token or nonce.
 CREATE TABLE IF NOT EXISTS pt_booking_edit_grant_uses (
-  nonce_hash text PRIMARY KEY CHECK (nonce_hash ~ '^[0-9a-f]{64}),
-  booking_id bigint NOT NULL REFERENCES pt_customer_bookings(id),
-  expires_at timestamptz NOT NULL,
-  consumed_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS pt_booking_edit_grant_expiry_idx ON pt_booking_edit_grant_uses(expires_at);
-COMMIT;
-
-),
+  nonce_hash text PRIMARY KEY CHECK (nonce_hash ~ '^[0-9a-f]{64}$'),
   booking_id bigint NOT NULL REFERENCES pt_customer_bookings(id),
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz NOT NULL DEFAULT now()
