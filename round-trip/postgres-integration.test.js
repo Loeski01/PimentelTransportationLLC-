@@ -66,6 +66,23 @@ async function run(){
   assert.equal(Number(finalBooking.version),3);
   assert.equal(Number(finalBooking.fare_cents),21500);
   assert.equal(finalBooking.outbound.time,'11:30');
+  // Explicit provider rejection should queue retry, never roll back a confirmed booking edit.
+  const rejectedEvent=await persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:3,before:{...before,time:'11:30',phone:'5551234567',email:'new@example.test',passengers:'3'},patch:{time:'12:00'},previousFareCents:21500,newFareCents:22000,notificationEmail:'admin@example.test'});
+  let rejectedSends=0;
+  const rejected=await deliverBookingNotification({client,eventId:rejectedEvent.eventId,send:async()=>{rejectedSends++;throw Object.assign(Error('provider rejected'),{deliveryOutcome:'rejected'})}});
+  assert.equal(rejected.retryQueued,true);
+  assert.equal(rejectedSends,1);
+  const retryRow=(await client.query('SELECT status,attempts,next_attempt_at>now() AS future FROM pt_booking_notification_outbox WHERE event_id=$1',[rejectedEvent.eventId])).rows[0];
+  assert.equal(retryRow.status,'retry');
+  assert.equal(Number(retryRow.attempts),1);
+  assert.equal(retryRow.future,true);
+  const premature=await deliverBookingNotification({client,eventId:rejectedEvent.eventId,send:async()=>{rejectedSends++;return {accepted:true}}});
+  assert.equal(premature.claimed,false);
+  assert.equal(rejectedSends,1);
+  const durable=(await client.query('SELECT version,fare_cents,outbound FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(Number(durable.version),4);
+  assert.equal(Number(durable.fare_cents),22000);
+  assert.equal(durable.outbound.time,'12:00');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
