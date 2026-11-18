@@ -9,7 +9,7 @@ async function notificationHealth({client}) {
  const result=await client.query(`
    SELECT
      COUNT(*) FILTER (WHERE status='failed')::int AS failed,
-     COUNT(*) FILTER (WHERE status='sending' AND created_at < now()-interval '15 minutes')::int AS possibly_stuck,
+     COUNT(*) FILTER (WHERE status='sending' AND sending_started_at < now()-interval '15 minutes')::int AS possibly_stuck,
      COUNT(*) FILTER (WHERE status IN ('pending','retry') AND next_attempt_at <= now())::int AS due,
      COUNT(*) FILTER (WHERE status='accepted')::int AS accepted
    FROM pt_booking_notification_outbox`);
