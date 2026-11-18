@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS pt_booking_notification_outbox (
   next_attempt_at timestamptz NOT NULL DEFAULT now(),
   last_error text,
   accepted_at timestamptz,
+  sending_started_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS pt_booking_outbox_due_idx ON pt_booking_notification_outbox(next_attempt_at) WHERE status IN ('pending','retry');
