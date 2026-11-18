@@ -20,6 +20,14 @@ async function run(){
  assert.equal(db.calls.at(-1).sql,'COMMIT');
  assert.equal(db.calls.filter(c=>c.sql.includes('INSERT INTO pt_booking_change_events')).length,1);
  assert.equal(db.calls.filter(c=>c.sql.includes('INSERT INTO pt_booking_notification_outbox')).length,1);
+ const update=db.calls.find(c=>c.sql.includes('UPDATE pt_customer_bookings'));
+ assert.match(update.sql,/reference=\$6 AND fare_cents=\$7/);
+ assert.match(update.sql,/outbound=\$8::jsonb/);
+ assert.match(update.sql,/return_leg IS NOT DISTINCT FROM \$9::jsonb/);
+ assert.equal(update.args[5],'PT-TEST');
+ assert.equal(update.args[6],20000);
+ assert.deepEqual(JSON.parse(update.args[7]),{from:'Boston',to:'Cambridge',date:'2026-12-01',time:'10:00'});
+ assert.deepEqual(JSON.parse(update.args[8]),{date:'2026-12-02',time:'14:00'});
  const conflict=mock({conflict:true});
  await assert.rejects(()=>persistBookingChange({client:conflict,bookingId:7,expectedVersion:2,before,patch:{time:'11:00'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'}),{code:'BOOKING_CONFLICT'});
  assert.equal(conflict.calls.at(-1).sql,'ROLLBACK');
@@ -29,6 +37,6 @@ async function run(){
  const invalid=mock();
  await assert.rejects(()=>persistBookingChange({client:invalid,bookingId:7,expectedVersion:2,before,patch:{phone:'5551234567'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'}),/not yet supported/);
  assert.equal(invalid.calls.length,0);
- console.log('Persistence mock transaction tests passed (12 assertions)');
+ console.log('Persistence mock transaction tests passed (20 assertions)');
 }
 run().catch(e=>{console.error(e);process.exitCode=1});
