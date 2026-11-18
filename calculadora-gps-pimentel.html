@@ -119,6 +119,10 @@ if(tripParams.get('mode')==='after_trip')showStatus('Pago al finalizar: calcula 
 let currentQuote=null;
 const tripTypeSelect=$('tripType');
 const roundTripSchedule=$('roundTripSchedule');
+if(tripParams.get('tripType')==='round_trip'){
+  tripTypeSelect.value='round_trip';
+  roundTripSchedule.hidden=false;
+}
 tripTypeSelect.addEventListener('change',()=>{
   roundTripSchedule.hidden=tripTypeSelect.value!=='round_trip';
   currentQuote=null;
