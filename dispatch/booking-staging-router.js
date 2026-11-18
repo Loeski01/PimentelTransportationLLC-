@@ -30,6 +30,23 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     ON CONFLICT(reference) DO NOTHING RETURNING reference`,
     [b.reference,b.name,b.phone,b.email,b.from,b.to,b.date,b.time,b.passengers||null,b.tier,b.fareCents,b.tipCents,b.payment,b.details||null]);
+   if(!q.rowCount){
+    // A duplicate reference is only idempotent when every persisted booking field matches.
+    // Never silently acknowledge a different passenger, time, route or price.
+    const existing=await db.query(`SELECT passenger_name,passenger_phone,passenger_email,pickup_address,destination_address,
+      pickup_local_date::text AS pickup_local_date,pickup_local_time::text AS pickup_local_time,
+      passenger_count,service_tier,fare_cents,tip_cents,payment_preference,special_instructions
+      FROM booking_requests WHERE reference=$1`,[b.reference]);
+    const row=existing.rows[0];
+    const equal=row&&row.passenger_name===b.name&&row.passenger_phone===b.phone&&
+      row.passenger_email===b.email&&row.pickup_address===b.from&&row.destination_address===b.to&&
+      String(row.pickup_local_date).slice(0,10)===b.date&&String(row.pickup_local_time).slice(0,5)===b.time&&
+      String(row.passenger_count??'')===String(b.passengers??'')&&row.service_tier===b.tier&&
+      (row.fare_cents===null?null:Number(row.fare_cents))===b.fareCents&&
+      Number(row.tip_cents)===b.tipCents&&row.payment_preference===b.payment&&
+      (row.special_instructions??null)===(b.details??null);
+    if(!equal)return res.status(409).json({error:'Booking reference already exists with different details'});
+   }
    res.status(q.rowCount?201:200).json({stored:true,reference:b.reference});
   }catch(e){next(e)}
  });
