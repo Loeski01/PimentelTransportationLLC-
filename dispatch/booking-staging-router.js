@@ -1,6 +1,6 @@
 'use strict';
 const express=require('express'),crypto=require('node:crypto');
-function router({db,secret,requireAdmin,sendAcceptance,production=false,productionDatabaseName}){
+function router({db,secret,requireAdmin,sendAcceptance,production=false,productionDatabaseName,stagingEditSecret,stagingEditNotificationEmail}){
  if(typeof secret!=='string'||Buffer.byteLength(secret)<32)throw Error('Staging booking intake secret missing');
  const r=express.Router();
  require('./booking-acceptance').registerAcceptanceRoute(r,{db,requireAdmin,sendAcceptance});
@@ -15,6 +15,11 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
   try{const q=await db.query('SELECT current_database() AS name');res.set('Cache-Control','no-store').json({mode:production?'production':'staging',databaseVerified:production&&!!productionDatabaseName&&q.rows[0].name===productionDatabaseName})}catch(e){next(e)}
  });
  if(!production){
+  if(stagingEditSecret){
+   require('./round-trip-edit-staging').registerStagingEdits(r,{
+    db,requireAdmin,signingSecret:stagingEditSecret,notificationEmail:stagingEditNotificationEmail
+   });
+  }
   r.post('/round-trip-intake',auth,async(req,res,next)=>{
    const {persistRoundTripRequest}=require('../round-trip/persist-request');
    res.set('Cache-Control','no-store');

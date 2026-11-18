@@ -7,7 +7,7 @@
 const { buildModificationEvent } = require('./modification');
 const { consumeEditGrant } = require('./consume-edit-grant');
 
-async function persistBookingChange({ client, bookingId, expectedVersion, before, patch, previousFareCents, newFareCents, notificationEmail, editGrant }) {
+async function persistBookingChange({ client, bookingId, expectedVersion, before, patch, previousFareCents, newFareCents, notificationEmail, editGrant, requiredStatus = null }) {
   if (!client || typeof client.query !== 'function') throw new TypeError('Database client required');
   if (!Number.isSafeInteger(bookingId) || bookingId <= 0 || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1)
     throw new RangeError('Invalid booking ID or version');
@@ -36,6 +36,7 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
       `UPDATE pt_customer_bookings
        SET outbound=$1::jsonb, return_leg=$2::jsonb, fare_cents=$3, customer_phone=$10, customer_email=$11, passengers=$12, version=version+1, updated_at=now()
        WHERE id=$4 AND version=$5 AND status IN ('pending','approved','confirmed')
+       AND ($16::text IS NULL OR status=$16)
        AND reference=$6 AND fare_cents=$7
        AND outbound=$8::jsonb AND return_leg IS NOT DISTINCT FROM $9::jsonb
        AND customer_phone IS NOT DISTINCT FROM $13
@@ -47,7 +48,7 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
         after.tripType === 'round_trip' ? JSON.stringify({date:after.returnDate,time:after.returnTime}) : null,
         newFareCents,bookingId,expectedVersion,before.reference,previousFareCents,snapshotOutbound,snapshotReturn,
         after.phone ?? null,after.email ?? null,after.passengers ?? null,
-        before.phone ?? null,before.email ?? null,before.passengers ?? null
+        before.phone ?? null,before.email ?? null,before.passengers ?? null,requiredStatus
       ]
     );
     if (updated.rowCount !== 1 || updated.rows[0].reference !== before.reference) {

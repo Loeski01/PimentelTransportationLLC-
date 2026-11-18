@@ -38,7 +38,7 @@ async function run(){
  const contactBefore={...before,phone:'5550000000',email:'old@example.com',passengers:'2'};
  await persistBookingChange({client:contact,bookingId:7,expectedVersion:2,before:contactBefore,patch:{phone:'5551234567',email:'new@example.com',passengers:'3'},previousFareCents:20000,newFareCents:21000,notificationEmail:'admin@example.com'});
  const contactUpdate=contact.calls.find(c=>c.sql.includes('UPDATE pt_customer_bookings'));
- assert.deepEqual(contactUpdate.args.slice(9),['5551234567','new@example.com','3','5550000000','old@example.com','2']);
+ assert.deepEqual(contactUpdate.args.slice(9),['5551234567','new@example.com','3','5550000000','old@example.com','2',null]);
  assert.match(contactUpdate.sql,/customer_phone IS NOT DISTINCT FROM \$13/);
  assert.equal(contact.calls.at(-1).sql,'COMMIT');
  console.log('Persistence mock transaction tests passed (20 assertions)');

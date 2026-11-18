@@ -54,7 +54,7 @@ const role=expected=>async(req,res,next)=>{try{if(!req.session?.userId||req.sess
 if(process.env.BOOKING_INTAKE_STAGING_ENABLED==='true'){
  if(process.env.BOOKING_SCHEMA_STAGING_ENABLED!=='true')throw Error('Booking schema must be enabled');
  const {router}=require('./booking-staging-router');
- app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance}));
+ app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,stagingEditSecret:process.env.ROUND_TRIP_STAGING_EDIT_SECRET,stagingEditNotificationEmail:process.env.ROUND_TRIP_STAGING_EDIT_NOTIFY_EMAIL}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>{res.set('Cache-Control','no-store');const base=process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'?'/booking':'/booking-staging';res.type('html').send(require('node:fs').readFileSync(require('node:path').join(__dirname,'booking-admin.html'),'utf8').replace('__BOOKING_API_BASE__',JSON.stringify(base)))});
 }
 // Dedicated production intake; never permit staging intake and production intake together.
