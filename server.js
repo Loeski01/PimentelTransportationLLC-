@@ -127,6 +127,28 @@ app.post("/api/quote", async (req, res) => {
   catch (error) { sendError(res, error); }
 });
 
+// Round-trip preview only: does not create bookings, dispatch trips or charge cards.
+app.post("/api/round-trip-quote", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const body = req.body || {};
+  const { roundTripTotals, validReturnSchedule } = require("./round-trip/pricing");
+  const { from, to, date, time, returnDate, returnTime, tier = "luxury" } = body;
+  if (!validAddresses(from, to) || !validTier(tier) ||
+      !validReturnSchedule(date, time, returnDate, returnTime)) {
+    return res.status(400).json({ code: "INVALID_ROUND_TRIP", error: "Check pickup, destination, and return schedule." });
+  }
+  try {
+    const outbound = await calculateFare(from.trim(), to.trim(), tier);
+    const inbound = await calculateFare(to.trim(), from.trim(), tier);
+    const totals = roundTripTotals(outbound.amount, inbound.amount);
+    return res.json({ tripType: "round_trip", tier, from: from.trim(), to: to.trim(),
+      date, time, returnDate, returnTime, outbound, inbound, ...totals,
+      discountPercent: 10, currency: "usd", status: "estimate_only" });
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
 app.post("/api/create-checkout-session", async (req, res) => {
   if (!stripe) {
     return res.status(503).json({ error: "Stripe is not configured" });
