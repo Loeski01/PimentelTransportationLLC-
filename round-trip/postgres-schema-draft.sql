@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS pt_customer_bookings (
   customer_name text NOT NULL,
   customer_email text NOT NULL,
   customer_phone text NOT NULL,
+  passengers text,
   trip_type text NOT NULL CHECK (trip_type IN ('one_way','round_trip')),
   tier text NOT NULL,
   status text NOT NULL DEFAULT 'pending',
