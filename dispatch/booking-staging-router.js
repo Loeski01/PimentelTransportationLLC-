@@ -14,6 +14,20 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
  r.get('/environment',auth,async(req,res,next)=>{
   try{const q=await db.query('SELECT current_database() AS name');res.set('Cache-Control','no-store').json({mode:production?'production':'staging',databaseVerified:production&&!!productionDatabaseName&&q.rows[0].name===productionDatabaseName})}catch(e){next(e)}
  });
+ if(!production){
+  r.post('/round-trip-intake',auth,async(req,res,next)=>{
+   const {persistRoundTripRequest}=require('../round-trip/persist-request');
+   res.set('Cache-Control','no-store');
+   try{
+    const stored=await persistRoundTripRequest({db,booking:req.body||{}});
+    if(!stored)return res.status(409).json({error:'Booking reference already exists'});
+    res.status(201).json({stored:true,reference:stored.reference,status:stored.status});
+   }catch(error){
+    if(error instanceof RangeError)return res.status(400).json({error:'Invalid round-trip request'});
+    next(error);
+   }
+  });
+ }
  r.post('/intake',auth,async(req,res,next)=>{
   const b=req.body||{};
   if(!/^PT-[A-Z0-9-]{4,64}$/.test(b.reference||'')||

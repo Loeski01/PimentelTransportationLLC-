@@ -135,6 +135,8 @@ async function startDispatch(){
    await client.query('CREATE INDEX IF NOT EXISTS booking_requests_inbox_idx ON booking_requests(status,created_at DESC)');
    await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS booking_reference TEXT');
    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS dispatch_trips_booking_reference_unique ON dispatch_trips(booking_reference) WHERE booking_reference IS NOT NULL');
+   const roundTripSchema=fs.readFileSync(path.join(__dirname,'../round-trip/postgres-schema-draft.sql'),'utf8');
+   await client.query(roundTripSchema.replace(/^BEGIN;$/m,'').replace(/^COMMIT;$/m,''));
    console.info('Booking staging: additive schema checked');
   }
   if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED==='true'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true'){

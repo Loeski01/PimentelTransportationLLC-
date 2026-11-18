@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {Client}=require('pg');
+const {persistRoundTripRequest}=require('./persist-request');
 const {persistBookingChange}=require('./persist-modification');
 const {notificationHealth}=require('./notification-health');
 const {deliverBookingNotification}=require('./notification-outbox');
@@ -167,6 +168,22 @@ async function run(){
   const afterReplay=(await client.query('SELECT version,customer_phone FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
   assert.equal(Number(afterReplay.version),7);
   assert.equal(afterReplay.customer_phone,'5553332222');
+  const request={reference:'PT-INTEGRATION-NEW',name:'Test Customer',email:'new@example.test',
+    phone:'5553332222',passengers:'2',tier:'luxury',from:'Boston',to:'Woburn',
+    date:'2026-12-01',time:'14:30',returnDate:'2026-12-02',returnTime:'11:00',
+    fareCents:18500,extrasCents:500,tipCents:0};
+  await assert.rejects(persistRoundTripRequest({db:client,booking:{...request,returnDate:'2026-11-30'}}),RangeError);
+  assert.deepEqual(await persistRoundTripRequest({db:client,booking:request}),{reference:request.reference,status:'pending'});
+  assert.equal(await persistRoundTripRequest({db:client,booking:request}),null);
+  const created=(await client.query('SELECT id,outbound,return_leg FROM pt_customer_bookings WHERE reference=$1',[request.reference])).rows[0];
+  assert.deepEqual(created.outbound,{from:'Boston',to:'Woburn',date:'2026-12-01',time:'14:30'});
+  assert.deepEqual(created.return_leg,{date:'2026-12-02',time:'11:00'});
+  const edited=await persistBookingChange({client,bookingId:Number(created.id),expectedVersion:1,
+    before:{...request,tripType:'round_trip',status:'pending'},patch:{returnTime:'12:00'},
+    previousFareCents:18500,newFareCents:18500,notificationEmail:'admin@example.test'});
+  assert.equal(edited.version,2);
+  const persisted=(await client.query('SELECT return_leg FROM pt_customer_bookings WHERE id=$1',[created.id])).rows[0];
+  assert.equal(persisted.return_leg.time,'12:00');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
