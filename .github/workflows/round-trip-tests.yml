@@ -31,3 +31,6 @@ jobs:
         run: |
           node --test dispatch/tests/booking-release.test.js
           node --test dispatch/tests/booking-acceptance.test.js
+          node --test dispatch/tests/authorization-regression.test.js
+          node --test dispatch/tests/router-security-regression.test.js
+          node --test dispatch/tests/trip-milestones.test.js
