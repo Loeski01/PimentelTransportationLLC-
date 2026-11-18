@@ -41,6 +41,19 @@ a{color:var(--gold)}
 <p>Calculadora GPS de tarifas · Massachusetts</p>
 </header>
 <section class="panel">
+<label for="tripType">Trip type / Tipo de viaje</label>
+<select id="tripType"><option value="one_way">One Way / Solo ida</option><option value="round_trip">Round Trip — Save 10% / Ida y vuelta — Ahorra 10%</option></select>
+<div id="roundTripSchedule" hidden>
+<label for="outboundDate">Departure date / Fecha de salida</label>
+<input id="outboundDate" type="date">
+<label for="outboundTime">Departure time / Hora de salida</label>
+<input id="outboundTime" type="time">
+<label for="returnDate">Return date / Fecha de regreso</label>
+<input id="returnDate" type="date">
+<label for="returnTime">Return time / Hora de regreso</label>
+<input id="returnTime" type="time">
+<p class="hint">Save 10% on transportation fares only. Tips and additional charges are excluded. / Ahorra 10% solo en las tarifas de transporte. No incluye propinas ni cargos adicionales.</p>
+</div>
 <label for="from">Dirección de recogida / Pickup</label>
 <input id="from" placeholder="Ej.: Boston Logan Airport, MA" autocomplete="street-address">
 <label for="to">Dirección de destino / Drop-off</label>
@@ -54,6 +67,7 @@ a{color:var(--gold)}
 <section id="result" class="result" aria-live="polite">
 <h2>Tarifa estimada / Estimated fare</h2>
 <div id="total" class="total"></div>
+<div id="roundTripBreakdown" hidden><div class="detail"><span>Outbound fare / Tarifa de ida</span><span id="outboundFare"></span></div><div class="detail"><span>Return fare / Tarifa de regreso</span><span id="returnFare"></span></div><div class="detail"><span>Round-trip savings (10%) / Ahorro de ida y vuelta (10%)</span><span id="roundTripSavings"></span></div></div>
 <div class="detail"><span>Distancia</span><span id="distance"></span></div>
 <div class="detail"><span>Tiempo estimado</span><span id="duration"></span></div>
 <div class="detail"><span>Tarifa base</span><span id="base"></span></div>
@@ -67,6 +81,12 @@ a{color:var(--gold)}
 <div class="detail"><span>Propina / Tip</span><span id="tipTotal">$0.00</span></div>
 <label for="paymentKind">¿Qué vas a pagar? / What are you paying?</label>
 <select id="paymentKind"><option value="ride">Viaje + propina elegida / Ride + selected tip</option><option value="tip_only">Solo propina: el viaje ya está pagado / Tip only: ride already paid</option></select>
+<form id="roundTripBookingForm" hidden>
+<label for="roundTripBookingEmail">Email / Correo electrónico</label>
+<input id="roundTripBookingEmail" type="email" maxlength="254" autocomplete="email" required>
+<button id="roundTripBookingSubmit" type="submit">Request round trip / Solicitar ida y vuelta</button>
+<p id="roundTripBookingStatus" role="status" aria-live="polite"></p>
+</form>
 <button id="continueBooking" type="button" style="margin-top:18px">CONTINUAR A RESERVA / CONTINUE TO BOOKING</button>
 <p class="note">Continúa al formulario de reserva con las direcciones y datos ingresados. No se cobra al reservar.</p>
 <div class="detail"><span>Total para pagar / Payment total</span><span id="paymentTotal"></span></div>
@@ -85,7 +105,8 @@ a{color:var(--gold)}
 </main>
 <script>
 'use strict';
-const API="https://pimenteltransportationllc.onrender.com";
+const testCalculator=window.location.pathname==='/test/round-trip-calculator';
+const API=testCalculator?window.location.origin:"https://pimenteltransportationllc.onrender.com";
 const $=id=>document.getElementById(id);
 const usd=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
 const fmt=n=>new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(n);
@@ -96,6 +117,19 @@ if(['0','10','15','20','custom'].includes(tripParams.get('tip'))) $('tipChoice')
 if(tripParams.get('tip')==='custom')$('customTip').value=tripParams.get('tipAmount')||'';
 if(tripParams.get('mode')==='after_trip')showStatus('Pago al finalizar: calcula la ruta y elige viaje + propina o solo propina si el viaje ya está pagado.');
 let currentQuote=null;
+const tripTypeSelect=$('tripType');
+const roundTripSchedule=$('roundTripSchedule');
+tripTypeSelect.addEventListener('change',()=>{
+  roundTripSchedule.hidden=tripTypeSelect.value!=='round_trip';
+  currentQuote=null;
+  $('result').style.display='none';
+  showStatus('Trip type updated. Calculate a new quote. / Tipo de viaje actualizado. Calcula una nueva tarifa.');
+});
+for(const id of ['outboundDate','outboundTime','returnDate','returnTime'])$(id).addEventListener('change',()=>{
+  currentQuote=null;
+  $('result').style.display='none';
+});
+
 function readTip(){
   if($('tipChoice').value!=='custom')return {tipPercent:Number($('tipChoice').value)||0,tipCents:0};
   const raw=$('customTip').value.trim();
@@ -110,7 +144,7 @@ function updateTip(){
     const cents=tip.tipPercent?Math.round(currentQuote.amount*tip.tipPercent/100):tip.tipCents;
     $('tipTotal').textContent=usd(cents/100);
     $('paymentTotal').textContent=usd((($('paymentKind').value==='tip_only'?0:currentQuote.amount)+cents)/100);
-    $('checkout').disabled=false;
+    $('checkout').disabled=currentQuote.tripType==='round_trip';
     $('checkoutStatus').textContent='';
     updateBookingLink();
   }catch(e){$('checkout').disabled=true;$('tipTotal').textContent='—';$('paymentTotal').textContent='—';$('checkoutStatus').textContent=e.message;}
@@ -136,7 +170,47 @@ function showStatus(message,error=false){
   $('status').className=error?'status error':'status';
 }
 
+$('roundTripBookingForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const quote=currentQuote;
+  const submit=$('roundTripBookingSubmit');
+  const status=$('roundTripBookingStatus');
+  if(quote?.bookingAvailable!==true||submit.disabled)return;
+  const name=$('customerName').value.trim(),phone=$('phone').value.trim();
+  const email=$('roundTripBookingEmail').value.trim();
+  if(!name||!phone||!email){
+    status.textContent='Enter your name, phone and email. / Ingresa tu nombre, teléfono y correo electrónico.';
+    return;
+  }
+  submit.disabled=true;
+  status.textContent='Sending request… / Enviando solicitud…';
+  try{
+    const response=await fetch(API+(testCalculator?'/api/test/round-trip-request':'/api/round-trip-request'),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      signal:AbortSignal.timeout(15000),
+      body:JSON.stringify({from:quote.from,to:quote.to,...quote.schedule,name,phone,email,expectedFareCents:quote.amount})
+    });
+    const result=await response.json();
+    if(response.status===409&&result.code==='FARE_CHANGED'){
+      currentQuote=null;
+      status.textContent='Recalculate the fare before submitting. / Vuelve a calcular la tarifa antes de enviar.';
+      submit.disabled=false;
+      return;
+    }
+    if(response.status===400){
+      status.textContent='Check the booking details. / Revisa los datos de la reserva.';
+      submit.disabled=false;
+      return;
+    }
+    if(response.status!==201||result.status!=='pending'||typeof result.reference!=='string')throw Error('Unverified receipt');
+    status.textContent='Pending request / Solicitud pendiente · '+result.reference;
+  }catch{
+    status.textContent='Receipt unverified. Check dispatch before trying again. / Recepción sin verificar. Revisa el despacho antes de volver a intentar.';
+  }
+});
+
 $('continueBooking').addEventListener('click',()=>{
+  if(currentQuote?.tripType==='round_trip'){showStatus('Round-trip booking is not yet enabled. This is an estimate only. / La reserva de ida y vuelta aún no está habilitada. Este es solo un estimado.',true);return;}
   const details={from:$('from').value.trim(),to:$('to').value.trim(),customerName:$('customerName').value.trim(),phone:$('phone').value.trim(),tip:$('tipChoice').value,tipAmount:$('customTip').value};
   if(!currentQuote||details.from!==currentQuote.from||details.to!==currentQuote.to){showStatus('Primero calcula la tarifa GPS para continuar.',true);return;}
   if(window.parent!==window&&window.parent.location.origin===window.location.origin){
@@ -148,6 +222,7 @@ $('continueBooking').addEventListener('click',()=>{
 });
 $('checkout').addEventListener('click',async()=>{
   if(!currentQuote)return;
+  if(currentQuote.tripType==='round_trip'){$('checkoutStatus').textContent='Round-trip payment is not enabled yet. / El pago de ida y vuelta aún no está habilitado.';return;}
   const customerName=$('customerName').value.trim(),phone=$('phone').value.trim();
   if(!customerName||!phone){$('checkoutStatus').textContent='Escribe el nombre y teléfono del pasajero antes de continuar.';return;}
   const btn=$('checkout');
@@ -190,16 +265,24 @@ $('calculate').addEventListener('click' ,async()=>{
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),12000);
     let quote;
+    const roundTrip=tripTypeSelect.value==='round_trip';
+    const schedule={date:$('outboundDate').value,time:$('outboundTime').value,returnDate:$('returnDate').value,returnTime:$('returnTime').value};
+    if(roundTrip&&Object.values(schedule).some(v=>!v))throw new Error('Enter departure and return dates and times. / Introduce las fechas y horas de salida y regreso.');
     try {
-      const res=await fetch(API+'/api/quote',{
+      const res=await fetch(API+(roundTrip?'/api/round-trip-quote':'/api/quote'),{
         method:'POST', signal:controller.signal,
         headers:{'Content-Type':'application/json',Accept:'application/json'},
-        body:JSON.stringify({from,to})
+        body:JSON.stringify({from,to,...(roundTrip?schedule:{})})
       });
       const data=await res.json();
       if(!res.ok)throw new Error(data.error||'Servicio de cálculo no disponible.');
-      if(!['miles','minutes','base','mileage','time','airportFee','amount'].every(k=>Number.isFinite(data[k])&&data[k]>=0))throw new Error('Respuesta de cálculo inválida.');
-      quote=data;
+      if(roundTrip){
+        if(!['outboundFareCents','returnFareCents','subtotalCents','discountCents','extrasCents','totalCents'].every(k=>Number.isSafeInteger(data[k])&&data[k]>=0))throw new Error('Invalid round-trip quote. / Cotización de ida y vuelta inválida.');
+        quote={...data.outbound,amount:data.totalCents,roundTripData:data};
+      }else{
+        if(!['miles','minutes','base','mileage','time','airportFee','amount'].every(k=>Number.isFinite(data[k])&&data[k]>=0))throw new Error('Respuesta de cálculo inválida.');
+        quote=data;
+      }
     } finally { clearTimeout(timer); }
     const {miles,minutes,base,mileage,time,airportFee:airport,amount}=quote;
     const total=amount/100;
@@ -209,16 +292,23 @@ $('calculate').addEventListener('click' ,async()=>{
     $('base').textContent=usd(base);
     $('milesCost').textContent=usd(mileage);
     $('timeCost').textContent=usd(time);
-    $('airportCost').textContent=usd(airport);
+    $('airportCost').textContent=usd(roundTrip?quote.roundTripData.extrasCents/100:airport);
     $('total').textContent=usd(total);
-    if($('from').value.trim()!==from||$('to').value.trim()!==to){
+    $('roundTripBreakdown').hidden=!roundTrip;
+    if(roundTrip){$('outboundFare').textContent=usd(quote.roundTripData.outboundFareCents/100);$('returnFare').textContent=usd(quote.roundTripData.returnFareCents/100);$('roundTripSavings').textContent='−'+usd(quote.roundTripData.discountCents/100);}
+    if($('from').value.trim()!==from||$('to').value.trim()!==to||tripTypeSelect.value!==(roundTrip?'round_trip':'one_way')||(roundTrip&&Object.entries(schedule).some(([key,value])=>$(key==='date'?'outboundDate':key==='time'?'outboundTime':key).value!==value))){
       showStatus('Las direcciones cambiaron. Vuelve a calcular la tarifa.',true);
       return;
     }
-    currentQuote={from,to,amount};
+    const bookingAvailable=roundTrip&&quote.roundTripData.bookingAvailable===true;
+    currentQuote={from,to,amount,schedule,bookingAvailable,tripType:roundTrip?'round_trip':'one_way'};
+    $('roundTripBookingForm').hidden=!bookingAvailable;
+    $('continueBooking').disabled=roundTrip;
+    $('payLater').style.pointerEvents=roundTrip?'none':'';
+    $('payLater').setAttribute('aria-disabled',String(roundTrip));
     updateTip();
     $('result').style.display='block';
-    showStatus('Cálculo completado.');
+    showStatus(bookingAvailable?'Quote ready. Request both rides below. / Cotización lista. Solicita ambos trayectos abajo.':roundTrip?'Estimate ready. Round-trip booking and payment are not yet enabled. / Estimado listo. La reserva y el pago de ida y vuelta aún no están habilitados.':'Cálculo completado.');
   }catch(e){
     const timeout=e.name==='AbortError';
     showStatus(

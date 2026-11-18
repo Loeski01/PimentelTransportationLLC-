@@ -35,9 +35,9 @@ test('missing address, provider failure, timeout, no route, malformed route are 
  let calls=0;return [async()=>({ok:true,json:async()=>++calls<=2?[place]:route}),route.code==='NoRoute'?422:502,route.code==='NoRoute'?'NO_ROUTE':'MAP_ERROR'];})
  ]) {const result=await backend(fetch)({from:'A',to:'B'});assert.equal(result.status,status);assert.equal(result.data.code,code);}
 });
-function frontend(fetch){
- const elements={};const element=id=>elements[id]??=( {value:({from:'Boston',to:'Woburn',tipChoice:'0',paymentKind:'ride',customerName:'Test rider',phone:'6175550100'})[id]||'',style:{},addEventListener(event,fn){this[event]=fn;}} );
- const context=vm.createContext({document:{getElementById:element},fetch,window:{location:{search:'',assign(url){elements.redirect=url;}}},URL,AbortController,URLSearchParams,Intl,TypeError,setTimeout,clearTimeout});
+function frontend(fetch,location={}){
+ const elements={};const element=id=>elements[id]??=( {value:({from:'Boston',to:'Woburn',tipChoice:'0',tripType:'one_way',paymentKind:'ride',customerName:'Test rider',phone:'6175550100'})[id]||'',style:{},setAttribute(name,value){this[name]=value;},addEventListener(event,fn){this[event]=fn;}} );
+ const context=vm.createContext({document:{getElementById:element},fetch,window:{location:{search:'',...location,assign(url){elements.redirect=url;}}},URL,AbortController,AbortSignal,URLSearchParams,Intl,TypeError,setTimeout,clearTimeout});
  vm.runInContext(fs.readFileSync('calculadora-gps-pimentel.html','utf8').split('<script>')[1].split('</script>')[0],context);
  return {elements,element};
 }
@@ -71,7 +71,7 @@ test('unified booking has selectable tiers, separate contact links and payment o
  assert.match(html,/name="tier" value="comfort"/);
  assert.match(html,/id="unifiedForm"/);
  assert.match(html,/tier:selectedTier\(\)/);
- assert.match(html,/value="later">Pagar al finalizar/);
+ assert.match(html,/value="later">Pay after trip \/ Pagar al finalizar/);
  assert.match(html,/href="tel:\+16175188281"/);
  assert.match(html,/href="sms:\+16177855657"/);
 });
@@ -140,4 +140,30 @@ test('automatic fare waits for both address fields to be completed and does not 
  el('destino').value='Woburn';fire('destino','input');flush();assert.equal(calls,0);
  fire('destino','change');fire('destino','blur');flush();assert.equal(calls,1);
  fire('origen','blur');fire('destino','blur');flush();assert.equal(calls,1);
+});
+
+test('round-trip test form sends the quoted schedule once and shows a pending reference',async()=>{
+ const origin='http://127.0.0.1:55483';
+ const paths=[];
+ const {element}=frontend(async(url,options)=>{
+  paths.push(new URL(url).pathname);
+  const body=JSON.parse(options.body);
+  assert.equal(body.returnTime,'11:00');
+  if(paths.length===1)return {ok:true,json:async()=>({
+   outbound:{miles:10,minutes:20,base:35,mileage:35,time:10,airportFee:0},
+   outboundFareCents:8000,returnFareCents:8000,subtotalCents:16000,discountCents:1600,extrasCents:0,totalCents:14400,bookingAvailable:true
+  })};
+  assert.equal(body.expectedFareCents,14400);
+  assert.equal(body.email,'rider@example.test');
+  return {status:201,json:async()=>({status:'pending',reference:'PT-TEST1234'})};
+ },{origin,pathname:'/test/round-trip-calculator'});
+ for(const [id,value] of Object.entries({tripType:'round_trip',outboundDate:'2026-12-01',outboundTime:'14:30',
+   returnDate:'2026-12-02',returnTime:'11:00',roundTripBookingEmail:'rider@example.test'}))element(id).value=value;
+ await element('calculate').click();
+ assert.equal(element('roundTripBookingForm').hidden,false);
+ const event={preventDefault(){}};
+ await element('roundTripBookingForm').submit(event);
+ await element('roundTripBookingForm').submit(event);
+ assert.deepEqual(paths,['/api/round-trip-quote','/api/test/round-trip-request']);
+ assert.match(element('roundTripBookingStatus').textContent,/PT-TEST1234/);
 });

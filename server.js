@@ -114,9 +114,12 @@ async function calculateFare(from, to, tier = 'luxury') {
   const miles = route.distance / 1609.344;
   const minutes = route.duration / 60;
   const airportFee = airportPickup(from, a) ? 10 : 0;
+  const transportFare = rates.base + miles * rates.mile + minutes * rates.minute;
   const quote = { tier, miles, minutes, base: rates.base, mileage: miles * rates.mile, time: minutes * rates.minute, airportFee,
-    amount: Math.round(Math.max(rates.minimum, rates.base + miles * rates.mile + minutes * rates.minute + airportFee) * 100), currency: "usd" };
+    amount: Math.round(Math.max(rates.minimum, transportFare + airportFee) * 100), currency: "usd" };
   if (quoteCache.size >= 500) quoteCache.delete(quoteCache.keys().next().value);
+  const transportOnlyCents = Math.round(Math.max(rates.minimum, transportFare) * 100);
+  Object.defineProperty(quote, "transportOnlyCents", {value: transportOnlyCents});
   quoteCache.set(key, { value: quote, expires: Date.now() + 300000 });
   return quote;
 }
@@ -127,7 +130,116 @@ app.post("/api/quote", async (req, res) => {
   catch (error) { sendError(res, error); }
 });
 
+async function calculateRoundTrip(body) {
+  const { roundTripTotals, validReturnSchedule } = require("./round-trip/pricing");
+  const { from, to, date, time, returnDate, returnTime, tier = "luxury" } = body;
+  if (!validAddresses(from, to) || !validTier(tier) ||
+      !validReturnSchedule(date, time, returnDate, returnTime)) {
+    throw new QuoteError(400, "INVALID_ROUND_TRIP", "Check pickup, destination, and return schedule.");
+  }
+  const outbound = await calculateFare(from.trim(), to.trim(), tier);
+  const inbound = await calculateFare(to.trim(), from.trim(), tier);
+  const airportExtrasCents = outbound.amount - outbound.transportOnlyCents + inbound.amount - inbound.transportOnlyCents;
+  const totals = roundTripTotals(outbound.transportOnlyCents, inbound.transportOnlyCents, airportExtrasCents);
+  return { tripType: "round_trip", tier, from: from.trim(), to: to.trim(),
+    date, time, returnDate, returnTime, outbound, inbound, ...totals,
+    discountPercent: 10, currency: "usd" };
+}
+
+// Round-trip preview only: does not create bookings, dispatch trips or charge cards.
+app.post("/api/round-trip-quote", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const quote = await calculateRoundTrip(req.body || {});
+    let bookingAvailable=roundTripTest;
+    if (roundTripForward) {
+      bookingAvailable=await roundTripForward.verifyReady().then(()=>true,()=>false);
+    }
+    return res.json({ ...quote, status: "estimate_only", bookingAvailable });
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+// Test-only bridge to a loopback dispatch process and its isolated database.
+const roundTripTest = process.env.NODE_ENV === "test" && Boolean(process.env.ROUND_TRIP_TEST_INTAKE_PORT);
+const roundTripProduction = process.env.NODE_ENV === "production" &&
+  process.env.ROUND_TRIP_PRODUCTION_ENABLED === "true" &&
+  process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true";
+const roundTripForward = roundTripProduction ? require("./booking/production-dispatch-sender").createProductionDispatchSender({
+  endpoint: process.env.BOOKING_DISPATCH_URL,
+  promotedProductionHost: process.env.BOOKING_DISPATCH_PROMOTED_HOST,
+  secret: process.env.BOOKING_SERVICE_SECRET, enabled: true, roundTrip: true
+}) : null;
+if (roundTripTest || roundTripProduction) {
+  const intakePort = Number(process.env.ROUND_TRIP_TEST_INTAKE_PORT);
+  const secret = process.env.BOOKING_SERVICE_SECRET;
+  if (roundTripTest && (!Number.isInteger(intakePort) || intakePort < 1 || intakePort > 65535 ||
+      !secret || Buffer.byteLength(secret) < 32)) {
+    throw new Error("Invalid isolated round-trip intake configuration");
+  }
+  if (roundTripTest) app.get("/test/round-trip-calculator", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(require("node:path").join(__dirname, "calculadora-gps-pimentel.html"));
+  });
+  const recentSubmissions = new Map();
+  app.post(roundTripTest ? "/api/test/round-trip-request" : "/api/round-trip-request", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const body = req.body || {};
+    const { name, phone, email, passengers, expectedFareCents } = body;
+    const validText = (value, maximum) =>
+      typeof value === "string" && value.trim() === value && value.length > 0 && value.length <= maximum;
+    if (!validText(name, 100) || !validText(phone, 40) || !validText(email, 254) ||
+        !emailPattern.test(email) || (passengers != null && !validText(passengers, 20)) ||
+        !Number.isSafeInteger(expectedFareCents) || expectedFareCents < 0) {
+      return res.status(400).json({ error: "Invalid booking details." });
+    }
+    try {
+      if (roundTripProduction) {
+        const now = Date.now();
+        for (const [ip, expiry] of recentSubmissions) {
+          if (expiry <= now) recentSubmissions.delete(ip);
+        }
+        if (recentSubmissions.has(req.ip) || recentSubmissions.size >= 2000) return res.sendStatus(429);
+        recentSubmissions.set(req.ip, now + 15000);
+      }
+      const quote = await calculateRoundTrip(body);
+      if (expectedFareCents !== quote.totalCents) {
+        return res.status(409).json({ code: "FARE_CHANGED", fareCents: quote.totalCents });
+      }
+      const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
+      const { from, to, date, time, returnDate, returnTime, tier } = quote;
+      const booking = { reference, name, phone, email, passengers, from, to, date, time,
+        returnDate, returnTime, tier, fareCents: quote.totalCents, extrasCents: quote.extrasCents, tipCents: 0 };
+      let stored;
+      if (roundTripForward) {
+        stored = await roundTripForward(booking);
+      } else {
+        const response = await fetch("http://127.0.0.1:" + intakePort + "/booking-staging/round-trip-intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Booking-Service-Key": secret },
+          redirect: "error",
+          signal: AbortSignal.timeout(5000),
+          body: JSON.stringify(booking)
+        });
+        stored = response.status === 201 ? await response.json() : null;
+      }
+      if (stored?.stored !== true || stored.reference !== reference || stored.status !== "pending") {
+        throw new Error("Invalid test intake acknowledgement");
+      }
+      return res.status(201).json({ reference, status: "pending", fareCents: quote.totalCents });
+    } catch (error) {
+      if (error instanceof QuoteError) return sendError(res, error);
+      return res.status(502).json({ code: "INTAKE_UNVERIFIED", error: "Booking receipt could not be verified." });
+    }
+  });
+}
+
 app.post("/api/create-checkout-session", async (req, res) => {
+  // Fail closed: the legacy one-way flow must never silently accept round-trip details.
+  if (req.body?.tripType === "round_trip" || req.body?.returnDate != null || req.body?.returnTime != null) {
+    return res.status(409).json({ code: "ROUND_TRIP_NOT_ENABLED", error: "Round-trip booking and payment are not yet available. / Las reservas y pagos de ida y vuelta aún no están disponibles." });
+  }
   if (!stripe) {
     return res.status(503).json({ error: "Stripe is not configured" });
   }
@@ -230,6 +342,10 @@ const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
 app.post("/api/booking-request", async (req, res) => {
+  // Fail closed: the legacy one-way flow must never silently accept round-trip details.
+  if (req.body?.tripType === "round_trip" || req.body?.returnDate != null || req.body?.returnTime != null) {
+    return res.status(409).json({ code: "ROUND_TRIP_NOT_ENABLED", error: "Round-trip booking and payment are not yet available. / Las reservas y pagos de ida y vuelta aún no están disponibles." });
+  }
   res.setHeader("Cache-Control", "no-store");
   if (!mailReady) return res.status(503).json({ error: "Las notificaciones automáticas todavía no están activadas. Usa WhatsApp o correo." });
   const ip = req.ip || "unknown";

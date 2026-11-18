@@ -1,7 +1,50 @@
-<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reservas | Pimentel</title><style>body{background:#111;color:#f8f4e8;font:16px system-ui;margin:auto;max-width:780px;padding:24px}h1{color:#d8b45c}.booking{border:1px solid #8c753b;border-radius:12px;padding:16px;margin:14px 0}button,a{background:#d8b45c;color:#111;border:0;border-radius:8px;padding:10px 14px;font-weight:700}button:disabled{opacity:.5}p{overflow-wrap:anywhere}</style><h1>Pimentel · Reservas</h1><p><a href="/panel">Volver a despacho</a> <button id="refresh">Actualizar</button></p><p id="message">Cargando...</p><div id="list"></div><script>
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reservas | Pimentel</title><style>body{background:#111;color:#f8f4e8;font:16px system-ui;margin:auto;max-width:780px;padding:24px}h1{color:#d8b45c}.booking{border:1px solid #8c753b;border-radius:12px;padding:16px;margin:14px 0}button,a{background:#d8b45c;color:#111;border:0;border-radius:8px;padding:10px 14px;font-weight:700}button:disabled{opacity:.5}p{overflow-wrap:anywhere}</style><h1>Pimentel · Reservas</h1><p><a href="/panel">Volver a despacho</a> <button id="refresh">Actualizar</button></p><p id="message">Cargando...</p><div id="list"></div><section id="roundTrips" hidden><h2>Round trips / Ida y vuelta</h2><div id="roundTripList"></div></section><script>
 const bookingBase=__BOOKING_API_BASE__;
 const list=document.getElementById('list'),message=document.getElementById('message');
 function element(tag,value){const e=document.createElement(tag);e.textContent=String(value??'');return e}
+async function loadRoundTrips(){
+ const base=bookingBase+'/round-trip';
+ const response=await fetch(base+'/inbox',{cache:'no-store'});
+ const section=document.getElementById('roundTrips');
+ if(response.status===404){section.hidden=true;return}
+ if(!response.ok)throw Error('No se pudieron cargar las reservas de ida y vuelta.');
+ const {bookings,editLinksAvailable}=await response.json();
+ const container=document.getElementById('roundTripList');
+ container.replaceChildren();
+ section.hidden=!bookings.length;
+ for(const b of bookings){
+  const card=element('section','');card.className='booking';
+  const {from,to,date,time}=b.outbound;
+  card.append(element('h3',b.reference+' · '+b.customer_name),
+   element('p','Outbound / Ida · '+from+' → '+to+' · '+date+' '+time),
+   element('p','Return / Regreso · '+to+' → '+from+' · '+b.return_leg.date+' '+b.return_leg.time),
+   element('p','Fare / Tarifa · $'+(Number(b.fare_cents)/100).toFixed(2)),
+   element('p','Estado del correo: '+b.acceptance_notice_status));
+  function action(label,path,success){
+   const button=element('button',label);
+   button.onclick=async()=>{
+    if(!confirm(label+' · '+b.reference+'?'))return;
+    button.disabled=true;
+    try{
+     const url=base+'/'+encodeURIComponent(b.reference)+'/'+path;
+     const result=await fetch(url,{method:'POST'});
+     if(!result.ok)throw Error(result.status===409?'Comprueba el estado de ambos trayectos o si ya se solicitó el envío.':'No se pudo verificar la operación ('+result.status+').');
+     await load();
+     message.textContent=success;
+    }catch(error){message.textContent=error.message;button.disabled=false}
+   };
+   card.append(button,document.createTextNode(' '));
+  }
+  if(b.status==='pending'){
+   action('Send both legs to dispatch / Enviar ambos trayectos','send-to-dispatch','Ambos trayectos están en despacho y requieren aprobación manual.');
+   if(editLinksAvailable)action('Email edit link / Enviar enlace de modificación','email-edit-link','El proveedor aceptó el correo con el enlace.');
+  }
+  if(b.status==='dispatched'&&['pending','failed'].includes(b.acceptance_notice_status)){
+   action('Send confirmation / Enviar confirmación','confirm','El proveedor aceptó el correo de confirmación.');
+  }
+  container.append(card);
+ }
+}
 async function load(){
  const response=await fetch(bookingBase+'/inbox',{credentials:'same-origin',cache:'no-store'});
  if(response.status===403){message.textContent='Inicia sesión como administrador en el panel.';return}
@@ -54,6 +97,7 @@ async function load(){
   if(['sending','unknown'].includes(b.acceptance_notice_status))card.append(element('p','Envío en curso o incierto: verifica el correo antes de reenviar.'));
   list.append(card);
  }
+ await loadRoundTrips();
  message.textContent=records.length?'Reservas: '+records.length:'No hay reservas todavía';
 }
 document.getElementById('refresh').onclick=()=>load().catch(e=>message.textContent=e.message);

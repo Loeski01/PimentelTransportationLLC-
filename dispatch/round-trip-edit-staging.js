@@ -1,0 +1,106 @@
+'use strict';
+
+const path=require('node:path');
+const {rateLimit}=require('express-rate-limit');
+const {issueEditGrant,verifyEditGrant}=require('../round-trip/edit-grant');
+const {persistBookingChange}=require('../round-trip/persist-modification');
+
+const editFields=new Set(['date','time','returnDate','returnTime']);
+
+function registerStagingEdits(router,{db,requireAdmin,signingSecret,notificationEmail,sendAcceptance,publicOrigin}){
+  if(!signingSecret)return;
+  if(Buffer.byteLength(signingSecret)<32 || !notificationEmail){
+    throw new Error('Invalid staging edit configuration');
+  }
+  const limit=rateLimit({windowMs:60000,limit:10,standardHeaders:'draft-7',legacyHeaders:false});
+  const findPending=async(client,reference)=>{
+    const result=await client.query(
+      "SELECT * FROM pt_customer_bookings WHERE reference=$1 AND trip_type='round_trip' AND status='pending'",
+      [reference]);
+    return result.rows[0];
+  };
+
+  router.get('/round-trip/edit-page',(req,res)=>{
+    res.set('Cache-Control','no-store');
+    res.set('Referrer-Policy','no-referrer');
+    res.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'");
+    res.sendFile(path.join(__dirname,'round-trip-edit.html'));
+  });
+  router.get('/round-trip/edit-page.js',(req,res)=>{
+    res.sendFile(path.join(__dirname,'round-trip-edit-page.js'));
+  });
+
+  if(publicOrigin&&sendAcceptance){
+    const origin=new URL(publicOrigin);
+    if(origin.protocol!=='https:'||origin.origin!==publicOrigin)throw new Error('Invalid dispatch public origin');
+    router.post('/round-trip/:reference/email-edit-link',requireAdmin,limit,async(req,res,next)=>{
+      res.set('Cache-Control','no-store');
+      try{
+        const claimed=await db.query(`UPDATE pt_customer_bookings SET last_edit_link_requested_at=now()
+          WHERE reference=$1 AND trip_type='round_trip' AND status='pending'
+            AND (last_edit_link_requested_at IS NULL OR last_edit_link_requested_at < now()-interval '15 minutes')
+          RETURNING id,reference,version,customer_email`,[req.params.reference]);
+        const row=claimed.rows[0];
+        if(!row)return res.sendStatus(409);
+        const token=issueEditGrant({secret:signingSecret,bookingId:Number(row.id)});
+        const editUrl=new URL(req.baseUrl+'/round-trip/edit-page',origin);
+        editUrl.hash=new URLSearchParams({reference:row.reference,version:String(row.version),token}).toString();
+        try{
+          await sendAcceptance({reference:row.reference,passenger_email:row.customer_email,editUrl:editUrl.href});
+          res.json({notice:'accepted_by_provider'});
+        }catch{
+          res.status(502).json({notice:'unverified'});
+        }
+      }catch(error){next(error);}
+    });
+  }
+
+  router.post('/round-trip/:reference/edit-grant',requireAdmin,async(req,res,next)=>{
+    res.set('Cache-Control','no-store');
+    try{
+      const row=await findPending(db,req.params.reference);
+      if(!row)return res.sendStatus(404);
+      const token=issueEditGrant({secret:signingSecret,bookingId:Number(row.id)});
+      const fragment=new URLSearchParams({reference:row.reference,version:String(row.version),token});
+      res.json({token,editPath:req.baseUrl+'/round-trip/edit-page#'+fragment});
+    }catch(error){next(error);}
+  });
+
+  router.post('/round-trip/:reference/edit',limit,async(req,res,next)=>{
+    res.set('Cache-Control','no-store');
+    const {token,version,patch}=req.body||{};
+    if(typeof token!=='string' || token.length>2048)return res.sendStatus(403);
+    if(!Number.isSafeInteger(version) || version<1 || !patch ||
+      typeof patch!=='object' || !Object.keys(patch).length ||
+      Object.keys(patch).some(field=>!editFields.has(field))){
+      return res.status(400).json({error:'Invalid schedule change'});
+    }
+    let client;
+    try{
+      client=await db.connect();
+      const row=await findPending(client,req.params.reference);
+      const bookingId=Number(row?.id);
+      if(!verifyEditGrant({token,secret:signingSecret,bookingId}))return res.sendStatus(403);
+      if(Number(row.version)!==version)return res.sendStatus(409);
+      const before={
+        reference:row.reference,tripType:row.trip_type,status:row.status,
+        ...row.outbound,returnDate:row.return_leg.date,returnTime:row.return_leg.time,
+        phone:row.customer_phone,email:row.customer_email,passengers:row.passengers
+      };
+      const fareCents=Number(row.fare_cents);
+      const result=await persistBookingChange({
+        client,bookingId,expectedVersion:version,before,patch,
+        previousFareCents:fareCents,newFareCents:fareCents,notificationEmail,
+        editGrant:{token,secret:signingSecret},requiredStatus:'pending'
+      });
+      res.json(result);
+    }catch(error){
+      if(error.code==='EDIT_GRANT_REJECTED')return res.sendStatus(403);
+      if(error.code==='BOOKING_CONFLICT')return res.sendStatus(409);
+      if(error instanceof RangeError)return res.status(400).json({error:'Invalid schedule change'});
+      next(error);
+    }finally{client?.release();}
+  });
+}
+
+module.exports={registerStagingEdits};
