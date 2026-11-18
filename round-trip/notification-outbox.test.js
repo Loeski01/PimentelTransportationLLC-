@@ -21,6 +21,8 @@ async function run() {
  assert.equal(sent,1);
  assert.deepEqual(ok,{claimed:true,accepted:true});
  assert.match(success.calls.at(-1).sql,/status='accepted'/);
+ assert.match(success.calls[0].sql,/sending_started_at=now\(\)/);
+ assert.match(success.calls.at(-1).sql,/sending_started_at=NULL/);
  const busy=db({claim:false});
  const notClaimed=await deliverBookingNotification({client:busy,eventId,send:async()=>{throw Error('must not send')}});
  assert.deepEqual(notClaimed,{claimed:false});
@@ -28,6 +30,7 @@ async function run() {
  const failed=await deliverBookingNotification({client:retry,eventId,send:async()=>{throw Error('provider down')}});
  assert.deepEqual(failed,{claimed:true,accepted:false,retryQueued:true,permanentlyFailed:false});
  assert.match(retry.calls.at(-1).sql,/status=CASE WHEN attempts>=5 THEN 'failed'/);
+ assert.match(retry.calls.at(-1).sql,/sending_started_at=NULL/);
  const exhausted=db({attempts:5});
  const stopped=await deliverBookingNotification({client:exhausted,eventId,send:async()=>({accepted:false})});
  assert.deepEqual(stopped,{claimed:true,accepted:false,retryQueued:false,permanentlyFailed:true});
