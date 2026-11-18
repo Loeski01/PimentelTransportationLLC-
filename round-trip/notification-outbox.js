@@ -16,6 +16,7 @@ async function deliverBookingNotification({client,eventId,send}) {
      RETURNING event_id,recipient_email,attempts`,[eventId]);
   if(claim.rowCount!==1) return {claimed:false};
   const item=claim.rows[0];
+  // A claim stuck in 'sending' requires operator recovery; do not silently resend.
   try {
     const details=await client.query(
       `SELECT e.event_id,e.booking_id,e.changes,e.previous_fare_cents,e.new_fare_cents,
