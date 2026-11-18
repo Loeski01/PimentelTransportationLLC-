@@ -158,18 +158,28 @@ app.post("/api/round-trip-quote", async (req, res) => {
 });
 
 // Test-only bridge to a loopback dispatch process and its isolated database.
-if (process.env.NODE_ENV === "test" && process.env.ROUND_TRIP_TEST_INTAKE_PORT) {
+const roundTripTest = process.env.NODE_ENV === "test" && Boolean(process.env.ROUND_TRIP_TEST_INTAKE_PORT);
+const roundTripProduction = process.env.NODE_ENV === "production" &&
+  process.env.ROUND_TRIP_PRODUCTION_ENABLED === "true" &&
+  process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true";
+if (roundTripTest || roundTripProduction) {
   const intakePort = Number(process.env.ROUND_TRIP_TEST_INTAKE_PORT);
   const secret = process.env.BOOKING_SERVICE_SECRET;
-  if (!Number.isInteger(intakePort) || intakePort < 1 || intakePort > 65535 ||
-      !secret || Buffer.byteLength(secret) < 32) {
+  if (roundTripTest && (!Number.isInteger(intakePort) || intakePort < 1 || intakePort > 65535 ||
+      !secret || Buffer.byteLength(secret) < 32)) {
     throw new Error("Invalid isolated round-trip intake configuration");
   }
-  app.get("/test/round-trip-calculator", (req, res) => {
+  if (roundTripTest) app.get("/test/round-trip-calculator", (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.sendFile(require("node:path").join(__dirname, "calculadora-gps-pimentel.html"));
   });
-  app.post("/api/test/round-trip-request", async (req, res) => {
+  const forward = roundTripProduction ? require("./booking/production-dispatch-sender").createProductionDispatchSender({
+    endpoint: process.env.BOOKING_DISPATCH_URL,
+    promotedProductionHost: process.env.BOOKING_DISPATCH_PROMOTED_HOST,
+    secret, enabled: true, roundTrip: true
+  }) : null;
+  const recentSubmissions = new Map();
+  app.post(roundTripTest ? "/api/test/round-trip-request" : "/api/round-trip-request", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     const body = req.body || {};
     const { name, phone, email, passengers, expectedFareCents } = body;
@@ -181,21 +191,35 @@ if (process.env.NODE_ENV === "test" && process.env.ROUND_TRIP_TEST_INTAKE_PORT) 
       return res.status(400).json({ error: "Invalid booking details." });
     }
     try {
+      if (roundTripProduction) {
+        const now = Date.now();
+        for (const [ip, expiry] of recentSubmissions) {
+          if (expiry <= now) recentSubmissions.delete(ip);
+        }
+        if (recentSubmissions.has(req.ip) || recentSubmissions.size >= 2000) return res.sendStatus(429);
+        recentSubmissions.set(req.ip, now + 15000);
+      }
       const quote = await calculateRoundTrip(body);
       if (expectedFareCents !== quote.totalCents) {
         return res.status(409).json({ code: "FARE_CHANGED", fareCents: quote.totalCents });
       }
       const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
       const { from, to, date, time, returnDate, returnTime, tier } = quote;
-      const response = await fetch("http://127.0.0.1:" + intakePort + "/booking-staging/round-trip-intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Booking-Service-Key": secret },
-        redirect: "error",
-        signal: AbortSignal.timeout(5000),
-        body: JSON.stringify({ reference, name, phone, email, passengers, from, to, date, time,
-          returnDate, returnTime, tier, fareCents: quote.totalCents, extrasCents: quote.extrasCents, tipCents: 0 })
-      });
-      const stored = response.status === 201 ? await response.json() : null;
+      const booking = { reference, name, phone, email, passengers, from, to, date, time,
+        returnDate, returnTime, tier, fareCents: quote.totalCents, extrasCents: quote.extrasCents, tipCents: 0 };
+      let stored;
+      if (forward) {
+        stored = await forward(booking);
+      } else {
+        const response = await fetch("http://127.0.0.1:" + intakePort + "/booking-staging/round-trip-intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Booking-Service-Key": secret },
+          redirect: "error",
+          signal: AbortSignal.timeout(5000),
+          body: JSON.stringify(booking)
+        });
+        stored = response.status === 201 ? await response.json() : null;
+      }
       if (stored?.stored !== true || stored.reference !== reference || stored.status !== "pending") {
         throw new Error("Invalid test intake acknowledgement");
       }

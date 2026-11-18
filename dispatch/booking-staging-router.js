@@ -21,7 +21,7 @@ function bostonPickupTime(localDate,localTime){
   if(matches.length!==1)throw RangeError('Invalid, nonexistent or ambiguous Boston pickup time');
   return matches[0];
 }
-function router({db,secret,requireAdmin,sendAcceptance,production=false,productionDatabaseName,stagingEditSecret,stagingEditNotificationEmail}){
+function router({db,secret,requireAdmin,sendAcceptance,production=false,roundTripProduction=false,productionDatabaseName,stagingEditSecret,stagingEditNotificationEmail}){
  if(typeof secret!=='string'||Buffer.byteLength(secret)<32)throw Error('Staging booking intake secret missing');
  const r=express.Router();
  require('./booking-acceptance').registerAcceptanceRoute(r,{db,requireAdmin,sendAcceptance});
@@ -33,10 +33,10 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
   next();
  };
  r.get('/environment',auth,async(req,res,next)=>{
-  try{const q=await db.query('SELECT current_database() AS name');res.set('Cache-Control','no-store').json({mode:production?'production':'staging',databaseVerified:production&&!!productionDatabaseName&&q.rows[0].name===productionDatabaseName})}catch(e){next(e)}
+  try{const q=await db.query('SELECT current_database() AS name');res.set('Cache-Control','no-store').json({mode:production?'production':'staging',databaseVerified:production&&!!productionDatabaseName&&q.rows[0].name===productionDatabaseName,...(roundTripProduction?{roundTripReady:true}:{})})}catch(e){next(e)}
  });
- if(!production){
-  if(stagingEditSecret){
+ if(!production||roundTripProduction){
+  if(!production&&stagingEditSecret){
    require('./round-trip-edit-staging').registerStagingEdits(r,{
     db,requireAdmin,signingSecret:stagingEditSecret,notificationEmail:stagingEditNotificationEmail
    });

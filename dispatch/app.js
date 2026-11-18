@@ -18,6 +18,8 @@ const adminPasswordHash=process.env.DISPATCH_ADMIN_PASSWORD_HASH || (()=>{
 if(process.env.DISPATCH_SESSION_SECRET.length<32) throw Error('Session secret too short');
 const db=new Pool({connectionString:process.env.DISPATCH_DATABASE_URL,connectionTimeoutMillis:15000});
 const app=express();
+const roundTripProduction=process.env.ROUND_TRIP_PRODUCTION_ENABLED==='true';
+if(roundTripProduction && process.env.BOOKING_INTAKE_PRODUCTION_ENABLED!=='true')throw Error('Production booking intake required');
 app.set('trust proxy',1);
 app.use(express.json({limit:'16kb'}));
 // Reject cross-site browser writes even when cookies are present.
@@ -64,7 +66,7 @@ if(process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'){
  if(process.env.NODE_ENV!=='production')throw Error('Production intake requires NODE_ENV=production');
  if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED!=='true')throw Error('Production booking schema must be enabled');
  const {router}=require('./booking-staging-router');
- app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,production:true,productionDatabaseName:process.env.DISPATCH_PRODUCTION_DATABASE_NAME}));
+ app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,production:true,roundTripProduction,productionDatabaseName:process.env.DISPATCH_PRODUCTION_DATABASE_NAME}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>{res.set('Cache-Control','no-store');const base=process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'?'/booking':'/booking-staging';res.type('html').send(require('node:fs').readFileSync(require('node:path').join(__dirname,'booking-admin.html'),'utf8').replace('__BOOKING_API_BASE__',JSON.stringify(base)))});
 }
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
@@ -111,6 +113,10 @@ async function startDispatch(){
    await client.query('CREATE INDEX IF NOT EXISTS booking_requests_inbox_idx ON booking_requests(status,created_at DESC)');
    await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS booking_reference TEXT');
    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS dispatch_trips_booking_reference_unique ON dispatch_trips(booking_reference) WHERE booking_reference IS NOT NULL');
+   if(roundTripProduction){
+    const sql=fs.readFileSync(path.join(__dirname,'../round-trip/postgres-schema-draft.sql'),'utf8');
+    await client.query(sql.replace(/^BEGIN;$/m,'').replace(/^COMMIT;$/m,''));
+   }
   }
   // Additive staging integration schema. Never delete or rewrite existing trips.
   if(process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true'){
