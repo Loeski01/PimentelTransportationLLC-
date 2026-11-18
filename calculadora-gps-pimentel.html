@@ -250,7 +250,7 @@ $('calculate').addEventListener('click' ,async()=>{
     $('total').textContent=usd(total);
     $('roundTripBreakdown').hidden=!roundTrip;
     if(roundTrip){$('outboundFare').textContent=usd(quote.roundTripData.outboundFareCents/100);$('returnFare').textContent=usd(quote.roundTripData.returnFareCents/100);$('roundTripSavings').textContent='−'+usd(quote.roundTripData.discountCents/100);}
-    if($('from').value.trim()!==from||$('to').value.trim()!==to){
+    if($('from').value.trim()!==from||$('to').value.trim()!==to||tripTypeSelect.value!==(roundTrip?'round_trip':'one_way')||(roundTrip&&Object.entries(schedule).some(([key,value])=>$(key==='date'?'outboundDate':key==='time'?'outboundTime':key).value!==value))){
       showStatus('Las direcciones cambiaron. Vuelve a calcular la tarifa.',true);
       return;
     }
