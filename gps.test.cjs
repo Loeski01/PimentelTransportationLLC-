@@ -36,7 +36,7 @@ test('missing address, provider failure, timeout, no route, malformed route are 
  ]) {const result=await backend(fetch)({from:'A',to:'B'});assert.equal(result.status,status);assert.equal(result.data.code,code);}
 });
 function frontend(fetch){
- const elements={};const element=id=>elements[id]??=( {value:({from:'Boston',to:'Woburn',tipChoice:'0',paymentKind:'ride',customerName:'Test rider',phone:'6175550100'})[id]||'',style:{},addEventListener(event,fn){this[event]=fn;}} );
+ const elements={};const element=id=>elements[id]??=( {value:({from:'Boston',to:'Woburn',tipChoice:'0',tripType:'one_way',paymentKind:'ride',customerName:'Test rider',phone:'6175550100'})[id]||'',style:{},setAttribute(name,value){this[name]=value;},addEventListener(event,fn){this[event]=fn;}} );
  const context=vm.createContext({document:{getElementById:element},fetch,window:{location:{search:'',assign(url){elements.redirect=url;}}},URL,AbortController,URLSearchParams,Intl,TypeError,setTimeout,clearTimeout});
  vm.runInContext(fs.readFileSync('calculadora-gps-pimentel.html','utf8').split('<script>')[1].split('</script>')[0],context);
  return {elements,element};
@@ -71,7 +71,7 @@ test('unified booking has selectable tiers, separate contact links and payment o
  assert.match(html,/name="tier" value="comfort"/);
  assert.match(html,/id="unifiedForm"/);
  assert.match(html,/tier:selectedTier\(\)/);
- assert.match(html,/value="later">Pagar al finalizar/);
+ assert.match(html,/value="later">Pay after trip \/ Pagar al finalizar/);
  assert.match(html,/href="tel:\+16175188281"/);
  assert.match(html,/href="sms:\+16177855657"/);
 });
