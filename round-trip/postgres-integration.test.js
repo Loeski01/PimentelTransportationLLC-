@@ -129,6 +129,10 @@ async function run(){
   assert.equal(staleState.return_leg.time,'15:30');
   assert.equal(staleState.customer_phone,'5551234567');
   assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),auditBeforeStale);
+  // Even an editable booking must reject invalid return schedules before touching storage.
+  const beforeInvalid=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
+  await assert.rejects(persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:6,before:{...approvedBefore,returnTime:'15:30'},patch:{returnDate:'2026-11-30'},previousFareCents:23500,newFareCents:24000,notificationEmail:'admin@example.test'}),/Return must be after departure/);
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),beforeInvalid);
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
