@@ -87,6 +87,38 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
     next(error);
    }finally{client?.release();}
   });
+  r.post('/round-trip/:reference/confirm',requireAdmin,async(req,res,next)=>{
+   if(!sendAcceptance)return res.sendStatus(503);
+   const {reference}=req.params;
+   if(!/^PT-[A-Z0-9-]{4,64}$/.test(reference))return res.sendStatus(400);
+   let booking;
+   try{
+    const claimed=await db.query(`UPDATE pt_customer_bookings
+     SET acceptance_notice_status='sending'
+     WHERE reference=$1 AND trip_type='round_trip' AND status='dispatched'
+     AND acceptance_notice_status IN ('pending','failed')
+     AND (SELECT count(*) FROM dispatch_trips
+       WHERE booking_reference IN ($1||'-OUTBOUND',$1||'-RETURN')
+       AND status IN ('approved','assigned','accepted'))=2
+     RETURNING *`,[reference]);
+    booking=claimed.rows[0];
+    if(!booking)return res.sendStatus(409);
+   }catch(error){return next(error);}
+   try{
+    await sendAcceptance({
+     reference,passenger_email:booking.customer_email,passenger_name:booking.customer_name,
+     pickup_address:booking.outbound.from,destination_address:booking.outbound.to,
+     pickup_local_date:booking.outbound.date,pickup_local_time:booking.outbound.time,
+     return_leg:booking.return_leg,fare_cents:booking.fare_cents
+    });
+    await db.query("UPDATE pt_customer_bookings SET acceptance_notice_status='accepted' WHERE reference=$1",[reference]);
+    res.json({notice:'accepted_by_provider'});
+   }catch(error){
+    const status=error.deliveryRejected?'failed':'unknown';
+    await db.query('UPDATE pt_customer_bookings SET acceptance_notice_status=$2 WHERE reference=$1',[reference,status]).catch(()=>{});
+    res.status(502).json({notice:status});
+   }
+  });
   r.post('/round-trip-intake',auth,async(req,res,next)=>{
    const {persistRoundTripRequest}=require('../round-trip/persist-request');
    res.set('Cache-Control','no-store');
