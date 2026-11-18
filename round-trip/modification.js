@@ -27,7 +27,8 @@ function diffBooking(before, patch) {
     if (!validReturnSchedule(after.date,after.time,after.returnDate,after.returnTime))
       throw new RangeError('Return must be after departure');
   }
-  if (['in_progress','completed','cancelled'].includes(before.status))
+  // Dispatch uses additional active states; fail closed once a driver is en route or arrived.
+  if (['en_route','on_the_way','arrived','waiting','started','in_progress','completed','cancelled','no_show'].includes(String(before.status).toLowerCase()))
     throw new RangeError('Booking is not eligible for self-service modification');
   return {after,changes};
 }
