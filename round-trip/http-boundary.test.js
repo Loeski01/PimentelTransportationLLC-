@@ -27,6 +27,19 @@ async function run(){
   const invalid=await fetch(base+'/api/round-trip-quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,returnDate:'2026-11-30'})});
   assert.equal(invalid.status,400);
   assert.equal((await invalid.json()).code,'INVALID_ROUND_TRIP');
+  // Untrusted callers cannot bypass the disabled round-trip booking/payment gate.
+  const variants=[
+   {...payload,customerName:'Test Customer',customerEmail:'test@example.test',paymentMethod:'later'},
+   {...payload,status:'approved',fare:0,discount:100,driverId:1},
+   {...payload,tripType:'round_trip',returnDate:'2026-12-03',returnTime:'14:00'}
+  ];
+  for(const variant of variants){
+   for(const route of ['/api/booking-request','/api/create-checkout-session']){
+    const response=await fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(variant)});
+    assert.equal(response.status,409,route+' must reject disabled round-trip booking regardless of extra fields');
+    assert.equal((await response.json()).code,'ROUND_TRIP_NOT_ENABLED');
+   }
+  }
   console.log('HTTP integration boundary checks passed: no real payments, dispatch, geocoding, or emails');
  }finally{child.kill('SIGTERM')}
 }
