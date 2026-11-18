@@ -41,6 +41,15 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,roundTri
     db,requireAdmin,signingSecret:stagingEditSecret,notificationEmail:stagingEditNotificationEmail,sendAcceptance,publicOrigin
    });
   }
+  r.get('/round-trip/inbox',requireAdmin,async(req,res,next)=>{
+   res.set('Cache-Control','no-store');
+   try{
+    const result=await db.query(`SELECT reference,customer_name,outbound,return_leg,fare_cents,status,
+      acceptance_notice_status FROM pt_customer_bookings WHERE trip_type='round_trip'
+      ORDER BY created_at DESC LIMIT 100`);
+    res.json({editLinksAvailable:Boolean(stagingEditSecret&&publicOrigin&&sendAcceptance),bookings:result.rows});
+   }catch(error){next(error);}
+  });
   r.post('/round-trip/:reference/send-to-dispatch',requireAdmin,async(req,res,next)=>{
    const {reference}=req.params;
    if(!/^PT-[A-Z0-9-]{4,64}$/.test(reference))return res.sendStatus(400);
