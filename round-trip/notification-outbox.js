@@ -26,7 +26,7 @@ async function deliverBookingNotification({client,eventId,send}) {
        WHERE e.event_id=$1`,[eventId]);
     if(details.rowCount!==1) throw new Error('Notification event details unavailable');
     const result=await send({eventId,recipientEmail:item.recipient_email,booking:details.rows[0]});
-    if (!result || result.accepted !== true) throw new Error('Mail provider did not accept message');
+    if (result && result.accepted === false) {\n      const rejection = new Error('Mail provider explicitly rejected message');\n      rejection.deliveryOutcome = 'rejected';\n      throw rejection;\n    }\n    if (!result || result.accepted !== true) throw new Error('Mail provider acceptance is uncertain');
     // Provider accepted the message. A subsequent database failure must NOT queue a resend.
     try {
       await client.query(
