@@ -5,8 +5,9 @@
  * This module never connects to production on its own.
  */
 const { buildModificationEvent } = require('./modification');
+const { consumeEditGrant } = require('./consume-edit-grant');
 
-async function persistBookingChange({ client, bookingId, expectedVersion, before, patch, previousFareCents, newFareCents, notificationEmail }) {
+async function persistBookingChange({ client, bookingId, expectedVersion, before, patch, previousFareCents, newFareCents, notificationEmail, editGrant }) {
   if (!client || typeof client.query !== 'function') throw new TypeError('Database client required');
   if (!Number.isSafeInteger(bookingId) || bookingId <= 0 || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1)
     throw new RangeError('Invalid booking ID or version');
@@ -20,6 +21,17 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
   const snapshotReturn = before.tripType === 'round_trip' ? JSON.stringify({date:before.returnDate,time:before.returnTime}) : null;
   await client.query('BEGIN');
   try {
+    // An authorized production caller must pass an editGrant; consuming it inside
+    // this transaction makes replay prevention atomic with the booking update.
+    // Legacy isolated callers may omit it while the production route remains disabled.
+    if (editGrant) {
+      const accepted = await consumeEditGrant({client,token:editGrant.token,secret:editGrant.secret,bookingId,now:editGrant.now});
+      if (!accepted) {
+        const error = new Error('Edit authorization invalid, expired or already used');
+        error.code = 'EDIT_GRANT_REJECTED';
+        throw error;
+      }
+    }
     const updated = await client.query(
       `UPDATE pt_customer_bookings
        SET outbound=$1::jsonb, return_leg=$2::jsonb, fare_cents=$3, customer_phone=$10, customer_email=$11, passengers=$12, version=version+1, updated_at=now()
