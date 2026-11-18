@@ -74,20 +74,21 @@ a{color:var(--gold)}
 <div class="detail"><span>Millas ($3.50/milla)</span><span id="milesCost"></span></div>
 <div class="detail"><span>Tiempo ($0.50/min)</span><span id="timeCost"></span></div>
 <div class="detail"><span>Recogida en aeropuerto</span><span id="airportCost"></span></div>
-<label for="tipChoice">Propina opcional para el conductor / Optional driver tip</label>
+<div id="oneWayTipAndPaymentOptions"><label for="tipChoice">Propina opcional para el conductor / Optional driver tip</label>
 <select id="tipChoice"><option value="0">Sin propina / No tip</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option><option value="custom">Otro monto / Custom amount</option></select>
 <div id="customTipWrap" hidden><label for="customTip">Propina en dólares / Tip in USD</label><input id="customTip" type="number" min="0" max="1000" step="0.01" inputmode="decimal" placeholder="0.00"></div>
 <p class="note">La propina es voluntaria. Los porcentajes se calculan sobre la tarifa GPS. Al reservar solo registras tu preferencia. Al pagar se cobra la propina que elijas en ese momento. Si ya dejaste propina, selecciona «Sin propina».</p>
 <div class="detail"><span>Propina / Tip</span><span id="tipTotal">$0.00</span></div>
 <label for="paymentKind">¿Qué vas a pagar? / What are you paying?</label>
 <select id="paymentKind"><option value="ride">Viaje + propina elegida / Ride + selected tip</option><option value="tip_only">Solo propina: el viaje ya está pagado / Tip only: ride already paid</option></select>
+</div>
 <form id="roundTripBookingForm" hidden>
 <label for="roundTripBookingEmail">Email / Correo electrónico</label>
 <input id="roundTripBookingEmail" type="email" maxlength="254" autocomplete="email" required>
 <button id="roundTripBookingSubmit" type="submit">Request round trip / Solicitar ida y vuelta</button>
 <p id="roundTripBookingStatus" role="status" aria-live="polite"></p>
 </form>
-<button id="continueBooking" type="button" style="margin-top:18px">CONTINUAR A RESERVA / CONTINUE TO BOOKING</button>
+<div id="oneWayBookingAndPayment"><button id="continueBooking" type="button" style="margin-top:18px">CONTINUAR A RESERVA / CONTINUE TO BOOKING</button>
 <p class="note">Continúa al formulario de reserva con las direcciones y datos ingresados. No se cobra al reservar.</p>
 <div class="detail"><span>Total para pagar / Payment total</span><span id="paymentTotal"></span></div>
 <p class="note">Si ya pagaste el viaje, selecciona «Solo propina». Revisa lo ya pagado antes de continuar. Este pago usa la tarifa GPS mostrada; coordina con la compañía cualquier peaje, espera u otro ajuste.</p>
@@ -98,6 +99,7 @@ a{color:var(--gold)}
 <p class="note" id="saveLinkNote">Copia y guarda este enlace para volver después del viaje. No genera un cobro automático ni envía recordatorios. Por seguridad no incluye tu nombre ni teléfono.</p>
 <a id="payLater" style="display:block;text-align:center;margin-top:20px;padding:16px;border:1px solid #d6b36b;border-radius:12px" href="#">Reservar y pagar al finalizar el viaje</a>
 <p class="note">Completa la fecha y hora en el formulario de reserva. No se cobra ahora. La reserva está sujeta a confirmación.</p>
+</div>
 <p class="note">Estimado sujeto a confirmación. El tiempo es una estimación de ruta, no tráfico en vivo. Peajes, espera, estacionamiento y otros cargos no están incluidos.</p>
 </section>
 </section>
@@ -310,6 +312,8 @@ $('calculate').addEventListener('click',async()=>{
     const bookingAvailable=roundTrip&&quote.roundTripData.bookingAvailable===true;
     currentQuote={from,to,amount,schedule,bookingAvailable,tripType:roundTrip?'round_trip':'one_way'};
     $('roundTripBookingForm').hidden=!bookingAvailable;
+    $('oneWayTipAndPaymentOptions').hidden=roundTrip;
+    $('oneWayBookingAndPayment').hidden=roundTrip;
     $('continueBooking').disabled=roundTrip;
     $('payLater').style.pointerEvents=roundTrip?'none':'';
     $('payLater').setAttribute('aria-disabled',String(roundTrip));
