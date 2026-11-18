@@ -4,6 +4,10 @@ on:
     branches: [feature/round-trip-10pct]
     paths:
       - 'round-trip/**'
+      - 'dispatch/booking-staging-router.js'
+      - 'dispatch/router.js'
+      - 'dispatch/private-panel.html'
+      - 'dispatch/tests/booking-release.test.js'
       - '.github/workflows/round-trip-postgres-integration.yml'
   workflow_dispatch:
 permissions:
@@ -33,6 +37,10 @@ jobs:
         with:
           node-version: '22'
       - name: Install isolated test database driver
-        run: npm install --no-save --package-lock=false pg
+        run: npm install --no-save --package-lock=false
       - name: Run PostgreSQL integration checks
         run: node round-trip/postgres-integration.test.js
+      - name: Verify dispatch booking boundaries with PostgreSQL service available
+        run: |
+          node --test dispatch/tests/booking-release.test.js
+          node --test dispatch/tests/booking-acceptance.test.js
