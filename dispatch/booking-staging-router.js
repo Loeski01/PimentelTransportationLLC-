@@ -81,7 +81,7 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,producti
      if(fields.year===y&&fields.month===m&&fields.day===d&&fields.hour===hh&&fields.minute===mm&&fields.second===ss)
        matches.push(candidate);
    }
-   if(!matches.length)throw Error('Invalid or nonexistent Boston pickup time');
+   if(matches.length!==1)throw Error('Invalid, nonexistent or ambiguous Boston pickup time');
    const dt=matches[0];
    const surname=b.passenger_name.trim().split(/\s+/).slice(-1)[0];
    const inserted=await client.query(`INSERT INTO dispatch_trips
