@@ -12,6 +12,9 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
     throw new RangeError('Invalid booking ID or version');
   if (!notificationEmail || typeof notificationEmail !== 'string') throw new RangeError('Admin email required');
   const event = buildModificationEvent({before,patch,previousFareCents,newFareCents});
+  // Contact/passenger edits require separate persisted columns; reject rather than silently lose them.
+  if (event.changes.some(change => !['from','to','date','time','returnDate','returnTime'].includes(change.field)))
+    throw new RangeError('Contact and passenger edits not yet supported by persistence');
   const { after } = event;
   await client.query('BEGIN');
   try {
