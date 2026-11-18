@@ -98,6 +98,16 @@ async function run(){
   assert.equal(blocked.outbound.time,'12:00');
   assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),eventCountBefore);
   assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_notification_outbox')).rows[0].n),outboxCountBefore);
+  // A pending booking may be edited, but a cancelled one must be rejected.
+  await client.query("UPDATE pt_customer_bookings SET status='pending' WHERE id=$1",[inserted.rows[0].id]);
+  const pendingEdit=await persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:4,before:{...before,status:'pending',time:'12:00',phone:'5551234567',email:'new@example.test',passengers:'3'},patch:{returnTime:'15:00'},previousFareCents:22000,newFareCents:23000,notificationEmail:'admin@example.test'});
+  assert.equal(pendingEdit.version,5);
+  const pendingState=(await client.query('SELECT return_leg,version FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(pendingState.return_leg.time,'15:00');
+  await client.query("UPDATE pt_customer_bookings SET status='cancelled' WHERE id=$1",[inserted.rows[0].id]);
+  const eventsBeforeCancel=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
+  await assert.rejects(persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:5,before:{...before,status:'confirmed',time:'12:00',returnTime:'15:00',phone:'5551234567',email:'new@example.test',passengers:'3'},patch:{returnTime:'16:00'},previousFareCents:23000,newFareCents:24000,notificationEmail:'admin@example.test'}),error=>error.code==='BOOKING_CONFLICT');
+  assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),eventsBeforeCancel);
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
