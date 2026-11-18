@@ -231,7 +231,7 @@ $('calculate').addEventListener('click' ,async()=>{
       const data=await res.json();
       if(!res.ok)throw new Error(data.error||'Servicio de cálculo no disponible.');
       if(roundTrip){
-        if(!['outboundFareCents','returnFareCents','subtotalCents','discountCents','totalCents'].every(k=>Number.isSafeInteger(data[k])&&data[k]>=0))throw new Error('Invalid round-trip quote. / Cotización de ida y vuelta inválida.');
+        if(!['outboundFareCents','returnFareCents','subtotalCents','discountCents','extrasCents','totalCents'].every(k=>Number.isSafeInteger(data[k])&&data[k]>=0))throw new Error('Invalid round-trip quote. / Cotización de ida y vuelta inválida.');
         quote={...data.outbound,amount:data.totalCents,roundTripData:data};
       }else{
         if(!['miles','minutes','base','mileage','time','airportFee','amount'].every(k=>Number.isFinite(data[k])&&data[k]>=0))throw new Error('Respuesta de cálculo inválida.');
@@ -246,7 +246,7 @@ $('calculate').addEventListener('click' ,async()=>{
     $('base').textContent=usd(base);
     $('milesCost').textContent=usd(mileage);
     $('timeCost').textContent=usd(time);
-    $('airportCost').textContent=usd(airport);
+    $('airportCost').textContent=usd(roundTrip?quote.roundTripData.extrasCents/100:airport);
     $('total').textContent=usd(total);
     $('roundTripBreakdown').hidden=!roundTrip;
     if(roundTrip){$('outboundFare').textContent=usd(quote.roundTripData.outboundFareCents/100);$('returnFare').textContent=usd(quote.roundTripData.returnFareCents/100);$('roundTripSavings').textContent='−'+usd(quote.roundTripData.discountCents/100);}

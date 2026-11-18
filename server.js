@@ -114,9 +114,12 @@ async function calculateFare(from, to, tier = 'luxury') {
   const miles = route.distance / 1609.344;
   const minutes = route.duration / 60;
   const airportFee = airportPickup(from, a) ? 10 : 0;
+  const transportFare = rates.base + miles * rates.mile + minutes * rates.minute;
   const quote = { tier, miles, minutes, base: rates.base, mileage: miles * rates.mile, time: minutes * rates.minute, airportFee,
-    amount: Math.round(Math.max(rates.minimum, rates.base + miles * rates.mile + minutes * rates.minute + airportFee) * 100), currency: "usd" };
+    amount: Math.round(Math.max(rates.minimum, transportFare + airportFee) * 100), currency: "usd" };
   if (quoteCache.size >= 500) quoteCache.delete(quoteCache.keys().next().value);
+  const transportOnlyCents = Math.round(Math.max(rates.minimum, transportFare) * 100);
+  Object.defineProperty(quote, "transportOnlyCents", {value: transportOnlyCents});
   quoteCache.set(key, { value: quote, expires: Date.now() + 300000 });
   return quote;
 }
@@ -140,7 +143,8 @@ app.post("/api/round-trip-quote", async (req, res) => {
   try {
     const outbound = await calculateFare(from.trim(), to.trim(), tier);
     const inbound = await calculateFare(to.trim(), from.trim(), tier);
-    const totals = roundTripTotals(outbound.amount, inbound.amount);
+    const airportExtrasCents = outbound.amount - outbound.transportOnlyCents + inbound.amount - inbound.transportOnlyCents;
+    const totals = roundTripTotals(outbound.transportOnlyCents, inbound.transportOnlyCents, airportExtrasCents);
     return res.json({ tripType: "round_trip", tier, from: from.trim(), to: to.trim(),
       date, time, returnDate, returnTime, outbound, inbound, ...totals,
       discountPercent: 10, currency: "usd", status: "estimate_only" });

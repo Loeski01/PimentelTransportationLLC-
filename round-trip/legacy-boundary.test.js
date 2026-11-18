@@ -11,7 +11,7 @@ function route(start,end) {
  return server.slice(a,b);
 }
 const quote=route('app.post("/api/round-trip-quote"','app.post("/api/create-checkout-session"');
-assert.match(quote,/roundTripTotals\(outbound\.amount, inbound\.amount\)/);
+assert.match(quote,/roundTripTotals\(outbound\.transportOnlyCents, inbound\.transportOnlyCents, airportExtrasCents\)/);
 assert.match(quote,/status: "estimate_only"/);
 const checkout=route('app.post("/api/create-checkout-session"','app.post("/api/booking-request"');
 assert.match(checkout,/req\.body\?\.tripType === "round_trip"/);
