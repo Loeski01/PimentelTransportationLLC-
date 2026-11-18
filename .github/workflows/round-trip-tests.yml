@@ -27,3 +27,7 @@ jobs:
           node round-trip/persist-modification.test.js
           node round-trip/notification-outbox.test.js
           node round-trip/notification-health.test.js
+      - name: Booking intake and dispatch boundary regression
+        run: |
+          node --test dispatch/tests/booking-release.test.js
+          node --test dispatch/tests/booking-acceptance.test.js
