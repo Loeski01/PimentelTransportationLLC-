@@ -151,7 +151,11 @@ app.post("/api/round-trip-quote", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   try {
     const quote = await calculateRoundTrip(req.body || {});
-    return res.json({ ...quote, status: "estimate_only" });
+    let bookingAvailable=roundTripTest;
+    if (roundTripForward) {
+      bookingAvailable=await roundTripForward.verifyReady().then(()=>true,()=>false);
+    }
+    return res.json({ ...quote, status: "estimate_only", bookingAvailable });
   } catch (error) {
     return sendError(res, error);
   }
@@ -162,6 +166,11 @@ const roundTripTest = process.env.NODE_ENV === "test" && Boolean(process.env.ROU
 const roundTripProduction = process.env.NODE_ENV === "production" &&
   process.env.ROUND_TRIP_PRODUCTION_ENABLED === "true" &&
   process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED === "true";
+const roundTripForward = roundTripProduction ? require("./booking/production-dispatch-sender").createProductionDispatchSender({
+  endpoint: process.env.BOOKING_DISPATCH_URL,
+  promotedProductionHost: process.env.BOOKING_DISPATCH_PROMOTED_HOST,
+  secret: process.env.BOOKING_SERVICE_SECRET, enabled: true, roundTrip: true
+}) : null;
 if (roundTripTest || roundTripProduction) {
   const intakePort = Number(process.env.ROUND_TRIP_TEST_INTAKE_PORT);
   const secret = process.env.BOOKING_SERVICE_SECRET;
@@ -173,11 +182,6 @@ if (roundTripTest || roundTripProduction) {
     res.setHeader("Cache-Control", "no-store");
     res.sendFile(require("node:path").join(__dirname, "calculadora-gps-pimentel.html"));
   });
-  const forward = roundTripProduction ? require("./booking/production-dispatch-sender").createProductionDispatchSender({
-    endpoint: process.env.BOOKING_DISPATCH_URL,
-    promotedProductionHost: process.env.BOOKING_DISPATCH_PROMOTED_HOST,
-    secret, enabled: true, roundTrip: true
-  }) : null;
   const recentSubmissions = new Map();
   app.post(roundTripTest ? "/api/test/round-trip-request" : "/api/round-trip-request", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -208,8 +212,8 @@ if (roundTripTest || roundTripProduction) {
       const booking = { reference, name, phone, email, passengers, from, to, date, time,
         returnDate, returnTime, tier, fareCents: quote.totalCents, extrasCents: quote.extrasCents, tipCents: 0 };
       let stored;
-      if (forward) {
-        stored = await forward(booking);
+      if (roundTripForward) {
+        stored = await roundTripForward(booking);
       } else {
         const response = await fetch("http://127.0.0.1:" + intakePort + "/booking-staging/round-trip-intake", {
           method: "POST",

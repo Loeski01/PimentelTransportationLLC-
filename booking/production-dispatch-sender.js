@@ -15,8 +15,7 @@ function createProductionDispatchSender({endpoint,secret,enabled=false,promotedP
      url.pathname!=='/booking/intake'||!/^[a-z0-9.-]+\.onrender\.com$/i.test(url.hostname)||
      (/staging|test|dev/i.test(url.hostname)&&!promoted)) throw new Error('Dedicated HTTPS production intake required');
   const intakeUrl=roundTrip?new URL('/booking/round-trip-intake',url):url;
-  return async function forward(booking) {
-    if(!booking||!/^PT-[A-Z0-9-]{4,64}$/.test(booking.reference||'')) throw new Error('Invalid booking reference');
+  async function verifyReady() {
     if(promoted||roundTrip){
       const check=await fetchImpl(new URL('/booking/environment',url).toString(),{redirect:'error',signal:AbortSignal.timeout(5000),headers:{'X-Booking-Service-Key':secret}});
       if(!check.ok)throw new Error('Production environment not verified');
@@ -24,6 +23,10 @@ function createProductionDispatchSender({endpoint,secret,enabled=false,promotedP
       if(environment.mode!=='production'||environment.databaseVerified!==true||
         (roundTrip&&environment.roundTripReady!==true))throw new Error('Production environment not verified');
     }
+  }
+  async function forward(booking) {
+    if(!booking||!/^PT-[A-Z0-9-]{4,64}$/.test(booking.reference||'')) throw new Error('Invalid booking reference');
+    await verifyReady();
     const response=await fetchImpl(intakeUrl.toString(),{
       method:'POST',redirect:'error',signal:AbortSignal.timeout(12000),
       headers:{'Content-Type':'application/json','X-Booking-Service-Key':secret},
@@ -34,6 +37,7 @@ function createProductionDispatchSender({endpoint,secret,enabled=false,promotedP
     if(!acknowledgement || acknowledgement.stored!==true || acknowledgement.reference!==booking.reference)
       throw new Error('Dispatch acknowledgement mismatch; reconcile before retry');
     return acknowledgement;
-  };
+  }
+  return Object.assign(forward,{verifyReady});
 }
 module.exports={createProductionDispatchSender};

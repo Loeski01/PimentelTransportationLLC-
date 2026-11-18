@@ -151,19 +151,19 @@ test('round-trip test form sends the quoted schedule once and shows a pending re
   assert.equal(body.returnTime,'11:00');
   if(paths.length===1)return {ok:true,json:async()=>({
    outbound:{miles:10,minutes:20,base:35,mileage:35,time:10,airportFee:0},
-   outboundFareCents:8000,returnFareCents:8000,subtotalCents:16000,discountCents:1600,extrasCents:0,totalCents:14400
+   outboundFareCents:8000,returnFareCents:8000,subtotalCents:16000,discountCents:1600,extrasCents:0,totalCents:14400,bookingAvailable:true
   })};
   assert.equal(body.expectedFareCents,14400);
   assert.equal(body.email,'rider@example.test');
   return {status:201,json:async()=>({status:'pending',reference:'PT-TEST1234'})};
  },{origin,pathname:'/test/round-trip-calculator'});
  for(const [id,value] of Object.entries({tripType:'round_trip',outboundDate:'2026-12-01',outboundTime:'14:30',
-   returnDate:'2026-12-02',returnTime:'11:00',testRoundTripEmail:'rider@example.test'}))element(id).value=value;
+   returnDate:'2026-12-02',returnTime:'11:00',roundTripBookingEmail:'rider@example.test'}))element(id).value=value;
  await element('calculate').click();
- assert.equal(element('testRoundTripForm').hidden,false);
+ assert.equal(element('roundTripBookingForm').hidden,false);
  const event={preventDefault(){}};
- await element('testRoundTripForm').submit(event);
- await element('testRoundTripForm').submit(event);
+ await element('roundTripBookingForm').submit(event);
+ await element('roundTripBookingForm').submit(event);
  assert.deepEqual(paths,['/api/round-trip-quote','/api/test/round-trip-request']);
- assert.match(element('testRoundTripStatus').textContent,/PT-TEST1234/);
+ assert.match(element('roundTripBookingStatus').textContent,/PT-TEST1234/);
 });

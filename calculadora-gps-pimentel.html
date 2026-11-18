@@ -81,11 +81,11 @@ a{color:var(--gold)}
 <div class="detail"><span>Propina / Tip</span><span id="tipTotal">$0.00</span></div>
 <label for="paymentKind">¿Qué vas a pagar? / What are you paying?</label>
 <select id="paymentKind"><option value="ride">Viaje + propina elegida / Ride + selected tip</option><option value="tip_only">Solo propina: el viaje ya está pagado / Tip only: ride already paid</option></select>
-<form id="testRoundTripForm" hidden>
-<label for="testRoundTripEmail">Email / Correo electrónico</label>
-<input id="testRoundTripEmail" type="email" maxlength="254" autocomplete="email" required>
-<button id="testRoundTripSubmit" type="submit">Send test request / Enviar solicitud de prueba</button>
-<p id="testRoundTripStatus" role="status" aria-live="polite"></p>
+<form id="roundTripBookingForm" hidden>
+<label for="roundTripBookingEmail">Email / Correo electrónico</label>
+<input id="roundTripBookingEmail" type="email" maxlength="254" autocomplete="email" required>
+<button id="roundTripBookingSubmit" type="submit">Request round trip / Solicitar ida y vuelta</button>
+<p id="roundTripBookingStatus" role="status" aria-live="polite"></p>
 </form>
 <button id="continueBooking" type="button" style="margin-top:18px">CONTINUAR A RESERVA / CONTINUE TO BOOKING</button>
 <p class="note">Continúa al formulario de reserva con las direcciones y datos ingresados. No se cobra al reservar.</p>
@@ -170,14 +170,14 @@ function showStatus(message,error=false){
   $('status').className=error?'status error':'status';
 }
 
-$('testRoundTripForm').addEventListener('submit',async event=>{
+$('roundTripBookingForm').addEventListener('submit',async event=>{
   event.preventDefault();
   const quote=currentQuote;
-  const submit=$('testRoundTripSubmit');
-  const status=$('testRoundTripStatus');
-  if(!testCalculator||quote?.tripType!=='round_trip'||submit.disabled)return;
+  const submit=$('roundTripBookingSubmit');
+  const status=$('roundTripBookingStatus');
+  if(quote?.bookingAvailable!==true||submit.disabled)return;
   const name=$('customerName').value.trim(),phone=$('phone').value.trim();
-  const email=$('testRoundTripEmail').value.trim();
+  const email=$('roundTripBookingEmail').value.trim();
   if(!name||!phone||!email){
     status.textContent='Enter your name, phone and email. / Ingresa tu nombre, teléfono y correo electrónico.';
     return;
@@ -185,7 +185,7 @@ $('testRoundTripForm').addEventListener('submit',async event=>{
   submit.disabled=true;
   status.textContent='Sending request… / Enviando solicitud…';
   try{
-    const response=await fetch(API+'/api/test/round-trip-request',{
+    const response=await fetch(API+(testCalculator?'/api/test/round-trip-request':'/api/round-trip-request'),{
       method:'POST',headers:{'Content-Type':'application/json'},
       signal:AbortSignal.timeout(15000),
       body:JSON.stringify({from:quote.from,to:quote.to,...quote.schedule,name,phone,email,expectedFareCents:quote.amount})
@@ -300,14 +300,15 @@ $('calculate').addEventListener('click' ,async()=>{
       showStatus('Las direcciones cambiaron. Vuelve a calcular la tarifa.',true);
       return;
     }
-    currentQuote={from,to,amount,schedule,tripType:roundTrip?'round_trip':'one_way'};
-    $('testRoundTripForm').hidden=!(testCalculator&&roundTrip);
+    const bookingAvailable=roundTrip&&quote.roundTripData.bookingAvailable===true;
+    currentQuote={from,to,amount,schedule,bookingAvailable,tripType:roundTrip?'round_trip':'one_way'};
+    $('roundTripBookingForm').hidden=!bookingAvailable;
     $('continueBooking').disabled=roundTrip;
     $('payLater').style.pointerEvents=roundTrip?'none':'';
     $('payLater').setAttribute('aria-disabled',String(roundTrip));
     updateTip();
     $('result').style.display='block';
-    showStatus(roundTrip&&testCalculator?'Test quote ready. / Cotización de prueba lista.':roundTrip?'Estimate ready. Round-trip booking and payment are not yet enabled. / Estimado listo. La reserva y el pago de ida y vuelta aún no están habilitados.':'Cálculo completado.');
+    showStatus(bookingAvailable?'Quote ready. Request both rides below. / Cotización lista. Solicita ambos trayectos abajo.':roundTrip?'Estimate ready. Round-trip booking and payment are not yet enabled. / Estimado listo. La reserva y el pago de ida y vuelta aún no están habilitados.':'Cálculo completado.');
   }catch(e){
     const timeout=e.name==='AbortError';
     showStatus(
