@@ -51,6 +51,21 @@ async function run(){
   await assert.rejects(client.query('UPDATE pt_customer_bookings SET customer_email=NULL WHERE id=$1',[inserted.rows[0].id]),error=>error.code==='23502');
   const intact=(await client.query('SELECT customer_email FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
   assert.equal(intact.customer_email,'new@example.test');
+  // A successful provider acceptance is recorded once, without duplicate sends.
+  const acceptedEvent=await persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:2,before:{...before,time:'11:00',phone:'5551234567',email:'new@example.test',passengers:'3'},patch:{time:'11:30'},previousFareCents:21000,newFareCents:21500,notificationEmail:'admin@example.test'});
+  let acceptedSends=0;
+  const accepted=await deliverBookingNotification({client,eventId:acceptedEvent.eventId,send:async()=>{acceptedSends++;return {accepted:true}}});
+  assert.equal(accepted.accepted,true);
+  const acceptedState=(await client.query('SELECT status,attempts FROM pt_booking_notification_outbox WHERE event_id=$1',[acceptedEvent.eventId])).rows[0];
+  assert.equal(acceptedState.status,'accepted');
+  assert.equal(Number(acceptedState.attempts),1);
+  const duplicate=await deliverBookingNotification({client,eventId:acceptedEvent.eventId,send:async()=>{acceptedSends++;return {accepted:true}}});
+  assert.equal(duplicate.claimed,false);
+  assert.equal(acceptedSends,1);
+  const finalBooking=(await client.query('SELECT version,fare_cents,outbound FROM pt_customer_bookings WHERE id=$1',[inserted.rows[0].id])).rows[0];
+  assert.equal(Number(finalBooking.version),3);
+  assert.equal(Number(finalBooking.fare_cents),21500);
+  assert.equal(finalBooking.outbound.time,'11:30');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
