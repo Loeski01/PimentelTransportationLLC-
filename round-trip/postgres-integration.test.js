@@ -9,11 +9,7 @@ async function run(){
  const client=new Client({connectionString:process.env.TEST_DATABASE_URL});
  await client.connect();
  try {
-  await client.query('BEGIN');
-  await client.query("CREATE SCHEMA pt_integration_test");
-  await client.query("SET LOCAL search_path TO pt_integration_test");
-  // Schema draft contains its own transaction; execute outside this transaction instead.
-  await client.query('ROLLBACK');
+  await client.query('CREATE SCHEMA pt_integration_test');
   await client.query('SET search_path TO pt_integration_test');
   await client.query(fs.readFileSync(require('node:path').join(__dirname,'postgres-schema-draft.sql'),'utf8'));
   const inserted=await client.query(`INSERT INTO pt_customer_bookings(reference,customer_name,customer_email,customer_phone,passengers,trip_type,tier,status,outbound,return_leg,fare_cents)
