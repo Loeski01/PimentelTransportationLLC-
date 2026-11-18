@@ -32,7 +32,7 @@ test('intake authenticates, persists exact reference, rejects failures and isola
 
 test('driver view displays pickup date and time in Boston without displaying fare',()=>{
  const panel=fs.readFileSync(path.join(__dirname,'../private-panel.html'),'utf8');
- const driverView=panel.slice(panel.indexOf('async function loadDriver()'));
+ const driverView=panel.slice(panel.indexOf('async function loadDriver('));
  const card=panel.slice(panel.indexOf('function tripCard('),panel.indexOf('const el=id=>'));
  assert.match(driverView,/tripCard\(t\)/);
  assert.match(card,/trip\.pickup_at/);

@@ -30,7 +30,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query(`SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status,updated_at::text AS edit_version FROM dispatch_trips WHERE ${notArchived("dispatch_trips.id")} ORDER BY pickup_at DESC LIMIT 100`);
+      const q=await db.query(`SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status,updated_at::text AS edit_version,change_revision,changed_fields,change_seen_at FROM dispatch_trips WHERE ${notArchived("dispatch_trips.id")} ORDER BY pickup_at DESC LIMIT 100`);
       res.json(q.rows);
     } catch(e){next(e)}
   });
@@ -157,10 +157,25 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
     try {
       const q = await updateAndAudit(
         `UPDATE dispatch_trips
-         SET passenger_surname=$1, passenger_phone=$2, pickup_address=$3,
-             destination_address=$4, pickup_at=COALESCE($5::timestamptz, pickup_at), updated_at=NOW()
-         WHERE id=$6 AND status=ANY($7::text[]) AND arrived_at IS NULL AND updated_at::text=$8
-         RETURNING id`,
+         SET change_revision=change_revision+CASE WHEN changes.fields IS NULL THEN 0 ELSE 1 END,
+             changed_fields=COALESCE(changes.fields, dispatch_trips.changed_fields),
+             change_seen_at=CASE WHEN changes.fields IS NULL THEN dispatch_trips.change_seen_at ELSE NULL END,
+             passenger_surname=$1, passenger_phone=$2, pickup_address=$3,
+             destination_address=$4, pickup_at=COALESCE($5::timestamptz, dispatch_trips.pickup_at), updated_at=NOW()
+         FROM (
+           SELECT id, CASE WHEN driver_id IS NOT NULL THEN (
+             SELECT jsonb_object_agg(field, detail) FROM (VALUES
+               ('passenger', 'true'::jsonb, passenger_surname IS DISTINCT FROM $1::text),
+               ('phone', 'true'::jsonb, passenger_phone IS DISTINCT FROM $2::text),
+               ('pickup', 'true'::jsonb, pickup_address IS DISTINCT FROM $3::text),
+               ('destination', 'true'::jsonb, destination_address IS DISTINCT FROM $4::text),
+               ('time', jsonb_build_array(pickup_at, $5::timestamptz), $5::timestamptz IS NOT NULL AND pickup_at IS DISTINCT FROM $5::timestamptz)
+             ) AS diff(field, detail, changed) WHERE changed
+           ) END AS fields FROM dispatch_trips WHERE id=$6
+         ) changes
+         WHERE dispatch_trips.id=$6 AND changes.id=dispatch_trips.id AND dispatch_trips.status=ANY($7::text[])
+           AND dispatch_trips.arrived_at IS NULL AND dispatch_trips.updated_at::text=$8
+         RETURNING dispatch_trips.id`,
         [passengerSurname.trim(), passengerPhone.trim() || null, pickupAddress.trim(),
          destinationAddress.trim(), pickupAt, id, editableTripStatuses, version],
         'admin', req.session?.userId || 'admin', 'edited'
@@ -232,7 +247,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
   });
   router.get('/driver/trips',requireDriver,async(req,res,next)=>{
     try {
-      const q=await db.query(`SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND (
+      const q=await db.query(`SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status,change_revision,changed_fields,change_seen_at FROM dispatch_trips WHERE driver_id=$1 AND (
         status IN ('assigned','accepted','started','no_show')
         OR id IN (
           SELECT id FROM dispatch_trips completed
@@ -242,6 +257,22 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       ) AND ${notArchived("dispatch_trips.id")} AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at`,[req.driver.id]);
       res.json(q.rows); // Intentionally NEVER return fare or payment data.
     } catch(e){next(e)}
+  });
+  router.post('/driver/trips/:id/acknowledge-update', requireDriver, async (req, res, next) => {
+    const {id} = req.params;
+    const {revision} = req.body || {};
+    if (!/^[1-9]\d{0,18}$/.test(id) || BigInt(id)>9223372036854775807n ||
+        !Number.isInteger(revision) || revision<1 || revision>2147483647) return res.sendStatus(400);
+    try {
+      const q = await db.query(`UPDATE dispatch_trips
+        SET change_seen_at=COALESCE(change_seen_at, NOW())
+        WHERE id=$1 AND driver_id=$2 AND change_revision=$3 AND changed_fields IS NOT NULL
+          AND status IN ('assigned','accepted','started')
+          AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE)
+        RETURNING id`, [id, req.driver.id, revision]);
+      if (!q.rowCount) return res.sendStatus(409);
+      res.status(204).end();
+    } catch (error) { next(error); }
   });
   // Record departure for pickup exactly once; transaction includes the administrator inbox.
   // Requires migration 003 on the isolated dispatch database before deployment.
