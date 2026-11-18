@@ -42,7 +42,13 @@ async function run() {
  assert.deepEqual(failed,{claimed:true,accepted:false,retryQueued:true,permanentlyFailed:false});
  assert.match(retry.calls.at(-1).sql,/status=CASE WHEN attempts>=5 THEN 'failed'/);
  assert.match(retry.calls.at(-1).sql,/sending_started_at=NULL/);
- const ambiguous=db();\n let ambiguousSends=0;\n const uncertainProvider=await deliverBookingNotification({client:ambiguous,eventId,send:async()=>{ambiguousSends++;throw Error('provider timeout after request')}});\n assert.deepEqual(uncertainProvider,{claimed:true,accepted:false,requiresReconciliation:true,retryQueued:false});\n assert.equal(ambiguousSends,1);\n assert.equal(ambiguous.calls.filter(call=>call.sql.includes('status=CASE WHEN attempts>=5')).length,0);\n const exhausted=db({attempts:5});
+ const ambiguous=db();
+ let ambiguousSends=0;
+ const uncertainProvider=await deliverBookingNotification({client:ambiguous,eventId,send:async()=>{ambiguousSends++;throw Error('provider timeout after request')}});
+ assert.deepEqual(uncertainProvider,{claimed:true,accepted:false,requiresReconciliation:true,retryQueued:false});
+ assert.equal(ambiguousSends,1);
+ assert.equal(ambiguous.calls.filter(call=>call.sql.includes('status=CASE WHEN attempts>=5')).length,0);
+ const exhausted=db({attempts:5});
  const stopped=await deliverBookingNotification({client:exhausted,eventId,send:async()=>{throw Object.assign(Error('rejected'),{deliveryOutcome:'rejected'})}});
  assert.deepEqual(stopped,{claimed:true,accepted:false,retryQueued:false,permanentlyFailed:true});
  await assert.rejects(()=>deliverBookingNotification({client:db(),eventId:'bad',send:async()=>({accepted:true})}),/Invalid event ID/);
