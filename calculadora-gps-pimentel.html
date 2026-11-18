@@ -41,6 +41,19 @@ a{color:var(--gold)}
 <p>Calculadora GPS de tarifas · Massachusetts</p>
 </header>
 <section class="panel">
+<label for="tripType">Trip type / Tipo de viaje</label>
+<select id="tripType"><option value="one_way">One Way / Solo ida</option><option value="round_trip">Round Trip — Save 10% / Ida y vuelta — Ahorra 10%</option></select>
+<div id="roundTripSchedule" hidden>
+<label for="outboundDate">Departure date / Fecha de salida</label>
+<input id="outboundDate" type="date">
+<label for="outboundTime">Departure time / Hora de salida</label>
+<input id="outboundTime" type="time">
+<label for="returnDate">Return date / Fecha de regreso</label>
+<input id="returnDate" type="date">
+<label for="returnTime">Return time / Hora de regreso</label>
+<input id="returnTime" type="time">
+<p class="hint">Save 10% on transportation fares only. Tips and additional charges are excluded. / Ahorra 10% solo en las tarifas de transporte. No incluye propinas ni cargos adicionales.</p>
+</div>
 <label for="from">Dirección de recogida / Pickup</label>
 <input id="from" placeholder="Ej.: Boston Logan Airport, MA" autocomplete="street-address">
 <label for="to">Dirección de destino / Drop-off</label>
@@ -96,6 +109,19 @@ if(['0','10','15','20','custom'].includes(tripParams.get('tip'))) $('tipChoice')
 if(tripParams.get('tip')==='custom')$('customTip').value=tripParams.get('tipAmount')||'';
 if(tripParams.get('mode')==='after_trip')showStatus('Pago al finalizar: calcula la ruta y elige viaje + propina o solo propina si el viaje ya está pagado.');
 let currentQuote=null;
+const tripTypeSelect=$('tripType');
+const roundTripSchedule=$('roundTripSchedule');
+tripTypeSelect.addEventListener('change',()=>{
+  roundTripSchedule.hidden=tripTypeSelect.value!=='round_trip';
+  currentQuote=null;
+  $('result').style.display='none';
+  showStatus('Trip type updated. Calculate a new quote. / Tipo de viaje actualizado. Calcula una nueva tarifa.');
+});
+for(const id of ['outboundDate','outboundTime','returnDate','returnTime'])$(id).addEventListener('change',()=>{
+  currentQuote=null;
+  $('result').style.display='none';
+});
+
 function readTip(){
   if($('tipChoice').value!=='custom')return {tipPercent:Number($('tipChoice').value)||0,tipCents:0};
   const raw=$('customTip').value.trim();
