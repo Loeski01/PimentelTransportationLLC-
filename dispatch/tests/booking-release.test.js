@@ -33,9 +33,12 @@ test('intake authenticates, persists exact reference, rejects failures and isola
 test('driver view displays pickup date and time in Boston without displaying fare',()=>{
  const panel=fs.readFileSync(path.join(__dirname,'../private-panel.html'),'utf8');
  const driverView=panel.slice(panel.indexOf('async function loadDriver()'));
- assert.match(driverView,/t\.pickup_at/);
- assert.match(driverView,/timeZone:'America\/New_York'/);
- assert.match(driverView,/Pickup \/ Recogida:/);
+ const card=panel.slice(panel.indexOf('function tripCard('),panel.indexOf('const el=id=>'));
+ assert.match(driverView,/tripCard\(t\)/);
+ assert.match(card,/trip\.pickup_at/);
+ assert.match(card,/timeZone:\s*'America\/New_York'/);
+ assert.match(card,/Pickup \/ Recogida:/);
+ assert.doesNotMatch(card,/fare_cents/);
  assert.doesNotMatch(driverView,/t\.fare_cents/);
 });
 
