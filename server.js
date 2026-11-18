@@ -34,7 +34,7 @@ let nextGeocode = 0;
 const addressCache = new Map();
 let geocodeBlockedUntil = 0;
 function checkGeocoderCooldown() {
-  if (Date.now() < geocodeBlockedUntil) throw new QuoteError(503, "MAP_RATE_LIMIT", "El servicio de direcciones está ocupado. Puedes enviar tu solicitud para cotización.");
+  if (Date.now() < geocodeBlockedUntil) throw new QuoteError(503, "MAP_RATE_LIMIT", "El servicio de direcciones está ocupado. Inténtalo en unos segundos.");
 }
 async function getJSON(url, signal) {
   const response = await fetch(url, {
@@ -58,6 +58,18 @@ async function locate(address, signal) {
   const key = address.trim().replace(/\s+/g, " ").toLowerCase();
   const cached = addressCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.place;
+  let place;
+  try {
+    place = await locateWithNominatim(address, AbortSignal.any([signal, AbortSignal.timeout(4000)]));
+  } catch (error) {
+    if (signal.aborted || (error instanceof QuoteError && error.status < 500)) throw error;
+    place = await locateWithPhoton(address, signal);
+  }
+  if (addressCache.size >= 1000) addressCache.delete(addressCache.keys().next().value);
+  addressCache.set(key, { place, expires: Date.now() + 86400000 });
+  return place;
+}
+async function locateWithNominatim(address, signal) {
   checkGeocoderCooldown();
   // Space all Nominatim requests, including concurrent visitors, at least one second apart.
   const slot = Math.max(Date.now(), nextGeocode);
@@ -71,9 +83,24 @@ async function locate(address, signal) {
   if (!results.length) throw new QuoteError(422, "ADDRESS_NOT_FOUND", "No se encontró la dirección: " + address + ". Incluye ciudad y estado.");
   const place = results[0];
   if (!Number.isFinite(Number(place.lat)) || !Number.isFinite(Number(place.lon))) throw new Error("Invalid coordinates");
-  if (addressCache.size >= 1000) addressCache.delete(addressCache.keys().next().value);
-  addressCache.set(key, { place, expires: Date.now() + 86400000 });
   return place;
+}
+async function locateWithPhoton(address, signal) {
+  const params = new URLSearchParams({q: address, countrycode: "US", limit: "5"});
+  const data = await getJSON("https://photon.komoot.io/api/?" + params, signal);
+  if (!Array.isArray(data.features)) throw new Error("Invalid geocoder response");
+  const streetNumber = address.match(/^\s*(\d+[a-z]?)\b/i)?.[1].toLowerCase();
+  for (const feature of data.features) {
+    const fields = feature.properties || {};
+    if (fields.countrycode !== "US" || !["MA", "NH", "RI", "CT", "ME", "VT", "NY", "NJ"].includes(fields.state)) continue;
+    if (streetNumber && fields.housenumber?.toLowerCase() !== streetNumber) continue;
+    if (!streetNumber && !["house", "street"].includes(fields.type) && fields.osm_value !== "aerodrome") continue;
+    const [lon, lat] = feature.geometry?.coordinates || [];
+    if (Number.isFinite(lon) && Number.isFinite(lat)) {
+      return {lon, lat, display_name: [fields.name, fields.street, fields.city, fields.state].filter(Boolean).join(", ")};
+    }
+  }
+  throw new QuoteError(422, "ADDRESS_NOT_FOUND", "Address not found. Include the street number, city and state. / Dirección no encontrada. Incluye número, ciudad y estado.");
 }
 function validAddresses(from, to) {
   return [from, to].every(v => typeof v === "string" && v.trim() && v.length <= 200);
