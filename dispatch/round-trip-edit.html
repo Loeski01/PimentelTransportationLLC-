@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modify booking / Modificar reserva</title>
+<script src="edit-page.js" defer></script>
+</head>
+<body>
+<main>
+<h1>Modify booking / Modificar reserva</h1>
+<form id="edit" hidden>
+<p>Enter the new date or time for either leg. / Ingresa la nueva fecha u hora de cualquiera de los trayectos.</p>
+<p><label>Departure date / Fecha de ida <input type="date" name="date"></label></p>
+<p><label>Departure time / Hora de ida <input type="time" name="time"></label></p>
+<p><label>Return date / Fecha de regreso <input type="date" name="returnDate"></label></p>
+<p><label>Return time / Hora de regreso <input type="time" name="returnTime"></label></p>
+<button>Save change / Guardar cambio</button>
+</form>
+<p id="status" role="status"></p>
+</main>
+</body>
+</html>

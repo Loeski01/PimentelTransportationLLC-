@@ -36,7 +36,7 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,roundTri
   try{const q=await db.query('SELECT current_database() AS name');res.set('Cache-Control','no-store').json({mode:production?'production':'staging',databaseVerified:production&&!!productionDatabaseName&&q.rows[0].name===productionDatabaseName,...(roundTripProduction?{roundTripReady:true}:{})})}catch(e){next(e)}
  });
  if(!production||roundTripProduction){
-  if(!production&&stagingEditSecret){
+  if(stagingEditSecret){
    require('./round-trip-edit-staging').registerStagingEdits(r,{
     db,requireAdmin,signingSecret:stagingEditSecret,notificationEmail:stagingEditNotificationEmail
    });

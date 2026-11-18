@@ -1,5 +1,6 @@
 'use strict';
 
+const path=require('node:path');
 const {rateLimit}=require('express-rate-limit');
 const {issueEditGrant,verifyEditGrant}=require('../round-trip/edit-grant');
 const {persistBookingChange}=require('../round-trip/persist-modification');
@@ -19,12 +20,24 @@ function registerStagingEdits(router,{db,requireAdmin,signingSecret,notification
     return result.rows[0];
   };
 
+  router.get('/round-trip/edit-page',(req,res)=>{
+    res.set('Cache-Control','no-store');
+    res.set('Referrer-Policy','no-referrer');
+    res.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'");
+    res.sendFile(path.join(__dirname,'round-trip-edit.html'));
+  });
+  router.get('/round-trip/edit-page.js',(req,res)=>{
+    res.sendFile(path.join(__dirname,'round-trip-edit-page.js'));
+  });
+
   router.post('/round-trip/:reference/edit-grant',requireAdmin,async(req,res,next)=>{
     res.set('Cache-Control','no-store');
     try{
       const row=await findPending(db,req.params.reference);
       if(!row)return res.sendStatus(404);
-      res.json({token:issueEditGrant({secret:signingSecret,bookingId:Number(row.id)})});
+      const token=issueEditGrant({secret:signingSecret,bookingId:Number(row.id)});
+      const fragment=new URLSearchParams({reference:row.reference,version:String(row.version),token});
+      res.json({token,editPath:req.baseUrl+'/round-trip/edit-page#'+fragment});
     }catch(error){next(error);}
   });
 
