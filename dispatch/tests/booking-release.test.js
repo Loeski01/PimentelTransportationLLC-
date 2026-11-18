@@ -29,3 +29,12 @@ test('intake authenticates, persists exact reference, rejects failures and isola
   fail=true;assert.equal((await post('x'.repeat(40))).status,500);
  }finally{await new Promise(r=>server.close(r))}
 });
+
+test('driver view displays pickup date and time in Boston without displaying fare',()=>{
+ const panel=fs.readFileSync(path.join(__dirname,'../private-panel.html'),'utf8');
+ const driverView=panel.slice(panel.indexOf('async function loadDriver()'));
+ assert.match(driverView,/t\.pickup_at/);
+ assert.match(driverView,/timeZone:'America\/New_York'/);
+ assert.match(driverView,/Pickup \/ Recogida:/);
+ assert.doesNotMatch(driverView,/t\.fare_cents/);
+});
