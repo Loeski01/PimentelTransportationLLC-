@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {issueEditGrant,verifyEditGrant}=require('./edit-grant');
+const secret='test-only-signing-secret-0123456789abcdef';
+const now=Date.parse('2026-12-01T10:00:00Z');
+const token=issueEditGrant({secret,bookingId:7,now,ttlMs:60000});
+assert.equal(verifyEditGrant({token,secret,bookingId:7,now}),true);
+assert.equal(verifyEditGrant({token,secret,bookingId:8,now}),false);
+assert.equal(verifyEditGrant({token,secret,bookingId:7,now:now+60000}),false);
+assert.equal(verifyEditGrant({token,secret:'wrong-secret-0123456789abcdefghijkl',bookingId:7,now}),false);
+assert.equal(verifyEditGrant({token:token.slice(0,-2)+'xx',secret,bookingId:7,now}),false);
+assert.equal(verifyEditGrant({token:'',secret,bookingId:7,now}),false);
+assert.equal(verifyEditGrant({token:'bad.payload',secret,bookingId:7,now}),false);
+assert.throws(()=>issueEditGrant({secret:'weak',bookingId:7,now}),/Strong signing secret/);
+assert.throws(()=>issueEditGrant({secret,bookingId:7,now,ttlMs:900001}),/Invalid grant lifetime/);
+const second=issueEditGrant({secret,bookingId:7,now});
+assert.notEqual(second,token,'nonce must make each grant unique');
+console.log('Isolated edit-grant signature, booking scope, and expiry checks passed; replay prevention still requires durable nonce consumption');
