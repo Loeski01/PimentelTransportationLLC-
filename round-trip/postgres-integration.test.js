@@ -5,6 +5,8 @@ const {Client}=require('pg');
 const {persistBookingChange}=require('./persist-modification');
 const {notificationHealth}=require('./notification-health');
 const {deliverBookingNotification}=require('./notification-outbox');
+const {issueEditGrant}=require('./edit-grant');
+const {consumeEditGrant}=require('./consume-edit-grant');
 async function run(){
  const client=new Client({connectionString:process.env.TEST_DATABASE_URL});
  await client.connect();
@@ -137,6 +139,25 @@ async function run(){
   const existingEvent=approvedChange.eventId;
   await assert.rejects(client.query(`INSERT INTO pt_booking_change_events(event_id,booking_id,booking_version,actor,changes,previous_fare_cents,new_fare_cents) VALUES(gen_random_uuid(),$1,6,'customer','[]'::jsonb,23500,23500)`,[inserted.rows[0].id]),error=>error.code==='23505');
   await assert.rejects(client.query('INSERT INTO pt_booking_notification_outbox(event_id,recipient_email) VALUES($1,$2)',[existingEvent,'admin@example.test']),error=>error.code==='23505');
+  // A signed edit grant is single-use across independent transactions.
+  const grantSecret='isolated-test-signing-secret-0123456789abcdef';
+  const grantNow=Date.parse('2026-12-01T10:00:00Z');
+  const grant=issueEditGrant({secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow,ttlMs:60000});
+  await client.query('BEGIN');
+  assert.equal(await consumeEditGrant({client,token:grant,secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow}),true);
+  await client.query('COMMIT');
+  await client.query('BEGIN');
+  assert.equal(await consumeEditGrant({client,token:grant,secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow}),false);
+  await client.query('ROLLBACK');
+  assert.equal(await consumeEditGrant({client,token:grant,secret:grantSecret,bookingId:Number(inserted.rows[0].id)+1,now:grantNow}),false);
+  assert.equal(await consumeEditGrant({client,token:grant,secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow+60000}),false);
+  const rollbackGrant=issueEditGrant({secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow,ttlMs:60000});
+  await client.query('BEGIN');
+  assert.equal(await consumeEditGrant({client,token:rollbackGrant,secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow}),true);
+  await client.query('ROLLBACK');
+  await client.query('BEGIN');
+  assert.equal(await consumeEditGrant({client,token:rollbackGrant,secret:grantSecret,bookingId:Number(inserted.rows[0].id),now:grantNow}),true);
+  await client.query('COMMIT');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
