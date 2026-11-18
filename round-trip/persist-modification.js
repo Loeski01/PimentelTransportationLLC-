@@ -12,9 +12,7 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
     throw new RangeError('Invalid booking ID or version');
   if (!notificationEmail || typeof notificationEmail !== 'string') throw new RangeError('Admin email required');
   const event = buildModificationEvent({before,patch,previousFareCents,newFareCents});
-  // Contact/passenger edits require separate persisted columns; reject rather than silently lose them.
-  if (event.changes.some(change => !['from','to','date','time','returnDate','returnTime'].includes(change.field)))
-    throw new RangeError('Contact and passenger edits not yet supported by persistence');
+  // Persist contact and passenger edits alongside itinerary changes atomically.
   const { after } = event;
   // Require the database row to match the snapshot used for validation and pricing.
   // Prevent stale fare/schedule data from being overwritten even if a caller supplies an old version.
@@ -24,15 +22,20 @@ async function persistBookingChange({ client, bookingId, expectedVersion, before
   try {
     const updated = await client.query(
       `UPDATE pt_customer_bookings
-       SET outbound=$1::jsonb, return_leg=$2::jsonb, fare_cents=$3, version=version+1, updated_at=now()
+       SET outbound=$1::jsonb, return_leg=$2::jsonb, fare_cents=$3, customer_phone=$10, customer_email=$11, passengers=$12, version=version+1, updated_at=now()
        WHERE id=$4 AND version=$5 AND status IN ('pending','approved','confirmed')
        AND reference=$6 AND fare_cents=$7
        AND outbound=$8::jsonb AND return_leg IS NOT DISTINCT FROM $9::jsonb
+       AND customer_phone IS NOT DISTINCT FROM $13
+       AND customer_email IS NOT DISTINCT FROM $14
+       AND passengers IS NOT DISTINCT FROM $15
        RETURNING id,version,reference`,
       [
         JSON.stringify({from:after.from,to:after.to,date:after.date,time:after.time}),
         after.tripType === 'round_trip' ? JSON.stringify({date:after.returnDate,time:after.returnTime}) : null,
-        newFareCents,bookingId,expectedVersion,before.reference,previousFareCents,snapshotOutbound,snapshotReturn
+        newFareCents,bookingId,expectedVersion,before.reference,previousFareCents,snapshotOutbound,snapshotReturn,
+        after.phone ?? null,after.email ?? null,after.passengers ?? null,
+        before.phone ?? null,before.email ?? null,before.passengers ?? null
       ]
     );
     if (updated.rowCount !== 1 || updated.rows[0].reference !== before.reference) {
