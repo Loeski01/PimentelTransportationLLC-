@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install isolated test database driver
-        run: npm install --no-save --package-lock=false
+        run: npm install --no-save --package-lock=false pg
       - name: Run PostgreSQL integration checks
         run: node round-trip/postgres-integration.test.js
       - name: Verify dispatch booking boundaries with PostgreSQL service available
