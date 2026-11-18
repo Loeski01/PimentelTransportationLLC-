@@ -6,7 +6,7 @@ const path=require('node:path');
 async function freePort(){const server=net.createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;await new Promise(r=>server.close(r));return port}
 async function run(){
  const port=await freePort();
- const child=spawn(process.execPath,['server.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),STRIPE_SECRET_KEY:'',BOOKING_DISPATCH_PRODUCTION_ENABLED:'false',BOOKING_DISPATCH_URL:'',BOOKING_SERVICE_SECRET:'',BREVO_API_KEY:'',BREVO_SENDER_EMAIL:''},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['server.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),NODE_ENV:'production',ROUND_TRIP_TEST_INTAKE_PORT:'39999',STRIPE_SECRET_KEY:'',BOOKING_DISPATCH_PRODUCTION_ENABLED:'false',BOOKING_DISPATCH_URL:'',BOOKING_SERVICE_SECRET:'',BREVO_API_KEY:'',BREVO_SENDER_EMAIL:''},stdio:['ignore','pipe','pipe']});
  let stderr='';child.stderr.on('data',d=>stderr+=d);
  try{
   const base='http://127.0.0.1:'+port;
@@ -19,6 +19,8 @@ async function run(){
   assert.equal(preflight.forwardingEnabled,false);
   assert.equal(preflight.configurationReady,false);
   const payload={tripType:'round_trip',from:'Boston',to:'Cambridge',date:'2026-12-01',time:'10:00',returnDate:'2026-12-02',returnTime:'10:00'};
+  const internal=await fetch(base+'/api/test/round-trip-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  assert.equal(internal.status,404,'test intake must never be mounted in production');
   for(const route of ['/api/booking-request','/api/create-checkout-session']){
    const r=await fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
    assert.equal(r.status,409,route+' should reject round trips');

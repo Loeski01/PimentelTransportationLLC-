@@ -130,28 +130,78 @@ app.post("/api/quote", async (req, res) => {
   catch (error) { sendError(res, error); }
 });
 
-// Round-trip preview only: does not create bookings, dispatch trips or charge cards.
-app.post("/api/round-trip-quote", async (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  const body = req.body || {};
+async function calculateRoundTrip(body) {
   const { roundTripTotals, validReturnSchedule } = require("./round-trip/pricing");
   const { from, to, date, time, returnDate, returnTime, tier = "luxury" } = body;
   if (!validAddresses(from, to) || !validTier(tier) ||
       !validReturnSchedule(date, time, returnDate, returnTime)) {
-    return res.status(400).json({ code: "INVALID_ROUND_TRIP", error: "Check pickup, destination, and return schedule." });
+    throw new QuoteError(400, "INVALID_ROUND_TRIP", "Check pickup, destination, and return schedule.");
   }
+  const outbound = await calculateFare(from.trim(), to.trim(), tier);
+  const inbound = await calculateFare(to.trim(), from.trim(), tier);
+  const airportExtrasCents = outbound.amount - outbound.transportOnlyCents + inbound.amount - inbound.transportOnlyCents;
+  const totals = roundTripTotals(outbound.transportOnlyCents, inbound.transportOnlyCents, airportExtrasCents);
+  return { tripType: "round_trip", tier, from: from.trim(), to: to.trim(),
+    date, time, returnDate, returnTime, outbound, inbound, ...totals,
+    discountPercent: 10, currency: "usd" };
+}
+
+// Round-trip preview only: does not create bookings, dispatch trips or charge cards.
+app.post("/api/round-trip-quote", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
-    const outbound = await calculateFare(from.trim(), to.trim(), tier);
-    const inbound = await calculateFare(to.trim(), from.trim(), tier);
-    const airportExtrasCents = outbound.amount - outbound.transportOnlyCents + inbound.amount - inbound.transportOnlyCents;
-    const totals = roundTripTotals(outbound.transportOnlyCents, inbound.transportOnlyCents, airportExtrasCents);
-    return res.json({ tripType: "round_trip", tier, from: from.trim(), to: to.trim(),
-      date, time, returnDate, returnTime, outbound, inbound, ...totals,
-      discountPercent: 10, currency: "usd", status: "estimate_only" });
+    const quote = await calculateRoundTrip(req.body || {});
+    return res.json({ ...quote, status: "estimate_only" });
   } catch (error) {
     return sendError(res, error);
   }
 });
+
+// Test-only bridge to a loopback dispatch process and its isolated database.
+if (process.env.NODE_ENV === "test" && process.env.ROUND_TRIP_TEST_INTAKE_PORT) {
+  const intakePort = Number(process.env.ROUND_TRIP_TEST_INTAKE_PORT);
+  const secret = process.env.BOOKING_SERVICE_SECRET;
+  if (!Number.isInteger(intakePort) || intakePort < 1 || intakePort > 65535 ||
+      !secret || Buffer.byteLength(secret) < 32) {
+    throw new Error("Invalid isolated round-trip intake configuration");
+  }
+  app.post("/api/test/round-trip-request", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const body = req.body || {};
+    const { name, phone, email, passengers, expectedFareCents } = body;
+    const validText = (value, maximum) =>
+      typeof value === "string" && value.trim() === value && value.length > 0 && value.length <= maximum;
+    if (!validText(name, 100) || !validText(phone, 40) || !validText(email, 254) ||
+        !emailPattern.test(email) || (passengers != null && !validText(passengers, 20)) ||
+        !Number.isSafeInteger(expectedFareCents) || expectedFareCents < 0) {
+      return res.status(400).json({ error: "Invalid booking details." });
+    }
+    try {
+      const quote = await calculateRoundTrip(body);
+      if (expectedFareCents !== quote.totalCents) {
+        return res.status(409).json({ code: "FARE_CHANGED", fareCents: quote.totalCents });
+      }
+      const reference = "PT-" + require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
+      const { from, to, date, time, returnDate, returnTime, tier } = quote;
+      const response = await fetch("http://127.0.0.1:" + intakePort + "/booking-staging/round-trip-intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Booking-Service-Key": secret },
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({ reference, name, phone, email, passengers, from, to, date, time,
+          returnDate, returnTime, tier, fareCents: quote.totalCents, extrasCents: quote.extrasCents, tipCents: 0 })
+      });
+      const stored = response.status === 201 ? await response.json() : null;
+      if (stored?.stored !== true || stored.reference !== reference || stored.status !== "pending") {
+        throw new Error("Invalid test intake acknowledgement");
+      }
+      return res.status(201).json({ reference, status: "pending", fareCents: quote.totalCents });
+    } catch (error) {
+      if (error instanceof QuoteError) return sendError(res, error);
+      return res.status(502).json({ code: "INTAKE_UNVERIFIED", error: "Booking receipt could not be verified." });
+    }
+  });
+}
 
 app.post("/api/create-checkout-session", async (req, res) => {
   // Fail closed: the legacy one-way flow must never silently accept round-trip details.
