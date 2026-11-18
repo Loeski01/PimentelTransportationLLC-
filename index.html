@@ -125,7 +125,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <p>Luxury Chauffeur & Executive Transportation / Chofer privado y transporte ejecutivo</p>
 <p>Boston, Massachusetts</p>
 <a class="boton" href="#cotizar">BOOK NOW / RESERVAR</a>
-<a class="boton" href="calculadora-gps-pimentel.html?tripType=round_trip">ROUND TRIP / IDA Y VUELTA</a>
+<a class="boton" id="openRoundTrip" aria-controls="roundTrip" href="calculadora-gps-pimentel.html?tripType=round_trip">ROUND TRIP / IDA Y VUELTA</a>
 <a class="boton" href="tel:+16175188281">CALL NOW / LLAMAR · 617-518-8281</a>
 <a class="boton" href="https://wa.me/16177855657" target="_blank" rel="noopener">WHATSAPP · 617-785-5657</a>
 <a class="boton" href="sms:+16177855657">SMS / MENSAJE</a>
@@ -241,6 +241,34 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <p class="vehicle-notice">Actualmente ambas categorías pueden prestarse en nuestra Suburban negra, según disponibilidad y aprobación. La imagen Comfort muestra un ejemplo de vehículos que podríamos incorporar en el futuro. / Both options may currently use our black Suburban. The Comfort picture illustrates a possible future fleet vehicle. Tarifas estimadas; pueden aplicarse peajes, estacionamiento, espera y cargos de aeropuerto. / Estimates exclude possible additional charges.</p>
 </section>
 
+<section id="roundTrip" hidden aria-labelledby="roundTripTitle">
+<h2 id="roundTripTitle" tabindex="-1">ROUND TRIP / IDA Y VUELTA</h2>
+<iframe id="roundTripCalculator" title="Round-trip calculator / Calculadora de ida y vuelta" style="display:block;width:100%;max-width:720px;margin:auto;border:0;height:950px"></iframe>
+</section>
+<script>
+(() => {
+  const link = document.getElementById('openRoundTrip');
+  const section = document.getElementById('roundTrip');
+  const frame = document.getElementById('roundTripCalculator');
+  let observer;
+  frame.addEventListener('load', () => {
+    observer?.disconnect();
+    const calculator = frame.contentDocument?.querySelector('main');
+    if (!calculator || typeof ResizeObserver === 'undefined') return;
+    const resize = () => { frame.style.height = Math.ceil(calculator.getBoundingClientRect().height) + 'px'; };
+    observer = new ResizeObserver(resize);
+    observer.observe(calculator);
+    resize();
+  });
+  link.addEventListener('click', event => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    section.hidden = false;
+    if (!frame.hasAttribute('src')) frame.src = link.href;
+    document.getElementById('roundTripTitle').focus();
+  });
+})();
+</script>
 <div id="reserva"></div>
 <section id="cotizar" aria-labelledby="booking-title">
 <h2 id="booking-title">REQUEST A BOOKING / SOLICITA TU RESERVA</h2>
