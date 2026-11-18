@@ -85,7 +85,8 @@ a{color:var(--gold)}
 <form id="roundTripBookingForm" hidden>
 <label for="roundTripBookingEmail">Email / Correo electrónico</label>
 <input id="roundTripBookingEmail" type="email" maxlength="254" autocomplete="email" required>
-<button id="roundTripBookingSubmit" type="submit">Request round trip / Solicitar ida y vuelta</button>
+<p class="note" id="roundTripPaymentNotice" style="margin:8px 0 0">No charge today. Your trip is pending approval.<br>Sin cobro hoy. Tu viaje queda pendiente de aprobación.</p>
+<button id="roundTripBookingSubmit" type="submit" aria-describedby="roundTripPaymentNotice">Request round trip / Solicitar ida y vuelta</button>
 <p id="roundTripBookingStatus" role="status" aria-live="polite"></p>
 </form>
 <div id="oneWayBookingAndPayment"><button id="continueBooking" type="button" style="margin-top:18px">CONTINUAR A RESERVA / CONTINUE TO BOOKING</button>
