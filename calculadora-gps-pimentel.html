@@ -62,9 +62,8 @@ a{color:var(--gold)}
 <input id="customerName" type="text" placeholder="Nombre y apellido" autocomplete="name" maxlength="100">
   <label for="phone">Teléfono del pasajero / Phone Number</label>
 <input id="phone" type="tel" placeholder="Ej.: 617-555-1234" autocomplete="tel" maxlength="40">
-<button id="calculate" type="button">Calcular tarifa GPS</button>
+<button id="calculate" type="button">Calculate GPS Fare / Calcular tarifa GPS</button>
 <div id="status" class="status" role="status" aria-live="polite"></div>
-<a id="manualRoundTripQuote" hidden target="_blank" rel="noopener noreferrer">Request a quote on WhatsApp / Solicitar cotización por WhatsApp</a>
 <section id="result" class="result" aria-live="polite">
 <h2>Tarifa estimada / Estimated fare</h2>
 <div id="total" class="total"></div>
@@ -250,12 +249,7 @@ $('checkout').addEventListener('click',async()=>{
   }catch(e){$('checkoutStatus').textContent=e.name==='AbortError'?'El pago tardó demasiado en abrir. Si ya pagaste, confirma tu recibo antes de volver a intentarlo.':e.message||'No se pudo conectar con el servicio de pagos.';}
   finally{clearTimeout(timer);fields.forEach(id=>$(id).disabled=false);btn.disabled=false;}
 });
-for(const id of ['tripType','from','to','outboundDate','outboundTime','returnDate','returnTime']){
-  $(id).addEventListener('input',()=>{$('manualRoundTripQuote').hidden=true;});
-}
-$('calculate').addEventListener('click' ,async()=>{
-  const manualQuote=$('manualRoundTripQuote');
-  manualQuote.hidden=true;
+$('calculate').addEventListener('click',async()=>{
   const from=$('from').value.trim();
   const to=$('to').value.trim();
   $('result').style.display='none';
@@ -286,22 +280,7 @@ $('calculate').addEventListener('click' ,async()=>{
       });
       const data=await res.json();
       if(!res.ok){
-        if(roundTrip&&res.status>=500&&tripTypeSelect.value==='round_trip'&&
-          $('from').value.trim()===from&&$('to').value.trim()===to&&
-          $('outboundDate').value===schedule.date&&$('outboundTime').value===schedule.time&&
-          $('returnDate').value===schedule.returnDate&&$('returnTime').value===schedule.returnTime){
-          const message=[
-            'Hello, I would like a round-trip quote. / Hola, quisiera una cotización de ida y vuelta.',
-            `Pickup / Recogida: ${from}`,
-            `Drop-off / Destino: ${to}`,
-            `Departure / Salida: ${schedule.date} ${schedule.time}`,
-            `Return / Regreso: ${schedule.returnDate} ${schedule.returnTime}`
-          ].join('\n');
-          manualQuote.href='https://wa.me/16177855657?text='+encodeURIComponent(message);
-          manualQuote.hidden=false;
-          showStatus('GPS quote unavailable. You can request a quote below. / La cotización GPS no está disponible. Puedes solicitarla abajo.',true);
-          return;
-        }
+        if(res.status>=500)throw new Error('GPS quote temporarily unavailable. Your details are still here. Try Calculate GPS Fare again. / Cotización GPS temporalmente no disponible. Tus datos siguen aquí. Intenta calcular de nuevo.');
         throw new Error(data.error||'Servicio de cálculo no disponible.');
       }
       if(roundTrip){
@@ -342,12 +321,12 @@ $('calculate').addEventListener('click' ,async()=>{
     showStatus(
       timeout
         ?'El servicio de mapas tardó demasiado. Inténtalo nuevamente en unos segundos.'
-        :'No se pudo calcular: '+(e instanceof TypeError?'No hay conexión con el servidor. Comprueba tu conexión e inténtalo de nuevo.':e.message||'error de conexión'),
+        :(e instanceof TypeError?'No hay conexión con el servidor. Comprueba tu conexión e inténtalo de nuevo.':e.message||'error de conexión'),
       true
     );
   }finally{
     btn.disabled=false;
-    btn.textContent='Calcular tarifa GPS';
+    btn.textContent='Calculate GPS Fare / Calcular tarifa GPS';
   }
 });
 </script>
