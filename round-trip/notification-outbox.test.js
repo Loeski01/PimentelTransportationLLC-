@@ -23,6 +23,17 @@ async function run() {
  assert.match(success.calls.at(-1).sql,/status='accepted'/);
  assert.match(success.calls[0].sql,/sending_started_at=now\(\)/);
  assert.match(success.calls.at(-1).sql,/sending_started_at=NULL/);
+ const ackFailure=db();
+ const originalQuery=ackFailure.query.bind(ackFailure);
+ ackFailure.query=async(sql,args)=>{
+   if(sql.includes("SET status='accepted'")) throw Error('database acknowledgement failed');
+   return originalQuery(sql,args);
+ };
+ let acceptedSendCount=0;
+ const uncertain=await deliverBookingNotification({client:ackFailure,eventId,send:async()=>{acceptedSendCount++;return {accepted:true}}});
+ assert.equal(acceptedSendCount,1);
+ assert.deepEqual(uncertain,{claimed:true,accepted:true,acknowledgementRecorded:false,requiresReconciliation:true});
+ assert.equal(ackFailure.calls.filter(call=>call.sql.includes('status=CASE WHEN attempts>=5')).length,0);
  const busy=db({claim:false});
  const notClaimed=await deliverBookingNotification({client:busy,eventId,send:async()=>{throw Error('must not send')}});
  assert.deepEqual(notClaimed,{claimed:false});
