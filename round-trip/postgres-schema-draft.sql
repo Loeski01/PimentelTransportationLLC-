@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS pt_customer_bookings (
 );
 ALTER TABLE pt_customer_bookings ADD COLUMN IF NOT EXISTS acceptance_notice_status text
   NOT NULL DEFAULT 'pending' CHECK (acceptance_notice_status IN ('pending','sending','accepted','failed','unknown'));
+ALTER TABLE pt_customer_bookings ADD COLUMN IF NOT EXISTS last_edit_link_requested_at timestamptz;
 CREATE TABLE IF NOT EXISTS pt_booking_change_events (
   event_id uuid PRIMARY KEY,
   booking_id bigint NOT NULL REFERENCES pt_customer_bookings(id),

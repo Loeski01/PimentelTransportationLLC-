@@ -4,7 +4,11 @@ function createAcceptanceMailer({apiKey,senderEmail,replyTo,fetchImpl=fetch}){
  if(!apiKey||!emailPattern.test(senderEmail||''))return null;
  return async b=>{
   const date=b.pickup_local_date instanceof Date?b.pickup_local_date.toISOString().slice(0,10):String(b.pickup_local_date).slice(0,10);
-  const text=b.return_leg?[
+  const editRequest=b.editUrl;
+  const text=editRequest?['Modify booking / Modificar reserva',
+   'Reference / Referencia: '+b.reference,
+   'This link expires in 15 minutes and can be used once. / Este enlace vence en 15 minutos y se puede usar una vez.',
+   editRequest].join('\n'):b.return_leg?[
    'BOOKING ACCEPTED / RESERVA ACEPTADA','Pimentel Transportation LLC',
    'Reference / Referencia: '+b.reference,
    'Outbound / Ida: '+b.pickup_address+' → '+b.destination_address+' · '+date+' '+b.pickup_local_time,
@@ -21,7 +25,7 @@ function createAcceptanceMailer({apiKey,senderEmail,replyTo,fetchImpl=fetch}){
    'La asignación del conductor se gestiona por separado. / Driver assignment is handled separately.',
    'Esta confirmación no es un recibo de pago. / This confirmation is not a payment receipt.',
    'Contacto / Contact: +1 617-785-5657'].join('\n');
-  const payload={sender:{name:'Pimentel Transportation LLC',email:senderEmail},to:[{email:b.passenger_email}],subject:(b.return_leg?'Booking accepted / Reserva aceptada — ':'Reserva aceptada / Booking accepted — ')+b.reference,textContent:text};
+  const payload={sender:{name:'Pimentel Transportation LLC',email:senderEmail},to:[{email:b.passenger_email}],subject:(editRequest?'Modify booking / Modificar reserva — ':b.return_leg?'Booking accepted / Reserva aceptada — ':'Reserva aceptada / Booking accepted — ')+b.reference,textContent:text};
   if(emailPattern.test(replyTo||''))payload.replyTo={email:replyTo};
   const response=await fetchImpl('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','api-key':apiKey},body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)});
   if(!response.ok){const error=Error('Email provider rejected request');error.deliveryRejected=true;throw error}

@@ -7,7 +7,7 @@ const {persistBookingChange}=require('../round-trip/persist-modification');
 
 const editFields=new Set(['date','time','returnDate','returnTime']);
 
-function registerStagingEdits(router,{db,requireAdmin,signingSecret,notificationEmail}){
+function registerStagingEdits(router,{db,requireAdmin,signingSecret,notificationEmail,sendAcceptance,publicOrigin}){
   if(!signingSecret)return;
   if(Buffer.byteLength(signingSecret)<32 || !notificationEmail){
     throw new Error('Invalid staging edit configuration');
@@ -29,6 +29,31 @@ function registerStagingEdits(router,{db,requireAdmin,signingSecret,notification
   router.get('/round-trip/edit-page.js',(req,res)=>{
     res.sendFile(path.join(__dirname,'round-trip-edit-page.js'));
   });
+
+  if(publicOrigin&&sendAcceptance){
+    const origin=new URL(publicOrigin);
+    if(origin.protocol!=='https:'||origin.origin!==publicOrigin)throw new Error('Invalid dispatch public origin');
+    router.post('/round-trip/:reference/email-edit-link',requireAdmin,limit,async(req,res,next)=>{
+      res.set('Cache-Control','no-store');
+      try{
+        const claimed=await db.query(`UPDATE pt_customer_bookings SET last_edit_link_requested_at=now()
+          WHERE reference=$1 AND trip_type='round_trip' AND status='pending'
+            AND (last_edit_link_requested_at IS NULL OR last_edit_link_requested_at < now()-interval '15 minutes')
+          RETURNING id,reference,version,customer_email`,[req.params.reference]);
+        const row=claimed.rows[0];
+        if(!row)return res.sendStatus(409);
+        const token=issueEditGrant({secret:signingSecret,bookingId:Number(row.id)});
+        const editUrl=new URL(req.baseUrl+'/round-trip/edit-page',origin);
+        editUrl.hash=new URLSearchParams({reference:row.reference,version:String(row.version),token}).toString();
+        try{
+          await sendAcceptance({reference:row.reference,passenger_email:row.customer_email,editUrl:editUrl.href});
+          res.json({notice:'accepted_by_provider'});
+        }catch{
+          res.status(502).json({notice:'unverified'});
+        }
+      }catch(error){next(error);}
+    });
+  }
 
   router.post('/round-trip/:reference/edit-grant',requireAdmin,async(req,res,next)=>{
     res.set('Cache-Control','no-store');

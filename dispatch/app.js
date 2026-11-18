@@ -56,7 +56,7 @@ const role=expected=>async(req,res,next)=>{try{if(!req.session?.userId||req.sess
 if(process.env.BOOKING_INTAKE_STAGING_ENABLED==='true'){
  if(process.env.BOOKING_SCHEMA_STAGING_ENABLED!=='true')throw Error('Booking schema must be enabled');
  const {router}=require('./booking-staging-router');
- app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,stagingEditSecret:process.env.ROUND_TRIP_STAGING_EDIT_SECRET,stagingEditNotificationEmail:process.env.ROUND_TRIP_STAGING_EDIT_NOTIFY_EMAIL}));
+ app.use('/booking-staging',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,publicOrigin:process.env.RENDER_EXTERNAL_URL,stagingEditSecret:process.env.ROUND_TRIP_STAGING_EDIT_SECRET,stagingEditNotificationEmail:process.env.ROUND_TRIP_STAGING_EDIT_NOTIFY_EMAIL}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>{res.set('Cache-Control','no-store');const base=process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'?'/booking':'/booking-staging';res.type('html').send(require('node:fs').readFileSync(require('node:path').join(__dirname,'booking-admin.html'),'utf8').replace('__BOOKING_API_BASE__',JSON.stringify(base)))});
 }
 // Dedicated production intake; never permit staging intake and production intake together.
@@ -66,7 +66,7 @@ if(process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'){
  if(process.env.NODE_ENV!=='production')throw Error('Production intake requires NODE_ENV=production');
  if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED!=='true')throw Error('Production booking schema must be enabled');
  const {router}=require('./booking-staging-router');
- app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,production:true,roundTripProduction,stagingEditSecret:process.env.ROUND_TRIP_EDIT_SECRET,stagingEditNotificationEmail:process.env.BOOKING_NOTIFY_EMAIL,productionDatabaseName:process.env.DISPATCH_PRODUCTION_DATABASE_NAME}));
+ app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,publicOrigin:process.env.RENDER_EXTERNAL_URL,production:true,roundTripProduction,stagingEditSecret:process.env.ROUND_TRIP_EDIT_SECRET,stagingEditNotificationEmail:process.env.BOOKING_NOTIFY_EMAIL,productionDatabaseName:process.env.DISPATCH_PRODUCTION_DATABASE_NAME}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>{res.set('Cache-Control','no-store');const base=process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'?'/booking':'/booking-staging';res.type('html').send(require('node:fs').readFileSync(require('node:path').join(__dirname,'booking-admin.html'),'utf8').replace('__BOOKING_API_BASE__',JSON.stringify(base)))});
 }
 app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
