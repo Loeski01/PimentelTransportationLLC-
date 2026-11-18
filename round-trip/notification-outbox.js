@@ -27,10 +27,16 @@ async function deliverBookingNotification({client,eventId,send}) {
     if(details.rowCount!==1) throw new Error('Notification event details unavailable');
     const result=await send({eventId,recipientEmail:item.recipient_email,booking:details.rows[0]});
     if (!result || result.accepted !== true) throw new Error('Mail provider did not accept message');
-    await client.query(
+    // Provider accepted the message. A subsequent database failure must NOT queue a resend.
+    try {
+      await client.query(
       `UPDATE pt_booking_notification_outbox SET status='accepted',accepted_at=now(),sending_started_at=NULL,last_error=NULL
        WHERE event_id=$1 AND status='sending'`,[eventId]);
-    return {claimed:true,accepted:true};
+      return {claimed:true,accepted:true};
+    } catch (ackError) {
+      // Leave 'sending' for manual reconciliation; delivery outcome is ambiguous.
+      return {claimed:true,accepted:true,acknowledgementRecorded:false,requiresReconciliation:true};
+    }
   } catch(err) {
     await client.query(
       `UPDATE pt_booking_notification_outbox
