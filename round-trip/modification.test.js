@@ -18,4 +18,4 @@ assert.equal(event.bookingReference,'PT-TEST');
 assert.match(adminModificationMessage(event),/10:00 -> 11:00/);
 assert.match(adminModificationMessage(event),/Sample Passenger/);
 assert.throws(()=>buildModificationEvent({before,patch:{time:'11:00'},previousFareCents:-1,newFareCents:0}),/Invalid fare/);
-console.log('Booking modification unit tests passed (12 assertions)');
+console.log('Booking modification unit tests passed (14 assertions)');
