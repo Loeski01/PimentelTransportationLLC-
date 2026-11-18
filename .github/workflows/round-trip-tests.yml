@@ -1,0 +1,24 @@
+name: Round Trip Development Tests
+on:
+  push:
+    branches: [feature/round-trip-10pct]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pricing and booking modification
+        run: |
+          node round-trip/pricing.test.js
+          node round-trip/modification.test.js
+      - name: Database transaction and notification mocks
+        run: |
+          node round-trip/persist-modification.test.js
+          node round-trip/notification-outbox.test.js
+          node round-trip/notification-health.test.js
