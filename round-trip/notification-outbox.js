@@ -29,7 +29,7 @@ async function deliverBookingNotification({client,eventId,send}) {
        SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry' END,
            next_attempt_at=now()+interval '5 minutes',last_error=$2
        WHERE event_id=$1 AND status='sending'`,[eventId,String(err.message||err).slice(0,500)]);
-    return {claimed:true,accepted:false,retryQueued:true};
+    return {claimed:true,accepted:false,retryQueued:Number(item.attempts)<5,permanentlyFailed:Number(item.attempts)>=5};
   }
 }
 module.exports={deliverBookingNotification};
