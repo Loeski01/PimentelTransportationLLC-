@@ -165,6 +165,10 @@ if (process.env.NODE_ENV === "test" && process.env.ROUND_TRIP_TEST_INTAKE_PORT) 
       !secret || Buffer.byteLength(secret) < 32) {
     throw new Error("Invalid isolated round-trip intake configuration");
   }
+  app.get("/test/round-trip-calculator", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.sendFile(require("node:path").join(__dirname, "calculadora-gps-pimentel.html"));
+  });
   app.post("/api/test/round-trip-request", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     const body = req.body || {};
