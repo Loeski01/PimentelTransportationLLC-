@@ -11,7 +11,7 @@ async function deliverBookingNotification({client,eventId,send}) {
     throw new RangeError('Invalid event ID');
   // Claim atomically to avoid duplicate concurrent sends.
   const claim=await client.query(
-    `UPDATE pt_booking_notification_outbox SET status='sending',attempts=attempts+1
+    `UPDATE pt_booking_notification_outbox SET status='sending',attempts=attempts+1,sending_started_at=now()
      WHERE event_id=$1 AND status IN ('pending','retry') AND next_attempt_at<=now()
      RETURNING event_id,recipient_email,attempts`,[eventId]);
   if(claim.rowCount!==1) return {claimed:false};
@@ -28,14 +28,14 @@ async function deliverBookingNotification({client,eventId,send}) {
     const result=await send({eventId,recipientEmail:item.recipient_email,booking:details.rows[0]});
     if (!result || result.accepted !== true) throw new Error('Mail provider did not accept message');
     await client.query(
-      `UPDATE pt_booking_notification_outbox SET status='accepted',accepted_at=now(),last_error=NULL
+      `UPDATE pt_booking_notification_outbox SET status='accepted',accepted_at=now(),sending_started_at=NULL,last_error=NULL
        WHERE event_id=$1 AND status='sending'`,[eventId]);
     return {claimed:true,accepted:true};
   } catch(err) {
     await client.query(
       `UPDATE pt_booking_notification_outbox
        SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry' END,
-           next_attempt_at=now()+interval '5 minutes',last_error=$2
+           next_attempt_at=now()+interval '5 minutes',sending_started_at=NULL,last_error=$2
        WHERE event_id=$1 AND status='sending'`,[eventId,String(err.message||err).slice(0,500)]);
     return {claimed:true,accepted:false,retryQueued:Number(item.attempts)<5,permanentlyFailed:Number(item.attempts)>=5};
   }
