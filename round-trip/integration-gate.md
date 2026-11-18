@@ -48,3 +48,23 @@ Determine which existing persistent store is authoritative for bookings and whet
 6. Only then consider a staged rollout with the feature flag initially disabled and explicit verification of the actual deployment destination and costs.
 
 **Release decision: NOT READY.** Passing isolated tests alone is not permission to bypass missing production integration, authorization, or rollback evidence.
+
+## Stage-by-stage verification ledger — 2026-11-18
+
+### Stage 1 — Isolated booking edit authorization: VERIFIED IN CI (not production-ready)
+- Signed grant limited to one booking, maximum 15-minute lifetime; tampering, wrong booking and expiry rejected.
+- PostgreSQL durable nonce consumption tested for replay rejection and transaction rollback.
+- Booking update, immutable change event, notification outbox, and grant consumption exercised together; replay leaves booking unchanged.
+- CI passed at commit `f81438568b92a647584962c713912ee882541ae2`:
+  - PostgreSQL: https://github.com/Loeski01/PimentelTransportationLLC-/actions/runs/44329879637
+  - Development: https://github.com/Loeski01/PimentelTransportationLLC-/actions/runs/44329879777
+- **Important security blocker:** `persistBookingChange` still accepts callers without `editGrant` for isolated legacy tests. Production endpoint MUST require verified grant and authenticated identity, rate limiting and authoritative dispatcher state. No public edit endpoint may call it without those checks.
+
+### Stage 2 — Production booking persistence and dispatch integration: NOT VERIFIED
+- Identify authoritative existing booking store, stage migrations in separate nonproduction environment, and test end-to-end without live dispatch.
+- Driver pickup date/time visibility and assignment remain unverified.
+
+### Stage 3 — Provider delivery, payment, regression and release: NOT VERIFIED
+- Sandbox delivery receipts, payment idempotency, legacy booking/QR/bilingual regressions, rollback and cost check still required.
+
+**Release status remains BLOCKED.**
