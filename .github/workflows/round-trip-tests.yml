@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install HTTP test server dependencies
+        run: npm install --no-save --package-lock=false
       - name: Pricing and booking modification
         run: |
           node round-trip/pricing.test.js
