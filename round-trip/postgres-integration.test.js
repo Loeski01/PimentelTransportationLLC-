@@ -133,6 +133,10 @@ async function run(){
   const beforeInvalid=Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n);
   await assert.rejects(persistBookingChange({client,bookingId:Number(inserted.rows[0].id),expectedVersion:6,before:{...approvedBefore,returnTime:'15:30'},patch:{returnDate:'2026-11-30'},previousFareCents:23500,newFareCents:24000,notificationEmail:'admin@example.test'}),/Return must be after departure/);
   assert.equal(Number((await client.query('SELECT count(*) AS n FROM pt_booking_change_events')).rows[0].n),beforeInvalid);
+  // The database must enforce one event per booking version and one outbox per event.
+  const existingEvent=approvedChange.eventId;
+  await assert.rejects(client.query(`INSERT INTO pt_booking_change_events(event_id,booking_id,booking_version,actor,changes,previous_fare_cents,new_fare_cents) VALUES(gen_random_uuid(),$1,6,'customer','[]'::jsonb,23500,23500)`,[inserted.rows[0].id]),error=>error.code==='23505');
+  await assert.rejects(client.query('INSERT INTO pt_booking_notification_outbox(event_id,recipient_email) VALUES($1,$2)',[existingEvent,'admin@example.test']),error=>error.code==='23505');
   console.log('Isolated PostgreSQL integration checks passed');
  } finally {
   await client.query('DROP SCHEMA IF EXISTS pt_integration_test CASCADE');
