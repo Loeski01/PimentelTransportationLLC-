@@ -73,3 +73,10 @@ Determine which existing persistent store is authoritative for bookings and whet
 - Booking intake and acceptance, duplicate reference conflict rejection, driver pickup date/time display (America/New_York), dispatcher route authorization and trip milestone tests: passed in feature-branch CI at commit `9fc7270da30cfc485d8a08fa8195d470dc89ae22` (https://github.com/Loeski01/PimentelTransportationLLC-/actions/runs/44332869391).
 - **Closed for code regression tests only.** No end-to-end live driver UI or production DB verification performed.
 - **Remaining Stage 2 blocker:** authoritative durable production booking database and isolated end-to-end booking → manual dispatch → driver assignment → driver view validation. Existing staging claims do not substitute for current environment checks.
+
+### Stage 2 — source-level data-flow review (2026-11-18)
+- Intake: `dispatch/booking-staging-router.js` inserts into `booking_requests`, rejects conflicting duplicate references; manual `send-to-dispatch` creates `dispatch_trips` with `pickup_at` derived from Boston local pickup time.
+- Admin: `dispatch/router.js` exposes pickup schedule and fare to authorized admin; manual `POST /admin/trips/:id/assign` requires approved trip and active driver.
+- Driver: `GET /driver/trips` filters by authenticated driver and returns `pickup_at` without fare. `dispatch/private-panel.html` now displays `pickup_at` in Boston time.
+- These code paths are present and CI regression tests passed, **but the entire path has not been exercised together against a current isolated dispatch PostgreSQL database and a browser**. Do not mark the end-to-end stage complete.
+- Next required acceptance: isolated database with schema/migrations, create booking via authenticated intake, transfer manually, approve, assign active test driver, authenticate driver, assert exact pickup time and no fare, then verify rejection of unauthorized assignment and no duplicate trips. Never use real passengers, real messages, or production database.
