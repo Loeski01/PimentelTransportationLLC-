@@ -1,0 +1,23 @@
+name: Hourly booking validation
+on:
+  pull_request:
+    paths:
+      - 'booking/hourly-pricing*'
+      - 'server.js'
+      - 'index.html'
+      - '.github/workflows/hourly-booking-validation.yml'
+  push:
+    branches:
+      - fix/hourly-dispatch-intake-20261120
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check server.js && node --check booking/hourly-pricing.js
+      - name: Hourly pricing regression tests
+        run: node --test booking/hourly-pricing.test.js booking/hourly-frontend-contract.test.js booking/hourly-dispatch-contract.test.js
