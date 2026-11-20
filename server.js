@@ -365,6 +365,59 @@ async function sendBookingEmail({to, subject, text, replyTo}) {
     clearTimeout(timeout);
   }
 }
+// Hourly requests use the same durable production dispatch intake as one-way bookings.
+// The existing dispatch schema stores the hourly metadata in special_instructions
+// until dedicated service-type columns and admin presentation are deployed.
+app.post("/api/hourly-booking-request", async (req,res)=>{
+ res.setHeader("Cache-Control","no-store");
+ if(process.env.BOOKING_DISPATCH_PRODUCTION_ENABLED!=="true"||!mailReady)
+  return res.status(503).json({error:"Hourly booking reception is not available yet."});
+ const b=req.body||{},cleanHourly=(v,max)=>typeof v==="string"?v.trim().slice(0,max):"";
+ const name=cleanHourly(b.name,100),phone=cleanHourly(b.phone,40),email=cleanHourly(b.email,254);
+ const from=cleanHourly(b.from,200),itinerary=cleanHourly(b.itinerary,200);
+ const date=cleanHourly(b.date,10),time=cleanHourly(b.time,5),passengers=cleanHourly(b.passengers,20),details=cleanHourly(b.details,500);
+ const tier=cleanHourly(b.tier||"luxury",20);
+ const {calculateHourlyBooking}=require("./booking/hourly-pricing");
+ let pricing;
+ try{pricing=calculateHourlyBooking({hours:b.hours,tier,tipPercent:b.tipPercent,tipCents:b.tipCents});}
+ catch{return res.status(400).json({error:"Invalid hourly duration, tier or tip."});}
+ if(!name||!phone||!emailPattern.test(email)||!from||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||
+    !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)||!/^\\d{1,2}$/.test(passengers)||
+    Number(passengers)<1||Number(passengers)>30)
+   return res.status(400).json({error:"Invalid hourly booking contact or schedule."});
+ const ip=req.ip||"unknown",last=bookingThrottle.get(ip)||0;
+ if(Date.now()-last<60000)return res.status(429).json({error:"Wait one minute before submitting another request."});
+ bookingThrottle.set(ip,Date.now());
+ const reference="PT-"+require("node:crypto").randomBytes(8).toString("hex").toUpperCase();
+ const destination=itinerary||"Hourly chauffeur service — itinerary to be confirmed";
+ const metadata=["SERVICE TYPE: HOURLY / SERVICIO POR HORAS","HOURS / HORAS: "+pricing.hours,
+   "RATE / TARIFA POR HORA: $"+(pricing.fareCents/pricing.hours/100).toFixed(2),
+   "ITINERARY / ITINERARIO: "+(itinerary||"To be confirmed"),"NOT A ONE-WAY TRANSFER",
+   "CUSTOMER DETAILS: "+details].join("\\n");
+ try{
+  const {createProductionDispatchSender}=require("./booking/production-dispatch-sender");
+  const forward=createProductionDispatchSender({enabled:true,endpoint:process.env.BOOKING_DISPATCH_URL,
+    promotedProductionHost:process.env.BOOKING_DISPATCH_PROMOTED_HOST,secret:process.env.BOOKING_SERVICE_SECRET});
+  const ack=await forward({reference,name,phone,email,from,to:destination,date,time,passengers,
+    payment:"coordinate",tier,fareCents:pricing.fareCents,tipCents:pricing.tipCents,details:metadata});
+  if(!ack||ack.stored!==true||ack.reference!==reference)throw Error("Dispatch acknowledgement invalid");
+ }catch(e){console.error("Hourly dispatch intake failed:",e.message);
+   return res.status(503).json({error:"Hourly dispatch receipt not verified. Contact the company before retrying."});}
+ const summary=["Hourly request / Solicitud por horas: "+reference,"Passenger / Pasajero: "+name,
+   "Email: "+email,"Phone: "+phone,"Pickup: "+from,"Date: "+date,"Time: "+time,
+   "Hours: "+pricing.hours,"Itinerary: "+destination,"Tier: "+tier,"Passengers: "+passengers,
+   "Fare: $"+(pricing.fareCents/100).toFixed(2),"Tip: $"+(pricing.tipCents/100).toFixed(2),
+   "Total: $"+(pricing.totalCents/100).toFixed(2),"Details: "+details,
+   "PENDING APPROVAL / PENDIENTE DE APROBACIÓN — NO PAYMENT COLLECTED"].join("\\n");
+ let adminNoticeSent=false,customerNoticeSent=false;
+ try{await sendBookingEmail({to:notificationEmail,replyTo:email,subject:"Hourly booking request "+reference,text:summary});adminNoticeSent=true;}
+ catch(e){console.error("Hourly admin notification failed:",e.message);}
+ try{await sendBookingEmail({to:email,replyTo:notificationEmail,subject:"Request received / Solicitud recibida - "+reference,
+   text:"Your hourly service request is received but NOT confirmed until approved. / Solicitud recibida, NO confirmada hasta aprobación.\\n\\n"+summary});customerNoticeSent=true;}
+ catch(e){console.error("Hourly customer notification failed:",e.message);}
+ res.status(201).json({received:true,reference,status:"pending",adminNoticeSent,customerNoticeSent});
+});
+
 const bookingThrottle = new Map();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const clean = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
