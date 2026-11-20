@@ -60,10 +60,17 @@ async function locate(address, signal) {
   if (cached && cached.expires > Date.now()) return cached.place;
   let place;
   try {
-    place = await locateWithNominatim(address, AbortSignal.any([signal, AbortSignal.timeout(4000)]));
+    place = await locateWithNominatim(address, signal);
   } catch (error) {
-    if (signal.aborted || (error instanceof QuoteError && error.status < 500)) throw error;
-    place = await locateWithPhoton(address, signal);
+    // Rate limiting must not be hidden by a fallback geocoder request.
+    if (signal.aborted || (error instanceof QuoteError && (error.status < 500 || error.code === "MAP_RATE_LIMIT"))) throw error;
+    try {
+      place = await locateWithPhoton(address, signal);
+    } catch (fallbackError) {
+      // Preserve the upstream outage classification if both providers fail.
+      if (error instanceof QuoteError && !(fallbackError instanceof QuoteError)) throw error;
+      throw fallbackError;
+    }
   }
   if (addressCache.size >= 1000) addressCache.delete(addressCache.keys().next().value);
   addressCache.set(key, { place, expires: Date.now() + 86400000 });
