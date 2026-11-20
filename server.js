@@ -381,8 +381,8 @@ app.post("/api/hourly-booking-request", async (req,res)=>{
  let pricing;
  try{pricing=calculateHourlyBooking({hours:b.hours,tier,tipPercent:b.tipPercent,tipCents:b.tipCents});}
  catch{return res.status(400).json({error:"Invalid hourly duration, tier or tip."});}
- if(!name||!phone||!emailPattern.test(email)||!from||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||
-    !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)||!/^\\d{1,2}$/.test(passengers)||
+ if(!name||!phone||!emailPattern.test(email)||!from||!/^\d{4}-\d{2}-\d{2}$/.test(date)||
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||!/^\d{1,2}$/.test(passengers)||
     Number(passengers)<1||Number(passengers)>30)
    return res.status(400).json({error:"Invalid hourly booking contact or schedule."});
  const ip=req.ip||"unknown",last=bookingThrottle.get(ip)||0;
@@ -393,7 +393,7 @@ app.post("/api/hourly-booking-request", async (req,res)=>{
  const metadata=["SERVICE TYPE: HOURLY / SERVICIO POR HORAS","HOURS / HORAS: "+pricing.hours,
    "RATE / TARIFA POR HORA: $"+(pricing.fareCents/pricing.hours/100).toFixed(2),
    "ITINERARY / ITINERARIO: "+(itinerary||"To be confirmed"),"NOT A ONE-WAY TRANSFER",
-   "CUSTOMER DETAILS: "+details].join("\\n");
+   "CUSTOMER DETAILS: "+details].join("\n");
  try{
   const {createProductionDispatchSender}=require("./booking/production-dispatch-sender");
   const forward=createProductionDispatchSender({enabled:true,endpoint:process.env.BOOKING_DISPATCH_URL,
@@ -408,12 +408,12 @@ app.post("/api/hourly-booking-request", async (req,res)=>{
    "Hours: "+pricing.hours,"Itinerary: "+destination,"Tier: "+tier,"Passengers: "+passengers,
    "Fare: $"+(pricing.fareCents/100).toFixed(2),"Tip: $"+(pricing.tipCents/100).toFixed(2),
    "Total: $"+(pricing.totalCents/100).toFixed(2),"Details: "+details,
-   "PENDING APPROVAL / PENDIENTE DE APROBACIÓN — NO PAYMENT COLLECTED"].join("\\n");
+   "PENDING APPROVAL / PENDIENTE DE APROBACIÓN — NO PAYMENT COLLECTED"].join("\n");
  let adminNoticeSent=false,customerNoticeSent=false;
  try{await sendBookingEmail({to:notificationEmail,replyTo:email,subject:"Hourly booking request "+reference,text:summary});adminNoticeSent=true;}
  catch(e){console.error("Hourly admin notification failed:",e.message);}
  try{await sendBookingEmail({to:email,replyTo:notificationEmail,subject:"Request received / Solicitud recibida - "+reference,
-   text:"Your hourly service request is received but NOT confirmed until approved. / Solicitud recibida, NO confirmada hasta aprobación.\\n\\n"+summary});customerNoticeSent=true;}
+   text:"Your hourly service request is received but NOT confirmed until approved. / Solicitud recibida, NO confirmada hasta aprobación.\n\n"+summary});customerNoticeSent=true;}
  catch(e){console.error("Hourly customer notification failed:",e.message);}
  res.status(201).json({received:true,reference,status:"pending",adminNoticeSent,customerNoticeSent});
 });
