@@ -6,6 +6,7 @@
  * fallback if the server cannot verify dispatch persistence.
  */
 (function(){
+ const bodyTier=()=>document.querySelector('input[name="tier"]:checked')?.value||'luxury';
  const form=document.getElementById('unifiedForm');
  if(!form)return;
  const el=id=>document.getElementById(id);
@@ -22,13 +23,13 @@
    const hours=Number(value('hours'));
    const tipChoice=value('tip'),tipPercent=tipChoice==='custom'?0:Number(tipChoice);
    const tipCents=tipChoice==='custom'?Math.round(Number(value('tipAmount'))*100):0;
-   if(!Number.isFinite(hours)||hours<3||hours>24||Math.round(hours*4)!==hours*4||
+   if(!Number.isFinite(hours)||hours<(bodyTier()==='comfort'?2:3)||hours>24||Math.round(hours*4)!==hours*4||
      ![0,10,15,20].includes(tipPercent)||!Number.isSafeInteger(tipCents)||tipCents<0){
      status.textContent='Review hours and tip / Revisa las horas y la propina.';return;
    }
    const body={name:value('nombre'),email:value('email'),phone:value('telefono'),
      from:value('origen'),itinerary:value('destino'),date:value('fecha'),time:value('hora'),
-     passengers:value('pasajeros'),details:value('detalles'),tier:value('tier')||'luxury',
+     passengers:value('pasajeros'),details:value('detalles'),tier:bodyTier(),
      hours,tipPercent,tipCents};
    // The tier is selected by the existing calculator; its helper is private.
    const tierChoice=document.querySelector('input[name="tier"]:checked, select[name="tier"]');
