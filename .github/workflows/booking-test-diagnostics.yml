@@ -1,0 +1,28 @@
+name: Booking test diagnostics
+on:
+  push:
+    branches: [fix/hourly-dispatch-intake-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - gps.test.cjs
+          - booking/booking-request-mapper.test.js
+          - booking/production-booking-route.test.js
+          - booking/production-dispatch-sender.test.js
+          - booking/hourly-pricing.test.js
+          - booking/hourly-frontend-contract.test.js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Isolated test
+        run: node --test "${{ matrix.suite }}"
