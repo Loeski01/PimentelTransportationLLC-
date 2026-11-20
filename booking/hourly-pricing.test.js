@@ -8,3 +8,7 @@ test('fractional quarter-hour',()=>assert.equal(calculateHourlyBooking({hours:3.
 for(const hours of [0,2.5,24.25,3.1,NaN,Infinity,'3'])test('reject hours '+String(hours),()=>assert.throws(()=>calculateHourlyBooking({hours,tier:'luxury'})));
 test('reject invalid tier',()=>assert.throws(()=>calculateHourlyBooking({hours:3,tier:'unknown'})));
 test('reject conflicting tip',()=>assert.throws(()=>calculateHourlyBooking({hours:3,tier:'luxury',tipPercent:10,tipCents:500})));
+
+test('comfort minimum two hours',()=>assert.equal(calculateHourlyBooking({hours:2,tier:'comfort'}).fareCents,15000));
+test('comfort below minimum rejected',()=>assert.throws(()=>calculateHourlyBooking({hours:1.75,tier:'comfort'})));
+test('executive two hours rejected',()=>assert.throws(()=>calculateHourlyBooking({hours:2,tier:'luxury'})));
