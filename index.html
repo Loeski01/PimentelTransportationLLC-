@@ -529,26 +529,39 @@ el('unifiedForm').addEventListener('submit',async event=>{
   el('submitBooking').textContent=hourly?'ENVIAR SOLICITUD / SEND REQUEST':'CONTINUAR / CONTINUE';
   el('envios').style.display='none';refreshHourly();
  }
- window.sendHourlyRequest=function(){
+
+ window.sendHourlyRequest=async function(){
+  const v=id=>el(id).value.trim();
+  const btn=el('submitBooking');
+  let hoursValue,tip;
   try{
-   const amount=hourlyAmount(),tip=tipData();
-   const gratuity=tip.tipPercent?Math.round(amount*tip.tipPercent/100):tip.tipCents;
-   const v=id=>el(id).value.trim();
-   const message=['HOURLY SERVICE REQUEST / SOLICITUD POR HORAS - Pimentel Transportation LLC',
-    'Name / Nombre: '+v('nombre'),'Email / Correo: '+v('email'),'Phone / Teléfono: '+v('telefono'),
-    'Date / Fecha: '+v('fecha'),'Time / Hora: '+v('hora'),'Pickup / Recogida: '+v('origen'),
-    'Itinerary / Itinerario: '+v('destino'),'Category / Categoría: '+tierName(),'Hours / Horas: '+v('hours'),'Rate / Tarifa: $'+(selectedTier()==='comfort'?75:95)+'/hour',
-    'Service / Servicio: '+money(amount),'Optional tip / Propina: '+money(gratuity),'Estimated total / Total estimado: '+money(amount+gratuity),
-    'Passengers / Pasajeros: '+v('pasajeros'),'Details / Detalles: '+v('detalles'),
-    'Payment arranged after approval / Pago a coordinar después de aprobación',
-    'PENDING COMPANY APPROVAL / PENDIENTE DE APROBACIÓN'].join('\n');
-   el('whatsapp').href='https://wa.me/16177855657?text='+encodeURIComponent(message);
-   el('correo').href='mailto:Cesarloeski17@gmail.com?subject='+encodeURIComponent('Hourly service request / Solicitud por horas')+'&body='+encodeURIComponent(message);
-   el('envios').hidden=false;el('envios').style.display='block';
-   el('bookingStatus').textContent='Selecciona WhatsApp o correo y envía el mensaje. La reserva queda pendiente de aprobación. / Select WhatsApp or email and send your request. Booking is pending approval.';
-   el('envios').scrollIntoView({behavior:'smooth'});
-  }catch(e){el('bookingStatus').textContent=e.message;}
+   hoursValue=Number(v('hours'));
+   hourlyAmount();
+   if(!Number.isFinite(hoursValue)||hoursValue*4!==Math.round(hoursValue*4))throw Error('Use quarter-hour increments / Use incrementos de 15 minutos.');
+   tip=tipData();
+  }catch(e){el('bookingStatus').textContent=e.message;return;}
+  btn.disabled=true;
+  el('bookingStatus').textContent='Sending hourly request / Enviando solicitud por horas...';
+  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),65000);
+  try{
+   const response=await fetch(API+'/api/hourly-booking-request',{
+    method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,
+    body:JSON.stringify({name:v('nombre'),email:v('email'),phone:v('telefono'),
+     from:v('origen'),itinerary:v('destino'),date:v('fecha'),time:v('hora'),
+     passengers:v('pasajeros'),details:v('detalles'),tier:selectedTier(),hours:hoursValue,...tip})
+   });
+   const data=await response.json();
+   if(!response.ok||data.received!==true||!data.reference)throw Error(data.error||'Dispatch receipt unverified');
+   el('envios').hidden=true;el('envios').style.display='none';
+   el('bookingStatus').textContent='Request received / Solicitud recibida: '+data.reference+
+    '. Pending company approval. No payment collected. / Pendiente de aprobación. Sin cobro.';
+  }catch(e){
+   el('bookingStatus').textContent=e.name==='AbortError'?
+    'Delivery unverified. Contact the company before retrying. / Entrega no verificada. Consulte antes de reenviar.':
+    'Dispatch receipt not confirmed. Contact us by WhatsApp or email. / No se confirmó recepción. Contáctenos por WhatsApp o correo.';
+  }finally{clearTimeout(deadline);btn.disabled=false;}
  };
+
  type.addEventListener('change',changeService);
  for(const id of ['hours','tip','tipAmount'])el(id).addEventListener('input',refreshHourly);
  changeService();
