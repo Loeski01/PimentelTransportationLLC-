@@ -63,7 +63,7 @@ async function locate(address, signal) {
     place = await locateWithNominatim(address, signal);
   } catch (error) {
     // Rate limiting must not be hidden by a fallback geocoder request.
-    if (signal.aborted || (error instanceof QuoteError && (error.status < 500 || error.code === "MAP_RATE_LIMIT"))) throw error;
+    if (signal.aborted || error.name === "TimeoutError" || error.name === "AbortError" || (error instanceof QuoteError && (error.status < 500 || error.code === "MAP_RATE_LIMIT"))) throw error;
     try {
       place = await locateWithPhoton(address, signal);
     } catch (fallbackError) {
