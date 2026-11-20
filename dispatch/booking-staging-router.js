@@ -25,6 +25,22 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,roundTri
  if(typeof secret!=='string'||Buffer.byteLength(secret)<32)throw Error('Staging booking intake secret missing');
  const r=express.Router();
  require('./booking-acceptance').registerAcceptanceRoute(r,{db,requireAdmin,sendAcceptance});
+ function archiveInboxReservation(type, source) {
+  return async (req, res, next) => {
+   const {reference}=req.params;
+   if(!/^PT-[A-Z0-9-]{4,64}$/.test(reference))return res.sendStatus(400);
+   try {
+    const result=await db.query(`INSERT INTO booking_inbox_archive (booking_type,reference,archived_by)
+      SELECT $1,b.reference,$3 FROM ${source}
+      ON CONFLICT (booking_type,reference) DO UPDATE SET reference=EXCLUDED.reference
+      RETURNING reference`,[type,reference,String(req.session.userId)]);
+    if(!result.rowCount)return res.sendStatus(404);
+    res.status(204).end();
+   }catch(error){next(error)}
+  };
+ }
+ r.post('/:reference/archive-inbox',requireAdmin,
+  archiveInboxReservation('one_way','booking_requests b WHERE b.reference=$2'));
  const auth=(req,res,next)=>{
   const supplied=req.get('X-Booking-Service-Key')||'';
   const a=crypto.createHash('sha256').update(supplied).digest();
@@ -41,11 +57,14 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,roundTri
     db,requireAdmin,signingSecret:stagingEditSecret,notificationEmail:stagingEditNotificationEmail,sendAcceptance,publicOrigin
    });
   }
+  r.post('/round-trip/:reference/archive-inbox',requireAdmin,
+   archiveInboxReservation('round_trip',"pt_customer_bookings b WHERE b.reference=$2 AND b.trip_type='round_trip'"));
   r.get('/round-trip/inbox',requireAdmin,async(req,res,next)=>{
    res.set('Cache-Control','no-store');
    try{
     const result=await db.query(`SELECT reference,customer_name,outbound,return_leg,fare_cents,status,
-      acceptance_notice_status FROM pt_customer_bookings WHERE trip_type='round_trip'
+      acceptance_notice_status FROM pt_customer_bookings b WHERE trip_type='round_trip'
+      AND NOT EXISTS (SELECT 1 FROM booking_inbox_archive a WHERE a.booking_type='round_trip' AND a.reference=b.reference)
       ORDER BY created_at DESC LIMIT 100`);
     res.json({editLinksAvailable:Boolean(stagingEditSecret&&publicOrigin&&sendAcceptance),bookings:result.rows});
    }catch(error){next(error);}
@@ -180,7 +199,8 @@ function router({db,secret,requireAdmin,sendAcceptance,production=false,roundTri
  r.get('/inbox',requireAdmin,async(req,res,next)=>{
   try{const q=await db.query(`SELECT reference,passenger_name,pickup_address,destination_address,
    pickup_local_date::text AS pickup_local_date,pickup_local_time::text AS pickup_local_time,
-   service_tier,fare_cents,special_instructions,status,dispatch_trip_id,acceptance_notice_status FROM booking_requests
+   service_tier,fare_cents,special_instructions,status,dispatch_trip_id,acceptance_notice_status FROM booking_requests b
+   WHERE NOT EXISTS (SELECT 1 FROM booking_inbox_archive a WHERE a.booking_type='one_way' AND a.reference=b.reference)
    ORDER BY created_at DESC LIMIT 100`);
    res.set('Cache-Control','no-store').json(q.rows)
   }catch(e){next(e)}

@@ -147,6 +147,12 @@ async function startDispatch(){
    console.info('Booking staging: additive schema checked');
   }
   if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED==='true'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true'){
+   await client.query(`CREATE TABLE IF NOT EXISTS booking_inbox_archive (
+     booking_type TEXT NOT NULL CHECK(booking_type IN ('one_way','round_trip')),
+     reference TEXT NOT NULL,
+     archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     archived_by TEXT NOT NULL,
+     PRIMARY KEY (booking_type, reference))`);
    await client.query('ALTER TABLE booking_requests ALTER COLUMN fare_cents DROP NOT NULL');
    await client.query("ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS acceptance_notice_status TEXT NOT NULL DEFAULT 'pending' CHECK(acceptance_notice_status IN ('pending','sending','sent','failed','unknown'))");
    await client.query('ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS acceptance_notice_sent_at TIMESTAMPTZ');
