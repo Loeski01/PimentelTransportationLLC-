@@ -280,7 +280,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <label for="telefono">Phone / Teléfono *</label><input id="telefono" type="tel" required maxlength="40" autocomplete="tel">
 <label for="email">Email / Correo electrónico *</label><input id="email" type="email" required maxlength="254" autocomplete="email" placeholder="cliente@example.com">
 <label for="serviceType">Service / Tipo de servicio</label><select id="serviceType"><option value="transfer">Point-to-point transfer / Traslado</option><option value="hourly">Hourly chauffeur / Por horas</option></select>
-<div id="hourlyFields" hidden><label for="hours">Hours (minimum 3) / Horas (mínimo 3)</label><input id="hours" type="number" min="3" step="any" value="3"><p id="hourlyRateText">$95 per hour / por hora · Minimum / Mínimo $285. No maximum hours / Sin máximo de horas. Subject to approval / Sujeto a aprobación.</p><p>Send your request by WhatsApp or email. Payment is arranged after approval. / Envía la solicitud por WhatsApp o correo. El pago se coordina después de la aprobación.</p></div>
+<div id="hourlyFields" hidden><label for="hours">Hours (SUV minimum 3, Comfort minimum 2) / Horas (SUV mínimo 3, Comfort mínimo 2)</label><input id="hours" type="number" min="3" step="any" value="3"><p id="hourlyRateText">$95 per hour / por hora · Minimum / Mínimo $285. No maximum hours / Sin máximo de horas. Subject to approval / Sujeto a aprobación.</p><p>Send your request by WhatsApp or email. Payment is arranged after approval. / Envía la solicitud por WhatsApp o correo. El pago se coordina después de la aprobación.</p></div>
 <label for="origen">Pickup / Dirección de recogida *</label><input id="origen" required maxlength="200" autocomplete="street-address" placeholder="Boston Logan Airport, MA">
 <label for="destino">Drop-off / Destino *</label><input id="destino" required maxlength="200" placeholder="Woburn, MA">
 <button type="button" id="calcular" class="boton" hidden>GET FARE / CALCULAR TARIFA GPS</button>
@@ -505,7 +505,7 @@ el('unifiedForm').addEventListener('submit',async event=>{
  function hourlyAmount(){
   const h=Number(hours.value);
   const rate=selectedTier()==='comfort'?7500:9500;
-  if(!hours.value.trim()||!Number.isFinite(h)||h<3||!Number.isSafeInteger(Math.round(h*rate)))throw new Error('Reserva al menos 3 horas / Book at least 3 hours.');
+  if(!hours.value.trim()||!Number.isFinite(h)||h<(selectedTier()==='comfort'?2:3)||!Number.isSafeInteger(Math.round(h*rate)))throw new Error('Minimum 3 hours for SUV or 2 for Comfort / Mínimo 3 horas SUV o 2 Comfort.');
   return Math.round(h*rate);
  }
  function refreshHourly(){
@@ -519,8 +519,8 @@ el('unifiedForm').addEventListener('submit',async event=>{
  }
  function changeService(){
   const hourly=type.value==='hourly';
-  el('hourlyRateText').textContent=selectedTier()==='comfort'?'$75 per hour / por hora · Minimum / Mínimo $225 · Subject to approval / Sujeto a aprobación.':'$95 per hour / por hora · Minimum / Mínimo $285 · Subject to approval / Sujeto a aprobación.';
-  el('hourlyFields').hidden=!hourly;el('hourlyTotal').hidden=!hourly;hours.required=hourly;hours.disabled=!hourly;
+  el('hourlyRateText').textContent=selectedTier()==='comfort'?'$75 per hour / por hora · Minimum / Mínimo $150 · Subject to approval / Sujeto a aprobación.':'$95 per hour / por hora · Minimum / Mínimo $285 · Subject to approval / Sujeto a aprobación.';
+  el('hourlyFields').hidden=!hourly;el('hourlyTotal').hidden=!hourly;hours.required=hourly;hours.disabled=!hourly;hours.min=selectedTier()==='comfort'?'2':'3';
   el('destino').required=!hourly;
   destinationLabel.textContent=hourly?'Itinerary / Destino o itinerario (opcional)':'Drop-off / Destino *';
   el('calcular').hidden=true;el('quoteResult').hidden=true;quote=null;updateTotals();
