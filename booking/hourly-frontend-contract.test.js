@@ -21,3 +21,9 @@ test('hourly request does not direct customers to pay or confirm a driver',()=>{
  assert.match(handler,/No payment collected/);
  assert.doesNotMatch(handler,/stripe\.redirectToCheckout|assignDriver\(/);
 });
+
+test('hourly booking has only one active form submission path',()=>{
+ const helper=fs.readFileSync(require('node:path').join(__dirname,'hourly-form-integration.js'),'utf8');
+ assert.doesNotMatch(helper,/form\.addEventListener\s*\(\s*['"]submit['"]/);
+ assert.match(html,/window\.sendHourlyRequest=async function\(/);
+});
