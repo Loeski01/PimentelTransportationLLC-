@@ -20,4 +20,4 @@ jobs:
       - name: Syntax check
         run: node --check server.js && node --check booking/hourly-pricing.js
       - name: Hourly pricing regression tests
-        run: node --test booking/hourly-pricing.test.js
+        run: node --test booking/hourly-pricing.test.js booking/hourly-frontend-contract.test.js
