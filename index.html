@@ -115,6 +115,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 @media(max-width:600px){.brand-heading{flex-direction:column;gap:18px}.header-premium-logo{width:100%}.booking-qr{align-self:center}}
 .footer-booking-qr{margin:20px auto;width:144px;box-sizing:content-box}
 </style>
+<style>
+#payTip{box-sizing:border-box;width:min(92vw,850px);max-height:90vh;padding:24px;background:#101010;color:#fff;border:1px solid #e8c969;border-radius:16px;text-align:center}
+#payTip::backdrop{background:#000b}
+#payTip [hidden]{display:none!important}
+.pay-tip-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px;margin:20px 0}
+.pay-tip-options button,#payTipClose,#payTipBack{font:inherit;color:#e8c969;background:#191919;border:1px solid #e8c969;border-radius:12px;padding:12px;cursor:pointer}
+.pay-tip-options img{display:block;width:min(100%,180px);margin:10px auto 0;background:white}
+#payTipImage{display:block;width:min(100%,450px,54vh);height:auto;margin:14px auto;background:white}
+</style>
+
 </head>
 <body>
 
@@ -123,6 +133,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 <p>Luxury Chauffeur & Executive Transportation / Chofer privado y transporte ejecutivo</p>
 <p>Boston, Massachusetts</p>
 <a class="boton" href="#cotizar">BOOK NOW / RESERVAR</a>
+<button class="boton" type="button" id="openPayTip" aria-haspopup="dialog">Pay / Tip</button>
 <a class="boton" id="openRoundTrip" aria-controls="roundTrip" href="calculadora-gps-pimentel.html?tripType=round_trip">ROUND TRIP / IDA Y VUELTA</a>
 <a class="boton" href="tel:+16175188281">CALL NOW / LLAMAR · 617-518-8281</a>
 <a class="boton" href="https://wa.me/16177855657" target="_blank" rel="noopener">WHATSAPP · 617-785-5657</a>
@@ -635,6 +646,52 @@ el('unifiedForm').addEventListener('submit',async event=>{
 }());
 </script>
 <script defer src="booking/hourly-form-integration.js"></script>
+<dialog id="payTip" lang="en" aria-labelledby="payTipTitle">
+<h2 id="payTipTitle">Pay / Tip</h2>
+<p>Scan with your phone to pay or leave a tip.</p>
+<div id="payTipOptions" class="pay-tip-options"><button type="button" data-payment="Zelle">Zelle<img src="assets/zelle.png" alt=""></button><button type="button" data-payment="Cash App">Cash App<img src="assets/cash-app.png" alt=""></button><button type="button" data-payment="Venmo">Venmo<img src="assets/venmo.png" alt=""></button></div>
+<div id="payTipDetail" hidden>
+<img id="payTipImage" alt="">
+<button id="payTipBack" type="button">Back</button>
+</div>
+<form method="dialog"><button id="payTipClose">Close</button></form>
+</dialog>
+<script>
+(() => {
+  const dialog = document.getElementById('payTip');
+  const options = document.getElementById('payTipOptions');
+  const detail = document.getElementById('payTipDetail');
+  const title = document.getElementById('payTipTitle');
+  const image = document.getElementById('payTipImage');
+  const back = document.getElementById('payTipBack');
+  let selected;
+  function showOptions() {
+    title.textContent = 'Pay / Tip';
+    detail.hidden = true;
+    options.hidden = false;
+  }
+  document.getElementById('openPayTip').onclick = () => {
+    showOptions();
+    dialog.showModal();
+  };
+  for (const button of options.querySelectorAll('button')) {
+    button.onclick = () => {
+      selected = button;
+      const name = button.dataset.payment;
+      title.textContent = name;
+      image.src = button.querySelector('img').src;
+      image.alt = name + ' payment QR code';
+      options.hidden = true;
+      detail.hidden = false;
+      back.focus();
+    };
+  }
+  back.onclick = () => {
+    showOptions();
+    selected.focus();
+  };
+})();
+</script>
 </body>
 </html>
 
