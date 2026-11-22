@@ -1,0 +1,45 @@
+.address-field {
+  position: relative;
+  min-width: 0;
+}
+
+.address-suggestions {
+  position: absolute;
+  inset: 100% 0 auto;
+  z-index: 5;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: #181818;
+  color: #fff;
+  border: 1px solid #d6b36b;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px #0008;
+}
+
+.address-suggestions button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #444;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.address-suggestions button:hover,
+.address-suggestions button:focus-visible {
+  background: #403622;
+}
+
+.address-suggestions a {
+  display: inline-block;
+  padding: 6px 12px;
+  color: #e0be79;
+  font-size: 12px;
+}
