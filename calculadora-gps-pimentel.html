@@ -9,16 +9,33 @@
 :root{color-scheme:dark;--gold:#d6b36b;--bg:#090909;--panel:#191919;--muted:#c3c3c3}
 *{box-sizing:border-box}
 body{margin:0;background:linear-gradient(145deg,#191510,#080808 45%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;min-height:100vh}
-.wrap{max-width:660px;margin:auto;padding:24px 16px 50px}
-.top{text-align:center;padding:18px 0 24px}
-.eyebrow{font-size:12px;letter-spacing:3px;color:var(--gold);font-weight:700}
-.top h1{font-size:clamp(26px,6vw,38px);line-height:1.12;margin:12px 0;color:var(--gold)}
-.top p{color:var(--muted);margin:0}
-.panel{background:var(--panel);border:1px solid #66522e;border-radius:18px;padding:22px;box-shadow:0 15px 35px #0008}
+.wrap{max-width:660px;margin:auto;padding:16px 16px 36px}
+.top{
+  text-align:center;
+  margin-bottom:16px;
+  padding:16px clamp(12px,3vw,24px);
+  background:#0c0d0f;
+  border-bottom:1px solid #66501f;
+}
+.top h1{margin:0 auto 12px;max-width:540px}
+.top img{display:block;width:100%;height:auto}
+.top p{
+  color:#d6c6a4;
+  margin:0;
+  font-size:12px;
+  line-height:1.5;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.panel{background:var(--panel);border:1px solid #8d713e;border-radius:10px;padding:clamp(14px,3vw,22px);box-shadow:0 15px 35px #0008}
+#roundTripSchedule:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
+#roundTripSchedule input{min-width:0;min-height:48px}
+#roundTripSchedule .hint{grid-column:1/-1}
+@media(max-width:379px){#roundTripSchedule:not([hidden]){grid-template-columns:minmax(0,1fr)}}
 label{display:block;color:#e8d1a3;font-size:14px;font-weight:700;margin:16px 0 7px}
 input,select{display:block;width:100%;border:1px solid #555;background:#0b0b0b;color:white;border-radius:10px;padding:15px 13px;font-size:16px;outline:none}
 input:focus{border-color:var(--gold)}
-button{cursor:pointer;width:100%;margin-top:22px;padding:17px;border:0;border-radius:12px;background:linear-gradient(135deg,#f0d491,#b99142);color:#14100a;font-weight:800;font-size:17px}
+button{cursor:pointer;width:100%;margin-top:22px;padding:17px;border:2px solid #f3d486;border-radius:2px;background:linear-gradient(135deg,#f0d491,#b99142);color:#14100a;font-weight:800;font-size:17px}
 button:disabled{opacity:.65;cursor:wait}
 .hint{font-size:12px;color:#bfbfbf;margin:10px 0 0;line-height:1.5}
 .status{margin-top:18px;font-size:14px;color:#e8d1a3;min-height:20px;line-height:1.5}
@@ -35,7 +52,7 @@ a{color:var(--gold)}
 <link rel="stylesheet" href="https://loeski01.github.io/PimentelTransportationLLC-/assets/address-suggestions.css">
 <script defer src="https://loeski01.github.io/PimentelTransportationLLC-/assets/address-suggestions.js"></script>
 <style>
-.site-language{display:inline-block;margin:10px 0 0;padding:8px 12px;min-height:40px;color:#f3d486;background:#161616;border:2px solid #f3d486;border-radius:2px;font:inherit;font-weight:bold;cursor:pointer}
+.site-language{display:inline-block;width:auto;margin:10px 0 0;padding:8px 12px;min-height:48px;color:#f3d486;background:#161616;border:2px solid #f3d486;border-radius:2px;font:inherit;font-weight:bold;cursor:pointer}
 .site-language:focus-visible{outline:2px solid white;outline-offset:2px}
 </style>
 <script>
@@ -50,8 +67,7 @@ document.documentElement.lang = siteLanguage;
 <body>
 <main class="wrap">
 <header class="top">
-<div class="eyebrow"><span data-es="TRANSPORTE PRIVADO DE LUJO">LUXURY PRIVATE TRANSPORTATION</span></div>
-<h1>Pimentel Transportation LLC</h1>
+<h1><img src="https://loeski01.github.io/PimentelTransportationLLC-/assets/pimentel-approved-logo.png" width="2172" height="724" alt="Pimentel Transportation LLC"></h1>
 <p><span data-es="Calculadora GPS de tarifas · Massachusetts">GPS Fare Calculator · Massachusetts</span></p>
 <button class="site-language" type="button" id="siteLanguage" lang="es">Español</button>
 </header>
@@ -59,14 +75,22 @@ document.documentElement.lang = siteLanguage;
 <label for="tripType"><span data-es="Tipo de viaje">Trip type</span></label>
 <select id="tripType"><option value="one_way">One Way</option><option value="round_trip">Round Trip — Save 10%</option></select>
 <div id="roundTripSchedule" hidden>
+<div>
 <label for="outboundDate"><span data-es="Fecha de salida">Departure date</span></label>
 <input id="outboundDate" type="date">
+</div>
+<div>
 <label for="outboundTime"><span data-es="Hora de salida">Departure time</span></label>
 <input id="outboundTime" type="time">
+</div>
+<div>
 <label for="returnDate"><span data-es="Fecha de regreso">Return date</span></label>
 <input id="returnDate" type="date">
+</div>
+<div>
 <label for="returnTime"><span data-es="Hora de regreso">Return time</span></label>
 <input id="returnTime" type="time">
+</div>
 <p class="hint"><span data-es="Ahorra 10% solo en las tarifas de transporte. No incluye propinas ni cargos adicionales.">Save 10% on transportation fares only. Tips and additional charges are excluded.</span></p>
 </div>
 <label for="from"><span data-es="Dirección de recogida">Pickup</span></label>
