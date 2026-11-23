@@ -43,3 +43,28 @@
   color: #e0be79;
   font-size: 12px;
 }
+
+/* Homepage header controls. */
+header > .boton,
+header #installPimentel {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  min-height: 48px;
+  max-width: 100%;
+  margin: 3px;
+  padding: 8px 12px;
+  border: 2px solid #f3d486;
+  border-radius: 2px;
+  font-size: 17px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+header > .boton:focus-visible,
+header #installPimentel:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
