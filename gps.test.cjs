@@ -37,8 +37,9 @@ test('missing address, provider failure, timeout, no route, malformed route are 
 });
 function frontend(fetch,location={}){
  const elements={};const element=id=>elements[id]??=( {value:({from:'Boston',to:'Woburn',tipChoice:'0',tripType:'one_way',paymentKind:'ride',customerName:'Test rider',phone:'6175550100'})[id]||'',style:{},setAttribute(name,value){this[name]=value;},addEventListener(event,fn){this[event]=fn;}} );
- const context=vm.createContext({document:{getElementById:element},fetch,window:{location:{search:'',...location,assign(url){elements.redirect=url;}}},URL,AbortController,AbortSignal,URLSearchParams,Intl,TypeError,setTimeout,clearTimeout});
- vm.runInContext(fs.readFileSync('calculadora-gps-pimentel.html','utf8').split('<script>')[1].split('</script>')[0],context);
+ const context=vm.createContext({document:{getElementById:element,documentElement:{},addEventListener(){}},fetch,window:{location:{search:'',...location,assign(url){elements.redirect=url;}}},URL,AbortController,AbortSignal,URLSearchParams,Intl,TypeError,setTimeout,clearTimeout});
+ const html=fs.readFileSync('calculadora-gps-pimentel.html','utf8');
+ for(const [,script] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) vm.runInContext(script,context);
  return {elements,element};
 }
 test('browser uses only backend, renders result and restores button',async()=>{
@@ -71,7 +72,7 @@ test('unified booking has selectable tiers, separate contact links and payment o
  assert.match(html,/name="tier" value="comfort"/);
  assert.match(html,/id="unifiedForm"/);
  assert.match(html,/tier:selectedTier\(\)/);
- assert.match(html,/value="later">Pay after trip \/ Pagar al finalizar/);
+ assert.match(html,/value="later">Pay after trip<\/option>/);
  assert.match(html,/href="tel:\+16175188281"/);
  assert.match(html,/href="sms:\+16177855657"/);
 });

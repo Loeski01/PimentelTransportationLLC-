@@ -14,7 +14,7 @@ function addAddressSuggestions(input) {
   panel.className = 'address-suggestions';
   panel.hidden = true;
   choices.setAttribute('role', 'group');
-  choices.setAttribute('aria-label', 'Address suggestions / Sugerencias de direcciones');
+  choices.setAttribute('aria-label', document.documentElement.lang === 'es' ? 'Sugerencias de direcciones' : 'Address suggestions');
   attribution.href = 'https://www.openstreetmap.org/copyright';
   attribution.target = '_blank';
   attribution.rel = 'noopener noreferrer';
