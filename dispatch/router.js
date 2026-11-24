@@ -3,6 +3,10 @@
 // Admin authentication is intentionally NOT implemented here: routes must be
 // mounted only after verified admin session middleware is installed.
 const express = require('express');
+const { bostonPickupTime } = require('./boston-pickup-time');
+const editableTripStatuses = ['pending', 'approved', 'assigned', 'accepted'];
+const validTripText = text => typeof text === 'string' && text.trim().length > 0 && text.trim().length <= 250;
+const validTripPhone = phone => !phone || /^\+[1-9][0-9]{7,14}$/.test(phone);
 function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms}) {
   if (!db || !requireAdmin || !requireDriver) throw new Error('Missing dispatch security dependencies');
   const router = express.Router();
@@ -21,7 +25,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
   // Admin-only queue; fare data is deliberately never exposed in driver endpoints.
   router.get('/admin/trips',requireAdmin,async(req,res,next)=>{
     try {
-      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
+      const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,fare_cents,driver_id,status,updated_at::text AS edit_version FROM dispatch_trips ORDER BY pickup_at DESC LIMIT 100");
       res.json(q.rows);
     } catch(e){next(e)}
   });
@@ -125,6 +129,45 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
     }catch(e){next(e)}
   });
   // Admin can cancel a trip that has not yet started; assigned drivers lose access immediately.
+  router.patch('/admin/trips/:id', requireAdmin, async (req, res, next) => {
+    const { passengerSurname, passengerPhone, pickupAddress, destinationAddress, pickupLocal, version } = req.body || {};
+    const id = req.params.id;
+    if (!/^[1-9]\d{0,18}$/.test(id) || BigInt(id) > 9223372036854775807n ||
+        typeof version !== 'string' || !version || version.length > 64 ||
+        ![passengerSurname, pickupAddress, destinationAddress].every(validTripText) ||
+        typeof passengerPhone !== 'string' || !validTripPhone(passengerPhone.trim())) {
+      return res.status(400).json({error:'Invalid trip fields'});
+    }
+
+    let pickupAt = null;
+    if (pickupLocal !== undefined) {
+      const parts = typeof pickupLocal === 'string' && /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(pickupLocal);
+      if (!parts) return res.status(400).json({error:'Invalid Boston pickup time'});
+      try {
+        pickupAt = bostonPickupTime(parts[1], parts[2]).toISOString();
+      } catch (error) {
+        if (!(error instanceof RangeError)) return next(error);
+        return res.status(400).json({error:'Invalid or ambiguous Boston pickup time'});
+      }
+    }
+
+    try {
+      const q = await updateAndAudit(
+        `UPDATE dispatch_trips
+         SET passenger_surname=$1, passenger_phone=$2, pickup_address=$3,
+             destination_address=$4, pickup_at=COALESCE($5::timestamptz, pickup_at), updated_at=NOW()
+         WHERE id=$6 AND status=ANY($7::text[]) AND arrived_at IS NULL AND updated_at::text=$8
+         RETURNING id`,
+        [passengerSurname.trim(), passengerPhone.trim() || null, pickupAddress.trim(),
+         destinationAddress.trim(), pickupAt, id, editableTripStatuses, version],
+        'admin', req.session?.userId || 'admin', 'edited'
+      );
+      if (!q.rowCount) return res.status(409).json({error:'Trip changed or can no longer be edited'});
+      res.json(q.rows[0]);
+    } catch (error) {
+      next(error);
+    }
+  });
   router.post('/admin/trips/:id/cancel',requireAdmin,async(req,res,next)=>{
     try {
       const q=await updateAndAudit("UPDATE dispatch_trips SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status IN ('pending','approved','assigned','accepted') RETURNING id,status",[req.params.id], 'admin', req.session?.userId||'admin', 'cancelled');
