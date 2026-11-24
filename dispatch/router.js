@@ -196,6 +196,8 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
         if(q.rowCount){
           await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'driver',String(req.driver.id),'arrived_at_pickup']);
           await client.query("INSERT INTO dispatch_admin_notifications(trip_id,driver_id,event_type) VALUES($1,$2,'arrived_at_pickup')",[q.rows[0].id,req.driver.id]);
+          // Reserve the one-time SMS attempt atomically with arrival, preventing a lost attempt after commit.
+          if(typeof sendArrivalSms==='function')await client.query("INSERT INTO dispatch_arrival_sms(trip_id,status) VALUES($1,'sending') ON CONFLICT(trip_id) DO NOTHING",[q.rows[0].id]);
         }
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
@@ -205,15 +207,13 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
       if(typeof sendArrivalSms==='function'){
         const trip=q.rows[0];
         try{
-          const claim=await db.query("INSERT INTO dispatch_arrival_sms(trip_id,status) VALUES($1,'sending') ON CONFLICT(trip_id) DO NOTHING RETURNING trip_id",[trip.id]);
-          if(claim.rowCount){
-            try{
-              const sent=await sendArrivalSms({phone:trip.passenger_phone,pickupAddress:trip.pickup_address});
-              await db.query("UPDATE dispatch_arrival_sms SET status='accepted',message_id=$2,updated_at=NOW() WHERE trip_id=$1",[trip.id,sent.messageId]);
-            }catch(error){
-              await db.query("UPDATE dispatch_arrival_sms SET status='failed',updated_at=NOW() WHERE trip_id=$1",[trip.id]);
-              console.error('Arrival SMS failed for trip',trip.id,error.message);
-            }
+          // Claim already committed with arrival; do not retry an uncertain send.
+          try{
+            const sent=await sendArrivalSms({phone:trip.passenger_phone,pickupAddress:trip.pickup_address});
+            await db.query("UPDATE dispatch_arrival_sms SET status='accepted',message_id=$2,updated_at=NOW() WHERE trip_id=$1",[trip.id,sent.messageId]);
+          }catch(error){
+            await db.query("UPDATE dispatch_arrival_sms SET status='failed',updated_at=NOW() WHERE trip_id=$1",[trip.id]);
+            console.error('Arrival SMS failed for trip',trip.id,error.message);
           }
         }catch(error){console.error('Arrival SMS tracking failed for trip',trip.id,error.message)}
       }
