@@ -17,6 +17,7 @@ function createArrivalSmsSender({apiKey, sender='Pimentel', fetchImpl=globalThis
     const content='Your driver has arrived at the pickup location'+(address?' ('+address+')':'')+'. Please meet your driver when ready. Pimentel Transportation LLC.';
     const response=await fetchImpl('https://api.brevo.com/v3/transactionalSMS/sms',{
       method:'POST',
+      signal:AbortSignal.timeout(8000),
       headers:{'api-key':apiKey,'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify({type:'transactional',unicodeEnabled:false,sender,recipient,content})
     });
