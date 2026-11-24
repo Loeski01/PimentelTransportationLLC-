@@ -3,7 +3,7 @@
 // Admin authentication is intentionally NOT implemented here: routes must be
 // mounted only after verified admin session middleware is installed.
 const express = require('express');
-function createDispatchRouter({db, requireAdmin, requireDriver}) {
+function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms}) {
   if (!db || !requireAdmin || !requireDriver) throw new Error('Missing dispatch security dependencies');
   const router = express.Router();
   // A trip update and its audit record must commit together.
@@ -192,7 +192,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
       let q;
       try {
         await client.query('BEGIN');
-        q=await client.query("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND on_my_way_at IS NOT NULL AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at",[req.params.id,req.driver.id]);
+        q=await client.query("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND on_my_way_at IS NOT NULL AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at,passenger_phone,pickup_address",[req.params.id,req.driver.id]);
         if(q.rowCount){
           await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'driver',String(req.driver.id),'arrived_at_pickup']);
           await client.query("INSERT INTO dispatch_admin_notifications(trip_id,driver_id,event_type) VALUES($1,$2,'arrived_at_pickup')",[q.rows[0].id,req.driver.id]);
@@ -200,7 +200,32 @@ function createDispatchRouter({db, requireAdmin, requireDriver}) {
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       if(!q.rowCount)return res.status(409).json({error:'Arrival already recorded or trip not eligible'});
-      res.json(q.rows[0]);
+      // Arrival is already committed. A failed SMS must never undo the driver's arrival.
+      // Claim once in PostgreSQL before calling Brevo: repeat button presses cannot resend.
+      if(typeof sendArrivalSms==='function'){
+        const trip=q.rows[0];
+        try{
+          const claim=await db.query("INSERT INTO dispatch_arrival_sms(trip_id,status) VALUES($1,'sending') ON CONFLICT(trip_id) DO NOTHING RETURNING trip_id",[trip.id]);
+          if(claim.rowCount){
+            try{
+              const sent=await sendArrivalSms({phone:trip.passenger_phone,pickupAddress:trip.pickup_address});
+              await db.query("UPDATE dispatch_arrival_sms SET status='accepted',message_id=$2,updated_at=NOW() WHERE trip_id=$1",[trip.id,sent.messageId]);
+            }catch(error){
+              await db.query("UPDATE dispatch_arrival_sms SET status='failed',updated_at=NOW() WHERE trip_id=$1",[trip.id]);
+              console.error('Arrival SMS failed for trip',trip.id,error.message);
+            }
+          }
+        }catch(error){console.error('Arrival SMS tracking failed for trip',trip.id,error.message)}
+      }
+      res.json({id:q.rows[0].id,arrived_at:q.rows[0].arrived_at});
+    }catch(e){next(e)}
+  });
+  // Admin-only SMS delivery status. "accepted" means Brevo accepted the request,
+  // not that the recipient's handset confirmed delivery.
+  router.get('/admin/arrival-sms',requireAdmin,async(req,res,next)=>{
+    try{
+      const q=await db.query("SELECT s.trip_id,s.status,s.updated_at,t.passenger_surname FROM dispatch_arrival_sms s JOIN dispatch_trips t ON t.id=s.trip_id ORDER BY s.updated_at DESC LIMIT 100");
+      res.set('Cache-Control','no-store').json(q.rows);
     }catch(e){next(e)}
   });
   // Administrator-only inbox. Never exposed through driver endpoints.
