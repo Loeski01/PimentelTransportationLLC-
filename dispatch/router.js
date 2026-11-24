@@ -204,6 +204,32 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
       res.json(q.rows[0]);
     } catch(e){next(e)}
   });
+  router.post('/admin/trips/:id/reassign',requireAdmin,async(req,res,next)=>{
+    const {driverId,version}=req.body||{};
+    const id=req.params.id;
+    if(!Number.isSafeInteger(driverId)||driverId<1||
+       !/^[1-9]\d{0,18}$/.test(id)||BigInt(id)>9223372036854775807n||
+       typeof version!=='string'||!version||version.length>64){
+      return res.status(400).json({error:'Invalid trip, driver or version'});
+    }
+    try{
+      const q=await updateAndAudit(
+        `WITH replacement AS MATERIALIZED (
+           SELECT id FROM dispatch_drivers WHERE id=$1 AND active=TRUE FOR SHARE
+         )
+         UPDATE dispatch_trips AS trip
+         SET driver_id=replacement.id,status='assigned',on_my_way_at=NULL,arrived_at=NULL,updated_at=NOW()
+         FROM replacement
+         WHERE trip.id=$2 AND trip.driver_id<>replacement.id
+           AND trip.status IN ('assigned','accepted') AND trip.arrived_at IS NULL
+           AND trip.updated_at::text=$3
+         RETURNING trip.id,trip.status,trip.driver_id`,
+        [driverId,id,version], 'admin', req.session?.userId||'admin', 'reassigned'
+      );
+      if(!q.rowCount)return res.status(409).json({error:'Trip changed or replacement driver is unavailable'});
+      res.json(q.rows[0]);
+    }catch(e){next(e)}
+  });
   router.get('/driver/trips',requireDriver,async(req,res,next)=>{
     try {
       const q=await db.query("SELECT id,passenger_surname,passenger_phone,pickup_address,destination_address,pickup_at,on_my_way_at,arrived_at,status FROM dispatch_trips WHERE driver_id=$1 AND status IN ('assigned','accepted','started','no_show') AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$1 AND active=TRUE) ORDER BY pickup_at",[req.driver.id]);
