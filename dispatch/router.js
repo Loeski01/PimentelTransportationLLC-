@@ -189,7 +189,7 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
   router.post('/driver/trips/:id/arrive',requireDriver,async(req,res,next)=>{
     try {
       const client=await db.connect();
-      let q;
+      let q, smsClaimed=false;
       try {
         await client.query('BEGIN');
         q=await client.query("UPDATE dispatch_trips SET arrived_at=NOW(),updated_at=NOW() WHERE id=$1 AND driver_id=$2 AND status='accepted' AND on_my_way_at IS NOT NULL AND arrived_at IS NULL AND EXISTS (SELECT 1 FROM dispatch_drivers WHERE id=$2 AND active=TRUE) RETURNING id,arrived_at,passenger_phone,pickup_address",[req.params.id,req.driver.id]);
@@ -197,14 +197,14 @@ function createDispatchRouter({db, requireAdmin, requireDriver, sendArrivalSms})
           await client.query('INSERT INTO dispatch_trip_audit(trip_id,actor_role,actor_id,action) VALUES($1,$2,$3,$4)',[q.rows[0].id,'driver',String(req.driver.id),'arrived_at_pickup']);
           await client.query("INSERT INTO dispatch_admin_notifications(trip_id,driver_id,event_type) VALUES($1,$2,'arrived_at_pickup')",[q.rows[0].id,req.driver.id]);
           // Reserve the one-time SMS attempt atomically with arrival, preventing a lost attempt after commit.
-          if(typeof sendArrivalSms==='function')await client.query("INSERT INTO dispatch_arrival_sms(trip_id,status) VALUES($1,'sending') ON CONFLICT(trip_id) DO NOTHING",[q.rows[0].id]);
+          if(typeof sendArrivalSms==='function'){const smsClaim=await client.query("INSERT INTO dispatch_arrival_sms(trip_id,status) VALUES($1,'sending') ON CONFLICT(trip_id) DO NOTHING RETURNING trip_id",[q.rows[0].id]);smsClaimed=smsClaim.rowCount===1;}
         }
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       if(!q.rowCount)return res.status(409).json({error:'Arrival already recorded or trip not eligible'});
       // Arrival is already committed. A failed SMS must never undo the driver's arrival.
       // Claim once in PostgreSQL before calling Brevo: repeat button presses cannot resend.
-      if(typeof sendArrivalSms==='function'){
+      if(smsClaimed){
         const trip=q.rows[0];
         try{
           // Claim already committed with arrival; do not retry an uncertain send.
