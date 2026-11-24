@@ -25,3 +25,18 @@ test('invalid numbers do not call Brevo',async()=>{
   await assert.rejects(send({phone:'bad'}),/Invalid passenger phone/);
   assert.equal(called,false);
 });
+
+test('Brevo failure is reported without a false success',async()=>{
+  const send=createArrivalSmsSender({apiKey:'test-key',fetchImpl:async()=>({ok:false,status:401,json:async()=>({})})});
+  await assert.rejects(send({phone:'6175550100'}),/HTTP 401/);
+});
+test('Brevo timeout or network failure propagates',async()=>{
+  const send=createArrivalSmsSender({apiKey:'test-key',fetchImpl:async()=>{throw new Error('timeout')}});
+  await assert.rejects(send({phone:'6175550100'}),/timeout/);
+});
+test('missing API key never contacts provider',async()=>{
+  let called=false;
+  const send=createArrivalSmsSender({fetchImpl:async()=>{called=true;}});
+  await assert.rejects(send({phone:'6175550100'}),/API key not configured/);
+  assert.equal(called,false);
+});
