@@ -5,6 +5,8 @@ const PgStore=require('connect-pg-simple')(session);
 const {rateLimit}=require('express-rate-limit');
 const {createLoginRouter}=require('./login');
 const {createDispatchRouter}=require('./router');
+const {createArrivalSmsSender}=require('./arrival-sms');
+const sendArrivalSms=process.env.DISPATCH_ARRIVAL_SMS_ENABLED==='true'?createArrivalSmsSender({apiKey:process.env.BREVO_API_KEY,sender:process.env.BREVO_SMS_SENDER||'Pimentel'}):null;
 const sendAcceptance=require('./booking-acceptance').createAcceptanceMailer({apiKey:process.env.BREVO_API_KEY,senderEmail:process.env.BREVO_SENDER_EMAIL,replyTo:process.env.BOOKING_NOTIFY_EMAIL});
 for(const k of ['DISPATCH_DATABASE_URL','DISPATCH_SESSION_SECRET']) if(!process.env[k]) throw Error('Missing '+k);
 if(!process.env.DISPATCH_ADMIN_PASSWORD_HASH && !process.env.DISPATCH_ADMIN_PASSWORD) throw Error('Missing admin password configuration');
@@ -69,7 +71,7 @@ if(process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'){
  app.use('/booking',router({db,secret:process.env.BOOKING_SERVICE_SECRET,requireAdmin:role('admin'),sendAcceptance,publicOrigin:process.env.RENDER_EXTERNAL_URL,production:true,roundTripProduction,stagingEditSecret:process.env.ROUND_TRIP_EDIT_SECRET,stagingEditNotificationEmail:process.env.BOOKING_NOTIFY_EMAIL,productionDatabaseName:process.env.DISPATCH_PRODUCTION_DATABASE_NAME}));
  app.get('/booking-admin',(req,res,next)=>{if(!req.session?.userId||req.session.role!=='admin')return res.redirect('/panel?open=bookings');next()},role('admin'),(req,res)=>{res.set('Cache-Control','no-store');const base=process.env.BOOKING_INTAKE_PRODUCTION_ENABLED==='true'?'/booking':'/booking-staging';res.type('html').send(require('node:fs').readFileSync(require('node:path').join(__dirname,'booking-admin.html'),'utf8').replace('__BOOKING_API_BASE__',JSON.stringify(base)))});
 }
-app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver')}));
+app.use('/dispatch',createDispatchRouter({db,requireAdmin:role('admin'),requireDriver:role('driver'),sendArrivalSms}));
 app.use((err,req,res,next)=>{console.error(err.code||err.name);res.status(500).json({error:'Server error'});});
 async function startDispatch(){
  const fs=require('node:fs');
@@ -84,6 +86,7 @@ async function startDispatch(){
   // Existing staging databases need this idempotent schema upgrade: CREATE TABLE IF NOT EXISTS does not add columns.
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS on_my_way_at TIMESTAMPTZ');
   await client.query('ALTER TABLE dispatch_trips ADD COLUMN IF NOT EXISTS passenger_phone TEXT');
+  await client.query("CREATE TABLE IF NOT EXISTS dispatch_arrival_sms (trip_id BIGINT PRIMARY KEY REFERENCES dispatch_trips(id) ON DELETE CASCADE,status TEXT NOT NULL CHECK(status IN ('sending','accepted','failed')),message_id TEXT,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   // Production booking inbox uses the same additive schema, but only in an isolated database.
   if(process.env.BOOKING_SCHEMA_PRODUCTION_ENABLED==='true'){
    if(process.env.NODE_ENV!=='production'||process.env.BOOKING_SCHEMA_STAGING_ENABLED==='true')
