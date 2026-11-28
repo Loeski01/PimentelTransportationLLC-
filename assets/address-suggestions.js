@@ -74,7 +74,9 @@ function addAddressSuggestions(input) {
       if (!response.ok) return;
       const { features } = await response.json();
       if (signal.aborted || input.value.trim() !== query || document.activeElement !== input) return;
-      const addresses = new Set(features.map(({ properties }) => formatAddress(properties)));
+      const addresses = new Set((Array.isArray(features) ? features : [])
+        .filter(({ properties }) => matchesRequestedAddress(query, properties || {}))
+        .map(({ properties }) => formatAddress(properties)));
       for (const address of addresses) {
         if (!address || address.length > 200) continue;
         const button = document.createElement('button');
@@ -98,7 +100,24 @@ function addAddressSuggestions(input) {
 
 function formatAddress({ name, housenumber, street, city, town, village, locality, state, postcode, type }) {
   const streetAddress = [housenumber, street].filter(Boolean).join(' ');
-  const label = type === 'house' && streetAddress ? streetAddress : name;
+  const label = streetAddress || name;
   return [...new Set([label, streetAddress, city || town || village || locality, state, postcode]
     .filter(Boolean))].join(', ');
+}
+
+// Avoid offering a different town or street when the customer supplied a full address.
+function matchesRequestedAddress(query, properties) {
+  const normalize = value => String(value || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  const input = normalize(query);
+  const number = query.trim().match(/^\d+[a-z]?\b/i)?.[0];
+  if (number && String(properties.housenumber || '').toLowerCase() !== number.toLowerCase()) return false;
+  const street = normalize(properties.street);
+  if (number && (!street || !input.includes(street))) return false;
+  const place = normalize(properties.city || properties.town || properties.village || properties.locality);
+  // When Boston is explicitly requested, never suggest a property in Newbury or another city.
+  if (/\bboston\b/i.test(query) && place && place !== 'boston') return false;
+  return true;
 }
